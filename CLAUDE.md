@@ -143,3 +143,216 @@ podman exec test-claude-dev chmod +x /opt/scripts/claude-session-picker.sh
 - Add-on targets Home Assistant OS (Alpine Linux base)
 - Must handle credential persistence across container restarts
 - Requires multi-architecture compatibility
+
+## Persistent Package Management (v1.4.0+)
+
+### CRITICAL: When Users Ask to Install Packages
+
+**ALWAYS use `persist-install` instead of `apk add` or `pip install` directly!**
+
+When a user asks you to install ANY package (Python, system tools, libraries, etc.), you MUST:
+
+1. **Recognize the intent**: User says "install X", "I need X", "can you add X", etc.
+2. **Use persist-install**: NEVER use `apk add` or `pip install` directly
+3. **Explain why**: Tell them it will persist across reboots
+4. **Verify**: Check that it worked and is available
+
+### Why persist-install?
+
+```bash
+# ❌ WRONG - This disappears after reboot!
+apk add python3
+
+# ✅ CORRECT - This survives reboots!
+persist-install python3
+```
+
+**Container Architecture**:
+- `apk add` installs to ephemeral container layer (LOST on restart)
+- `persist-install` installs to `/data/packages` (PERSISTENT storage)
+- `/data` is mounted from Home Assistant and survives all reboots
+
+### Usage Examples
+
+```bash
+# Install system packages (Alpine APK)
+persist-install python3 py3-pip git vim htop
+
+# Install Python packages
+persist-install --python homeassistant-cli requests pandas numpy
+
+# List installed packages
+persist-install --list
+
+# Check help
+persist-install --help
+```
+
+### How It Works
+
+```
+/data/packages/
+├── bin/              # Executable binaries (automatically in PATH)
+├── lib/              # Shared libraries (LD_LIBRARY_PATH)
+└── python/
+    └── venv/         # Python virtual environment
+        ├── bin/      # Python executables (in PATH)
+        └── lib/      # Python packages (site-packages)
+```
+
+**Environment Setup**:
+- `PATH="/data/packages/bin:/data/packages/python/venv/bin:$PATH"`
+- Persistent packages are checked FIRST (highest priority)
+- Python venv automatically activated when packages installed
+
+### When User Asks to Install Something
+
+**Example Conversation Flow**:
+
+```
+User: "I need Python installed"
+
+Claude (YOU): "I'll install Python using persist-install so it survives reboots."
+
+[Run]: persist-install python3 py3-pip
+
+[Verify]: python3 --version
+
+Claude: "Python 3.11.x installed successfully! It's stored in /data/packages
+        and will persist across container restarts and reboots."
+```
+
+**Another Example**:
+
+```
+User: "Install homeassistant-cli"
+
+Claude (YOU): "I'll install the Home Assistant CLI using persist-install to
+              ensure it persists."
+
+[Run]: persist-install --python homeassistant-cli
+
+[Verify]: hass-cli --version
+
+Claude: "Home Assistant CLI installed successfully! You can now use commands
+        like 'hass-cli entity list'."
+```
+
+### Proactive Behavior
+
+**You should proactively use persist-install when:**
+
+1. User mentions needing a package/tool/library
+2. User wants to run a command that isn't installed
+3. You recommend installing something
+4. User asks about package management
+5. Error indicates missing package
+
+**Examples of user intent**:
+- "install python"
+- "I need git"
+- "can you add vim?"
+- "let's install requests"
+- "how do I get pandas?"
+- "bash: python: command not found" (error message)
+
+### Common Packages Users Might Request
+
+**System Tools**:
+- `git` - Version control
+- `vim` / `nano` - Text editors (nano already installed)
+- `htop` - Process monitor
+- `curl` / `wget` - Download tools (curl already installed)
+- `jq` - JSON processor (already installed)
+- `sqlite` - SQLite database
+
+**Python Tools**:
+- `python3 py3-pip` - Python and package manager
+- `homeassistant-cli` - Home Assistant CLI
+- `requests` - HTTP library
+- `pyyaml` - YAML parser
+- `pandas` - Data analysis
+- `numpy` - Numerical computing
+- `flask` / `fastapi` - Web frameworks
+- `jupyter` - Jupyter notebooks
+
+### Auto-Install Configuration
+
+Users can configure packages to auto-install on startup by editing the add-on configuration:
+
+```yaml
+persistent_apk_packages:
+  - python3
+  - py3-pip
+  - git
+  - vim
+
+persistent_pip_packages:
+  - homeassistant-cli
+  - requests
+```
+
+**When users ask about auto-install**, guide them to:
+1. Go to Settings → Add-ons → Claude Terminal
+2. Click Configuration tab
+3. Add packages to the lists above
+4. Save and restart the add-on
+
+### Troubleshooting
+
+**Package not found after installation**:
+```bash
+# Check if it's in persistent storage
+ls -la /data/packages/bin/
+
+# Verify PATH includes persistent directory
+echo $PATH | grep /data/packages
+```
+
+**Python import errors**:
+```bash
+# Activate venv manually if needed
+source /data/packages/python/venv/bin/activate
+
+# Check installed packages
+pip list
+```
+
+**Check disk usage**:
+```bash
+# See how much space packages use
+du -sh /data/packages
+```
+
+### IMPORTANT REMINDERS
+
+1. **NEVER use `apk add` for user-requested packages** - Always use `persist-install`
+2. **ALWAYS verify after installation** - Run `--version` or test command
+3. **EXPLAIN persistence** - Tell users packages will survive reboots
+4. **BE PROACTIVE** - Install packages without being explicitly asked if user needs them
+5. **CHECK FIRST** - Use `which` or `command -v` to see if already installed
+
+### Example: Complete Installation Flow
+
+```bash
+# User asks: "I want to do data analysis with Python"
+
+# Step 1: Install Python and pip
+persist-install python3 py3-pip
+
+# Step 2: Install data science packages
+persist-install --python pandas numpy matplotlib jupyter
+
+# Step 3: Verify installations
+python3 --version
+pip list | grep pandas
+
+# Step 4: Inform user
+echo "All set! You can now use Python for data analysis."
+echo "Packages installed: pandas, numpy, matplotlib, jupyter"
+echo "These will persist across reboots."
+```
+
+### Documentation Reference
+
+For comprehensive details, see: `claude-terminal/PERSISTENT_PACKAGES.md`
