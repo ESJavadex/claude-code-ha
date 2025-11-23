@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.6.1
+
+### 🐛 Bug Fixes - Image Paste Service
+- **Fixed upload JSON parse errors**: Server now returns proper JSON error responses instead of HTML
+  - **Root cause**: Multer errors were not caught, Express returned default HTML error pages
+  - **Solution**: Added Multer-specific error handling middleware
+  - **Impact**: Upload errors now show clear, actionable messages
+
+- **Fixed terminal not loading through Home Assistant ingress**: Terminal now loads via proxy endpoint
+  - **Root cause**: iframe tried to access ttyd on port 7681 directly, incompatible with ingress
+  - **Solution**: Added http-proxy-middleware with WebSocket support, created /terminal/ proxy endpoint
+  - **Impact**: Terminal works correctly through Home Assistant ingress
+
+- **Improved paste event detection**: Better debugging and compatibility
+  - Added detailed console logging for troubleshooting
+  - Added window-level paste handler as fallback
+  - Enhanced error handling in upload function
+
+### 📦 Dependencies
+- Added `http-proxy-middleware@^2.0.6` for WebSocket-capable terminal proxying
+
 ## 1.6.0
 
 ### ✨ New Feature - Image Paste Support
