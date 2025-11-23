@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.4.0
+
+### ✨ New Features - Persistent Package System
+- **`persist-install` command**: Install packages that survive container restarts!
+  - Simple syntax: `persist-install python3 git vim`
+  - Python packages: `persist-install --python homeassistant-cli requests`
+  - List installed: `persist-install --list`
+  - Packages stored in `/data/packages` (persistent Home Assistant storage)
+  - No need to rebuild Docker image for new tools
+
+- **Auto-install packages on startup**: Configure packages in add-on settings
+  - `persistent_apk_packages`: System packages (git, vim, htop, etc.)
+  - `persistent_pip_packages`: Python packages (homeassistant-cli, requests, etc.)
+  - Automatically installed on every container startup
+  - Perfect for your essential toolkit
+
+- **Python virtual environment**: Persistent Python environment
+  - Located at `/data/packages/python/venv`
+  - Automatically activated when packages are installed
+  - Survives reboots and container recreations
+
+### 🏗️ Architecture Improvements
+- **Scalable package management**: No longer requires Dockerfile modifications
+  - Add packages via terminal command or config
+  - Instant package installation without rebuilding
+  - Reduced image size (only core tools in image)
+  - User-specific package installations
+
+- **Smart PATH management**: Persistent binaries take priority
+  - `/data/packages/bin` added to PATH
+  - Python venv automatically activated
+  - Library paths configured for compiled packages
+
+### 📚 Documentation
+- **Container architecture explained**: Comprehensive guide to persistence
+  - Why runtime installations (apk add) disappear
+  - Difference between image layers and volume layers
+  - How persistent storage solves the problem
+  - Migration from Dockerfile-based approach to persistent storage
+
 ## 1.3.2
 
 ### 🐛 Bug Fixes

@@ -12,17 +12,23 @@ init_environment() {
     local cache_dir="/data/.cache"
     local state_dir="/data/.local/state"
     local claude_config_dir="/data/.config/claude"
+    local persist_root="/data/packages"
+    local persist_bin="$persist_root/bin"
+    local persist_lib="$persist_root/lib"
+    local persist_python="$persist_root/python"
 
     bashio::log.info "Initializing Claude Code environment in /data..."
 
     # Create all required directories
-    if ! mkdir -p "$data_home" "$config_dir/claude" "$cache_dir" "$state_dir" "/data/.local"; then
+    if ! mkdir -p "$data_home" "$config_dir/claude" "$cache_dir" "$state_dir" "/data/.local" \
+                  "$persist_bin" "$persist_lib" "$persist_python"; then
         bashio::log.error "Failed to create directories in /data"
         exit 1
     fi
 
     # Set permissions
-    chmod 755 "$data_home" "$config_dir" "$cache_dir" "$state_dir" "$claude_config_dir"
+    chmod 755 "$data_home" "$config_dir" "$cache_dir" "$state_dir" "$claude_config_dir" \
+              "$persist_root" "$persist_bin" "$persist_lib" "$persist_python"
 
     # Set XDG and application environment variables
     export HOME="$data_home"
@@ -30,19 +36,31 @@ init_environment() {
     export XDG_CACHE_HOME="$cache_dir"
     export XDG_STATE_HOME="$state_dir"
     export XDG_DATA_HOME="/data/.local/share"
-    
+
     # Claude-specific environment variables
     export ANTHROPIC_CONFIG_DIR="$claude_config_dir"
     export ANTHROPIC_HOME="/data"
+
+    # Setup persistent package paths (HIGHEST PRIORITY)
+    export PATH="$persist_bin:$persist_python/venv/bin:$PATH"
+    export LD_LIBRARY_PATH="$persist_lib:${LD_LIBRARY_PATH:-}"
+    export PKG_CONFIG_PATH="$persist_lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+
+    # Python virtual environment if it exists
+    if [ -d "$persist_python/venv" ]; then
+        export VIRTUAL_ENV="$persist_python/venv"
+        bashio::log.info "  - Python venv: active"
+    fi
 
     # Migrate any existing authentication files from legacy locations
     migrate_legacy_auth_files "$claude_config_dir"
 
     bashio::log.info "Environment initialized:"
     bashio::log.info "  - Home: $HOME"
-    bashio::log.info "  - Config: $XDG_CONFIG_HOME" 
+    bashio::log.info "  - Config: $XDG_CONFIG_HOME"
     bashio::log.info "  - Claude config: $ANTHROPIC_CONFIG_DIR"
     bashio::log.info "  - Cache: $XDG_CACHE_HOME"
+    bashio::log.info "  - Persistent packages: $persist_root"
 }
 
 # One-time migration of existing authentication files
@@ -120,6 +138,51 @@ setup_session_picker() {
     fi
 }
 
+# Setup persistent package manager
+setup_persistent_packages() {
+    # Install persist-install command globally
+    if [ -f "/opt/scripts/persist-install" ]; then
+        cp /opt/scripts/persist-install /usr/local/bin/persist-install
+        chmod +x /usr/local/bin/persist-install
+        bashio::log.info "Persistent package manager installed: 'persist-install'"
+    fi
+
+    # Auto-install packages from configuration
+    auto_install_packages
+}
+
+# Auto-install packages from add-on configuration
+auto_install_packages() {
+    local apk_packages=$(bashio::config 'persistent_apk_packages' '[]')
+    local pip_packages=$(bashio::config 'persistent_pip_packages' '[]')
+
+    # Check if any packages are configured
+    if [ "$apk_packages" != "[]" ] && [ "$apk_packages" != "" ]; then
+        bashio::log.info "Auto-installing system packages from config..."
+
+        # Parse JSON array and install
+        echo "$apk_packages" | jq -r '.[]' | while read -r pkg; do
+            if [ -n "$pkg" ]; then
+                bashio::log.info "  Installing: $pkg"
+                /usr/local/bin/persist-install "$pkg" || bashio::log.warning "Failed to install: $pkg"
+            fi
+        done
+    fi
+
+    # Check if any Python packages are configured
+    if [ "$pip_packages" != "[]" ] && [ "$pip_packages" != "" ]; then
+        bashio::log.info "Auto-installing Python packages from config..."
+
+        # Collect all package names
+        local all_packages=$(echo "$pip_packages" | jq -r '.[]' | tr '\n' ' ')
+
+        if [ -n "$all_packages" ]; then
+            bashio::log.info "  Installing: $all_packages"
+            /usr/local/bin/persist-install --python $all_packages || bashio::log.warning "Failed to install Python packages"
+        fi
+    fi
+}
+
 # Legacy monitoring functions removed - using simplified /data approach
 
 # Determine Claude launch command based on configuration
@@ -191,6 +254,7 @@ main() {
     init_environment
     install_tools
     setup_session_picker
+    setup_persistent_packages
     start_web_terminal
 }
 

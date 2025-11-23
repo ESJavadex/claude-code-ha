@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# User-friendly command for installing packages persistently
+# Usage: persist-install python git vim
+
+PERSIST_ROOT="/data/packages"
+PERSIST_BIN="$PERSIST_ROOT/bin"
+PERSIST_PYTHON="$PERSIST_ROOT/python"
+
+show_help() {
+    cat << EOF
+🔧 Persistent Package Installer
+
+Install packages that survive container restarts!
+
+USAGE:
+    persist-install <package1> [package2] [...]
+    persist-install --python <package1> [package2] [...]
+    persist-install --list
+    persist-install --help
+
+EXAMPLES:
+    persist-install git vim htop          # Install system packages
+    persist-install --python requests pandas  # Install Python packages
+    persist-install --list                # Show installed packages
+
+NOTES:
+    • Packages are installed to: /data/packages (persistent storage)
+    • Survives container restarts and reboots
+    • System packages copied from Alpine APK
+    • Python packages installed to virtual environment
+
+QUICK START:
+    1. persist-install python3 py3-pip    # Install Python (first time)
+    2. persist-install --python homeassistant-cli  # Install HA CLI
+    3. Reboot and enjoy! Packages will still be there!
+
+EOF
+}
+
+list_packages() {
+    echo "=== 📦 Persistent Packages ==="
+    echo ""
+    echo "📁 Location: $PERSIST_ROOT"
+    echo ""
+
+    echo "🔧 System Binaries ($PERSIST_BIN):"
+    if [ -d "$PERSIST_BIN" ] && [ "$(ls -A $PERSIST_BIN 2>/dev/null)" ]; then
+        ls -1 "$PERSIST_BIN" | sed 's/^/  • /'
+    else
+        echo "  (none installed)"
+    fi
+    echo ""
+
+    echo "🐍 Python Packages ($PERSIST_PYTHON/venv):"
+    if [ -f "$PERSIST_PYTHON/venv/bin/pip" ]; then
+        source "$PERSIST_PYTHON/venv/bin/activate"
+        pip list --format=columns | tail -n +3 | sed 's/^/  • /'
+    else
+        echo "  (virtual environment not created)"
+        echo "  Run: persist-install python3 py3-pip"
+    fi
+    echo ""
+
+    echo "💾 Total size:"
+    du -sh "$PERSIST_ROOT" 2>/dev/null || echo "  0B"
+}
+
+install_system_packages() {
+    local packages="$@"
+
+    echo "📦 Installing system packages: $packages"
+    echo ""
+
+    # Install via APK first
+    echo "⏳ Installing via APK..."
+    if ! apk add --no-cache $packages; then
+        echo "❌ Failed to install packages"
+        exit 1
+    fi
+
+    # Copy to persistent storage
+    echo "💾 Copying to persistent storage..."
+    mkdir -p "$PERSIST_BIN" "$PERSIST_ROOT/lib"
+
+    for pkg in $packages; do
+        echo "  Processing: $pkg"
+
+        # Get list of files installed by package
+        apk info -L "$pkg" 2>/dev/null | while read -r file; do
+            # Copy executables
+            if [[ "$file" == /usr/bin/* ]] || [[ "$file" == /usr/sbin/* ]] || [[ "$file" == /bin/* ]]; then
+                if [ -f "$file" ] && [ -x "$file" ]; then
+                    cp -a "$file" "$PERSIST_BIN/" 2>/dev/null && echo "    ✓ $(basename $file)"
+                fi
+            fi
+
+            # Copy shared libraries
+            if [[ "$file" == /usr/lib/* ]] && [[ "$file" == *.so* ]]; then
+                if [ -f "$file" ]; then
+                    cp -a "$file" "$PERSIST_ROOT/lib/" 2>/dev/null
+                fi
+            fi
+        done
+    done
+
+    echo ""
+    echo "✅ System packages installed and persisted!"
+    echo "💡 These packages will survive container restarts"
+}
+
+install_python_packages() {
+    local packages="$@"
+
+    echo "🐍 Installing Python packages: $packages"
+    echo ""
+
+    # Ensure Python and venv exist
+    if [ ! -f "$PERSIST_PYTHON/venv/bin/python" ]; then
+        echo "⚠️  Python virtual environment not found"
+        echo "📥 Creating virtual environment..."
+
+        # Check if system Python exists
+        if ! command -v python3 &>/dev/null; then
+            echo "❌ Python not installed. Installing..."
+            install_system_packages python3 py3-pip
+        fi
+
+        mkdir -p "$PERSIST_PYTHON"
+        python3 -m venv "$PERSIST_PYTHON/venv"
+        echo "✅ Virtual environment created"
+        echo ""
+    fi
+
+    # Activate and install
+    source "$PERSIST_PYTHON/venv/bin/activate"
+
+    echo "⏳ Installing packages..."
+    pip install --upgrade pip -q
+    pip install $packages
+
+    echo ""
+    echo "✅ Python packages installed!"
+    echo "💡 Use 'source $PERSIST_PYTHON/venv/bin/activate' to activate venv"
+}
+
+# Main execution
+main() {
+    # Check if running in the add-on
+    if [ ! -d "/data" ]; then
+        echo "❌ Error: /data directory not found"
+        echo "This script must run inside the Claude Terminal add-on"
+        exit 1
+    fi
+
+    case "${1:-}" in
+        --help|-h|help)
+            show_help
+            ;;
+        --list|-l|list)
+            list_packages
+            ;;
+        --python|-p|python)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "❌ Error: No packages specified"
+                echo "Usage: persist-install --python <package1> [package2] ..."
+                exit 1
+            fi
+            install_python_packages "$@"
+            ;;
+        "")
+            show_help
+            ;;
+        *)
+            install_system_packages "$@"
+            ;;
+    esac
+}
+
+main "$@"
