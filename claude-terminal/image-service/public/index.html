@@ -239,27 +239,71 @@
 
                 if (result.success) {
                     // Display full path persistently with click-to-copy functionality
-                    setStatus(`📋 ${result.path} (click to copy)`, 'success', true);
+                    setStatus(`📋 ${result.path} (click to select)`, 'success', true);
                     console.log('Image uploaded:', result.path);
 
-                    // Make status clickable to copy path
+                    // Make status clickable to select text (works in iframes)
                     status.style.cursor = 'pointer';
-                    status.onclick = async () => {
-                        try {
-                            await navigator.clipboard.writeText(result.path);
-                            const originalText = status.textContent;
-                            setStatus('✓ Copied to clipboard!', 'success', false);
-                            setTimeout(() => {
-                                setStatus(originalText, 'success', true);
-                            }, 2000);
-                        } catch (err) {
-                            console.log('Could not copy to clipboard:', err);
-                            setStatus('Could not copy - please select and copy manually', 'error', false);
-                            setTimeout(() => {
-                                setStatus(`📋 ${result.path} (click to copy)`, 'success', true);
-                            }, 2000);
+                    status.style.userSelect = 'text';
+
+                    status.onclick = () => {
+                        // Try modern clipboard API first
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(result.path)
+                                .then(() => {
+                                    const originalText = status.textContent;
+                                    setStatus('✓ Copied!', 'success', false);
+                                    setTimeout(() => {
+                                        setStatus(originalText, 'success', true);
+                                    }, 2000);
+                                })
+                                .catch(() => {
+                                    selectText();
+                                });
+                        } else {
+                            // Fallback: select the text so user can copy with Cmd+C
+                            selectText();
                         }
                     };
+
+                    // Helper to select text (works in all contexts)
+                    function selectText() {
+                        const range = document.createRange();
+                        const selection = window.getSelection();
+
+                        // Clear any existing selection
+                        selection.removeAllRanges();
+
+                        // Create a temporary text node with just the path
+                        const tempDiv = document.createElement('div');
+                        tempDiv.style.position = 'absolute';
+                        tempDiv.style.left = '-9999px';
+                        tempDiv.textContent = result.path;
+                        document.body.appendChild(tempDiv);
+
+                        // Select the path text
+                        range.selectNodeContents(tempDiv);
+                        selection.addRange(range);
+
+                        // Try execCommand as fallback for copying
+                        try {
+                            const copied = document.execCommand('copy');
+                            if (copied) {
+                                setStatus('✓ Copied! (Cmd+C)', 'success', false);
+                            } else {
+                                setStatus('✓ Selected! Press Cmd+C to copy', 'success', false);
+                            }
+                        } catch (err) {
+                            setStatus('✓ Selected! Press Cmd+C to copy', 'success', false);
+                        }
+
+                        // Clean up and restore message
+                        setTimeout(() => {
+                            document.body.removeChild(tempDiv);
+                            selection.removeAllRanges();
+                            setStatus(`📋 ${result.path} (click to select)`, 'success', true);
+                        }, 3000);
+                    }
                 } else {
                     setStatus(result.error || 'Upload failed', 'error');
                 }

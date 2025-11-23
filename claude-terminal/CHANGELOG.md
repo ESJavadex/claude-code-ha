@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.6
+
+### 🐛 Bug Fix - Clipboard API in Home Assistant Ingress
+- **Fixed clipboard copy in iframe context**: Added fallback methods for copying file path
+  - **Root cause**: `navigator.clipboard` API is blocked in Home Assistant ingress iframes
+  - **Error**: "Cannot read properties of undefined (reading 'writeText')"
+  - **Solution**: Multi-tier fallback approach:
+    1. Try modern Clipboard API if available
+    2. Fallback to `document.execCommand('copy')` with text selection
+    3. Final fallback: Select text for manual Cmd+C copy
+  - **User feedback**: Shows "✓ Copied!" or "✓ Selected! Press Cmd+C to copy"
+  - **Result**: Path copying now works in all contexts (direct access, ingress, iframes)
+
+**Technical note**: Browser security restrictions prevent clipboard access in cross-origin iframes. The new implementation uses progressive enhancement to provide the best experience available in each context.
+
 ## 1.6.5
 
 ### ✨ UX Improvement - Better Path Visibility for Manual Copy
