@@ -268,6 +268,8 @@ start_image_service() {
     local image_port=7680
     local ttyd_port=7681
     local upload_dir="/data/images"
+    local service_dir="/opt/image-service"
+    local server_file="${service_dir}/server.js"
 
     bashio::log.info "Starting image upload service on port ${image_port}..."
 
@@ -280,29 +282,24 @@ start_image_service() {
     export TTYD_PORT="${ttyd_port}"
     export UPLOAD_DIR="${upload_dir}"
 
-    # Start the Node.js image service in the background
-    cd /opt/image-service || {
-        bashio::log.error "Failed to change to /opt/image-service directory"
-        return 1
-    }
-
     # Check if server.js exists
-    if [ ! -f "server.js" ]; then
-        bashio::log.error "server.js not found in /opt/image-service"
-        ls -la /opt/image-service
+    if [ ! -f "${server_file}" ]; then
+        bashio::log.error "server.js not found at ${server_file}"
+        ls -la "${service_dir}"
         return 1
     fi
 
     # Check if node_modules exists
-    if [ ! -d "node_modules" ]; then
-        bashio::log.error "node_modules not found! Dependencies may not be installed"
+    if [ ! -d "${service_dir}/node_modules" ]; then
+        bashio::log.error "node_modules not found in ${service_dir}"
         bashio::log.info "Attempting to install dependencies..."
-        npm install || bashio::log.error "npm install failed"
+        cd "${service_dir}" && npm install || bashio::log.error "npm install failed"
+        cd - > /dev/null
     fi
 
-    # Start with better error logging
-    bashio::log.info "Starting Node.js service..."
-    node server.js 2>&1 | while IFS= read -r line; do
+    # Start with better error logging (run from current directory with absolute path)
+    bashio::log.info "Starting Node.js service from ${server_file}..."
+    node "${server_file}" 2>&1 | while IFS= read -r line; do
         bashio::log.info "[Image Service] $line"
     done &
 
