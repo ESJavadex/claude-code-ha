@@ -8,3 +8,5 @@ labels:
   org.opencontainers.image.description: "Terminal interface for Anthropic's Claude Code CLI"
   org.opencontainers.image.source: "https://github.com/anthropics/claude-code"
   org.opencontainers.image.licenses: "MIT"
+
+  org.opencontainers.image.version: "2.0.11"
