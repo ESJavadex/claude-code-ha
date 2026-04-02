@@ -37,6 +37,7 @@ This add-on provides a web-based terminal interface with Claude Code CLI pre-ins
 - **Python Virtual Environment**: Isolated Python environment in `/data/packages`
 - **Simple Commands**: Use `persist-install` for easy package management
 - **Persistent Storage**: All packages stored in `/data` which survives all reboots
+- **Optional Persistent Claude Override**: Advanced users can opt into a Claude Code install stored in `/data/npm`
 
 ## Quick Start
 
@@ -72,11 +73,12 @@ claude-logout
 
 ## Configuration
 
-The add-on requires no configuration. All settings are handled automatically:
+The add-on works out of the box, but also supports a few optional advanced settings:
 
 - **Port**: Web interface runs on port 7681
 - **Authentication**: OAuth with Anthropic (credentials stored securely in `/config/claude-config/`)
 - **Terminal**: Full bash environment with Claude Code CLI pre-installed
+- **Persistent Claude override**: Optional `use_persistent_claude` / `auto_update_claude_on_start`
 - **Volumes**: Access to both `/config` (Home Assistant) and `/addons` (for development)
 
 ## Troubleshooting

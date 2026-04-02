@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.11
+
+### ✨ New Feature - Optional Persistent Claude Code Override
+- **Safe-by-default persistent Claude support**: Added optional `use_persistent_claude` mode that lets advanced users run a Claude Code version installed under `/data/npm/`
+  - **Default remains unchanged**: the add-on still uses the Claude version baked into the image unless explicitly enabled
+  - **Official startup-managed symlink**: `/usr/local/bin/claude` now points to the persistent install during startup when present
+  - **No self-modifying menu scripts**: persistent override is handled in `run.sh`, keeping behavior deterministic and easier to support
+- **Optional startup updates**: Added `auto_update_claude_on_start` (default: `false`)
+  - When enabled together with `use_persistent_claude`, the add-on runs `npm install -g @anthropic-ai/claude-code@latest` into `/data/npm/` at startup
+  - If the update fails, startup continues and uses the previously installed persistent version when available
+- **Session picker version visibility**: Interactive menu now shows the active Claude Code version at the top
+
 ## 2.0.10
 
 ### 🐛 Bug Fix - CPU Compatibility with AVX Fallback

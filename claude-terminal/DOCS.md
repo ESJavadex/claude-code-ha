@@ -37,6 +37,17 @@ The add-on offers several configuration options:
 - Configure APK and pip packages to auto-install on startup
 - Packages are stored in `/data/packages` and survive restarts
 
+### Optional Persistent Claude Code
+- **Default**: `use_persistent_claude: false`
+- When enabled, the add-on will look for a Claude Code install in `/data/npm/` and use it instead of the version baked into the image
+- This is intended for advanced users who want a persistent override without changing the default supported behavior
+
+### Optional Startup Updates
+- **Default**: `auto_update_claude_on_start: false`
+- Only relevant if `use_persistent_claude: true`
+- When enabled, the add-on will update Claude Code in `/data/npm/` on each startup
+- Safer default is to keep this off and update manually only when needed
+
 **Example Configuration**:
 ```yaml
 auto_launch_claude: false
@@ -46,9 +57,19 @@ persistent_apk_packages:
   - git
 persistent_pip_packages:
   - requests
+use_persistent_claude: true
+auto_update_claude_on_start: false
 ```
 
 Your OAuth credentials are stored in the `/config/claude-config` directory and will persist across add-on updates and restarts, so you won't need to log in again.
+
+If you enable `use_persistent_claude`, install the persistent Claude Code version once from a shell inside the add-on:
+
+```bash
+NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@latest --prefer-online
+```
+
+After that, restarts will continue using the persistent version automatically.
 
 ## Usage
 

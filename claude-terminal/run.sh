@@ -190,6 +190,41 @@ install_tools() {
     bashio::log.info "Tools installed successfully"
 }
 
+# Configure optional persistent Claude Code override in /data
+setup_persistent_claude() {
+    local use_persistent_claude
+    local auto_update_claude_on_start
+    local persistent_root="/data/npm"
+    local persistent_cli="$persistent_root/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+
+    use_persistent_claude=$(bashio::config 'use_persistent_claude' 'false')
+    auto_update_claude_on_start=$(bashio::config 'auto_update_claude_on_start' 'false')
+
+    if [ "$use_persistent_claude" != "true" ]; then
+        bashio::log.info "Persistent Claude override: disabled"
+        return 0
+    fi
+
+    mkdir -p "$persistent_root"
+
+    if [ "$auto_update_claude_on_start" = "true" ]; then
+        bashio::log.info "Persistent Claude override: updating Claude Code in /data/npm..."
+        if NPM_CONFIG_PREFIX="$persistent_root" npm install -g @anthropic-ai/claude-code@latest --prefer-online; then
+            bashio::log.info "Persistent Claude override: update completed"
+        else
+            bashio::log.warning "Persistent Claude override: update failed, continuing with existing version if present"
+        fi
+    fi
+
+    if [ -f "$persistent_cli" ]; then
+        ln -sf "$persistent_cli" /usr/local/bin/claude
+        bashio::log.info "Persistent Claude override active: /usr/local/bin/claude -> $persistent_cli"
+    else
+        bashio::log.warning "Persistent Claude override enabled but no persistent Claude install found at $persistent_cli"
+        bashio::log.warning "Install it manually once with: NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@latest"
+    fi
+}
+
 # Setup session picker script
 setup_session_picker() {
     # Copy session picker script from built-in location
@@ -402,6 +437,7 @@ main() {
 
     init_environment
     install_tools
+    setup_persistent_claude
     setup_session_picker
     setup_persistent_packages
     start_web_terminal

@@ -25,6 +25,13 @@ show_banner() {
 }
 
 show_menu() {
+    local ver="unknown"
+    if command -v claude &> /dev/null; then
+        ver=$(claude --version 2>/dev/null || echo "unknown")
+    fi
+
+    echo "Claude Code version: $ver"
+    echo ""
     echo "Choose your Claude session type:"
     echo ""
     echo "  1) 🆕 New interactive session (default)"
