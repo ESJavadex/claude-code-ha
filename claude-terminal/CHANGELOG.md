@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.12
+
+### 🐛 Bug Fix - Claude Code ≥2.1.181 crashes with `statx: symbol not found`
+- **Bumped base image from Alpine 3.19 to Alpine 3.21** (musl 1.2.4 → musl 1.2.5)
+  - Claude Code's native Bun binary began referencing the `statx` libc wrapper at
+    v2.1.181. musl only added this wrapper in 1.2.5 (Alpine 3.20+); Alpine 3.19
+    (musl 1.2.4) does not export it, causing every version ≥2.1.181 to fail at
+    dynamic-link time with `Error relocating … statx: symbol not found` (exit 127).
+  - The host Linux kernel has had the `statx` *syscall* since 4.11; only the
+    userspace musl wrapper was missing.
+  - With musl 1.2.5 present, Claude Code ≥2.1.181 (and the current latest) loads
+    and runs correctly.
+- **Note on AVX2**: The crash was a linker error, **not** a CPU instruction issue.
+  The existing 2.1.179 binary already runs on non-AVX2 hardware (e.g. AMD GX-415).
+
+
 ## 2.0.11
 
 ### ✨ New Feature - Optional Persistent Claude Code Override
