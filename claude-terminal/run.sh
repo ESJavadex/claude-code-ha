@@ -66,10 +66,11 @@ init_environment() {
     dangerously_skip_permissions=$(bashio::config 'dangerously_skip_permissions' 'false')
     export CLAUDE_DANGEROUS_MODE="$dangerously_skip_permissions"
 
-    # Set IS_SANDBOX=1 to allow --dangerously-skip-permissions when running as root
-    if [ "$dangerously_skip_permissions" = "true" ]; then
-        export IS_SANDBOX=1
-    fi
+    # This addon always runs as root inside an HA supervisor container.
+    # IS_SANDBOX=1 tells Claude Code that root is expected (container sandbox),
+    # so it won't refuse to start. This is independent of --dangerously-skip-permissions
+    # (which controls permission prompts, not whether Claude can launch).
+    export IS_SANDBOX=1
 
     # Setup persistent package paths (HIGHEST PRIORITY)
     export PATH="$persist_bin:$persist_python/venv/bin:$data_home/.local/bin:$PATH"
@@ -96,6 +97,9 @@ export ANTHROPIC_HOME="/data"
 
 # Disable auto-updates inside container (updates via add-on releases)
 export DISABLE_AUTOUPDATER=1
+
+# Always running as root inside HA supervisor container — IS_SANDBOX=1 allows Claude to start
+export IS_SANDBOX=1
 
 # GitHub CLI persistent configuration
 export GH_CONFIG_DIR="/data/.config/gh"
@@ -183,11 +187,52 @@ migrate_legacy_auth_files() {
 # Install required tools
 install_tools() {
     bashio::log.info "Installing additional tools..."
-    if ! apk add --no-cache ttyd jq curl; then
+    if ! apk add --no-cache ttyd jq curl tmux; then
         bashio::log.error "Failed to install required tools"
         exit 1
     fi
     bashio::log.info "Tools installed successfully"
+}
+
+# Setup tmux configuration and session wrapper
+setup_tmux() {
+    local tmux_conf="${HOME}/.tmux.conf"
+    bashio::log.info "Setting up tmux..."
+
+    cat > "$tmux_conf" << 'TMUX_EOF'
+# Mouse support: click to focus panes, scroll to scroll, drag to resize
+set -g mouse on
+
+# Large scrollback buffer
+set -g history-limit 50000
+
+# Reduce escape-time so claude/vim feel responsive inside tmux
+set -g escape-time 20
+
+# Start window and pane numbering at 1 (easier to reach on keyboard)
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+# Status bar
+set -g status-bg colour235
+set -g status-fg colour136
+set -g status-left '[#S] '
+set -g status-right '%H:%M'
+TMUX_EOF
+
+    # Wrapper: attach to existing 'claude' session, or create a fresh one that runs the launch command
+    cat > /usr/local/bin/tmux-claude << 'WRAPPER_EOF'
+#!/bin/bash
+if tmux has-session -t claude 2>/dev/null; then
+    exec tmux attach-session -t claude
+else
+    exec tmux new-session -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
+fi
+WRAPPER_EOF
+    chmod +x /usr/local/bin/tmux-claude
+
+    bashio::log.info "tmux configured (${tmux_conf})"
 }
 
 # Configure optional persistent Claude Code override in /data
@@ -407,16 +452,27 @@ start_web_terminal() {
     # Start the image upload service first
     start_image_service
 
-    # Run ttyd with keepalive and reconnect configuration
-    # --ping-interval 30: WebSocket ping every 30s (default 300s) to prevent idle disconnects
-    # --client-option reconnect=5: xterm.js auto-reconnect after 5 seconds on disconnect
+    # Export launch command so the tmux-claude wrapper and session can access it
+    export CLAUDE_LAUNCH_CMD="$launch_command"
+
+    # Pre-create the persistent tmux session so the first browser connection is instant
+    if ! tmux has-session -t claude 2>/dev/null; then
+        bashio::log.info "Creating persistent tmux session 'claude'..."
+        tmux new-session -d -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
+    else
+        bashio::log.info "Reusing existing tmux session 'claude'..."
+    fi
+
+    # ttyd attaches every browser connection to the persistent tmux session.
+    # If Claude is running and you close the browser tab, it keeps running.
+    # Reopening the tab re-attaches to the same session.
     exec ttyd \
         --port "${port}" \
         --interface 0.0.0.0 \
         --writable \
         --ping-interval 30 \
         --client-option reconnect=5 \
-        bash -c "$launch_command"
+        /usr/local/bin/tmux-claude
 }
 
 # Run health check
@@ -437,6 +493,7 @@ main() {
 
     init_environment
     install_tools
+    setup_tmux
     setup_persistent_claude
     setup_session_picker
     setup_persistent_packages
