@@ -33,6 +33,11 @@ The add-on offers several configuration options:
 - Use only if you understand the security implications
 - Useful for advanced users who need full file access
 
+### tmux Mouse Mode
+- **Default**: `false`
+- Keep disabled for reliable native browser copy/paste in the ttyd terminal, including OAuth codes
+- Enable only if you prefer tmux mouse selection, scrolling, and pane controls
+
 ### Persistent Packages
 - Configure APK and pip packages to auto-install on startup
 - Packages are stored in `/data/packages` and survive restarts
@@ -51,6 +56,7 @@ The add-on offers several configuration options:
 **Example Configuration**:
 ```yaml
 auto_launch_claude: false
+tmux_mouse: false
 dangerously_skip_permissions: true
 persistent_apk_packages:
   - python3
@@ -67,6 +73,13 @@ If you enable `use_persistent_claude`, install the persistent Claude Code versio
 
 ```bash
 NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@latest --prefer-online
+```
+
+On ARMv7, use the final portable JavaScript release because current Claude Code
+native releases do not publish ARM32 binaries:
+
+```bash
+NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@1.0.128 --prefer-online
 ```
 
 After that, restarts will continue using the persistent version automatically.

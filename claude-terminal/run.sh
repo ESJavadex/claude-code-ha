@@ -197,11 +197,19 @@ install_tools() {
 # Setup tmux configuration and session wrapper
 setup_tmux() {
     local tmux_conf="${HOME}/.tmux.conf"
+    local tmux_mouse
+    local tmux_wrapper="${TMUX_WRAPPER_PATH:-/usr/local/bin/tmux-claude}"
+
+    tmux_mouse=$(bashio::config 'tmux_mouse' 'false')
+    case "${tmux_mouse:-false}" in
+        true|on|yes|1) tmux_mouse="on" ;;
+        *) tmux_mouse="off" ;;
+    esac
     bashio::log.info "Setting up tmux..."
 
-    cat > "$tmux_conf" << 'TMUX_EOF'
-# Mouse support: click to focus panes, scroll to scroll, drag to resize
-set -g mouse on
+    cat > "$tmux_conf" << TMUX_EOF
+# Mouse mode is disabled by default so ttyd/browser copy and paste keeps working.
+set -g mouse ${tmux_mouse}
 
 # Large scrollback buffer
 set -g history-limit 50000
@@ -222,7 +230,7 @@ set -g status-right '%H:%M'
 TMUX_EOF
 
     # Wrapper: attach to existing 'claude' session, or create a fresh one that runs the launch command
-    cat > /usr/local/bin/tmux-claude << 'WRAPPER_EOF'
+    cat > "$tmux_wrapper" << 'WRAPPER_EOF'
 #!/bin/bash
 if tmux has-session -t claude 2>/dev/null; then
     exec tmux attach-session -t claude
@@ -230,7 +238,7 @@ else
     exec tmux new-session -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
 fi
 WRAPPER_EOF
-    chmod +x /usr/local/bin/tmux-claude
+    chmod +x "$tmux_wrapper"
 
     bashio::log.info "tmux configured (${tmux_conf})"
 }
@@ -239,8 +247,11 @@ WRAPPER_EOF
 setup_persistent_claude() {
     local use_persistent_claude
     local auto_update_claude_on_start
-    local persistent_root="/data/npm"
-    local persistent_cli="$persistent_root/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+    local persistent_root="${PERSISTENT_CLAUDE_ROOT:-/data/npm}"
+    local persistent_bin="$persistent_root/bin/claude"
+    local persistent_package="$persistent_root/lib/node_modules/@anthropic-ai/claude-code/package.json"
+    local claude_link="${CLAUDE_BIN_LINK:-/usr/local/bin/claude}"
+    local claude_npm_spec="@anthropic-ai/claude-code@latest"
 
     use_persistent_claude=$(bashio::config 'use_persistent_claude' 'false')
     auto_update_claude_on_start=$(bashio::config 'auto_update_claude_on_start' 'false')
@@ -252,21 +263,38 @@ setup_persistent_claude() {
 
     mkdir -p "$persistent_root"
 
+    # Current Claude Code native releases do not provide 32-bit ARM binaries.
+    case "$(uname -m)" in
+        armv7l|armv6l|armhf)
+            claude_npm_spec="@anthropic-ai/claude-code@1.0.128"
+            ;;
+    esac
+
     if [ "$auto_update_claude_on_start" = "true" ]; then
         bashio::log.info "Persistent Claude override: updating Claude Code in /data/npm..."
-        if NPM_CONFIG_PREFIX="$persistent_root" npm install -g @anthropic-ai/claude-code@latest --prefer-online; then
+        if NPM_CONFIG_PREFIX="$persistent_root" npm install -g "$claude_npm_spec" --prefer-online; then
             bashio::log.info "Persistent Claude override: update completed"
         else
             bashio::log.warning "Persistent Claude override: update failed, continuing with existing version if present"
         fi
     fi
 
-    if [ -f "$persistent_cli" ]; then
-        ln -sf "$persistent_cli" /usr/local/bin/claude
-        bashio::log.info "Persistent Claude override active: /usr/local/bin/claude -> $persistent_cli"
+    # Smoke-test the persistent binary before trusting it: this rejects a stale
+    # or wrong-architecture install (e.g. an amd64 binary left in /data on a Pi).
+    # Run under a timeout so a hung `--version` can never block add-on startup.
+    local -a version_check=("$persistent_bin" --version)
+    if command -v timeout >/dev/null 2>&1; then
+        version_check=(timeout 15 "$persistent_bin" --version)
+    fi
+
+    if [ -x "$persistent_bin" ] && \
+       [ -f "$persistent_package" ] && \
+       "${version_check[@]}" >/dev/null 2>&1; then
+        ln -sf "$persistent_bin" "$claude_link"
+        bashio::log.info "Persistent Claude override active: $claude_link -> $persistent_bin"
     else
-        bashio::log.warning "Persistent Claude override enabled but no persistent Claude install found at $persistent_cli"
-        bashio::log.warning "Install it manually once with: NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@latest"
+        bashio::log.warning "Persistent Claude override enabled but no working persistent Claude install found at $persistent_root"
+        bashio::log.warning "Install it manually once with: NPM_CONFIG_PREFIX=/data/npm npm install -g $claude_npm_spec"
     fi
 }
 
@@ -293,10 +321,13 @@ setup_session_picker() {
 
 # Setup persistent package manager
 setup_persistent_packages() {
+    local persist_install="${PERSIST_INSTALL_BIN:-/usr/local/bin/persist-install}"
+    local persist_install_source="${PERSIST_INSTALL_SOURCE:-/opt/scripts/persist-install}"
+
     # Install persist-install command globally
-    if [ -f "/opt/scripts/persist-install" ]; then
-        cp /opt/scripts/persist-install /usr/local/bin/persist-install
-        chmod +x /usr/local/bin/persist-install
+    if [ -f "$persist_install_source" ]; then
+        cp "$persist_install_source" "$persist_install"
+        chmod +x "$persist_install"
         bashio::log.info "Persistent package manager installed: 'persist-install'"
     fi
 
@@ -304,34 +335,53 @@ setup_persistent_packages() {
     auto_install_packages
 }
 
-# Auto-install packages from add-on configuration
-auto_install_packages() {
-    local apk_packages=$(bashio::config 'persistent_apk_packages' '[]')
-    local pip_packages=$(bashio::config 'persistent_pip_packages' '[]')
+# Normalize both Bashio list formats seen across Supervisor generations:
+# newline-separated values and JSON arrays.
+normalize_config_list() {
+    local raw="$1"
 
-    # Check if any packages are configured
-    if [ "$apk_packages" != "[]" ] && [ "$apk_packages" != "" ]; then
-        bashio::log.info "Auto-installing system packages from config..."
-
-        # Parse JSON array and install
-        echo "$apk_packages" | jq -r '.[]' | while read -r pkg; do
-            if [ -n "$pkg" ]; then
-                bashio::log.info "  Installing: $pkg"
-                /usr/local/bin/persist-install "$pkg" || bashio::log.warning "Failed to install: $pkg"
-            fi
-        done
+    if [ -z "$raw" ] || [ "$raw" = "[]" ]; then
+        return 0
     fi
 
-    # Check if any Python packages are configured
-    if [ "$pip_packages" != "[]" ] && [ "$pip_packages" != "" ]; then
+    if printf '%s' "$raw" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        printf '%s' "$raw" | jq -r '.[]'
+    else
+        printf '%s\n' "$raw"
+    fi
+}
+
+# Auto-install packages from add-on configuration
+auto_install_packages() {
+    local apk_packages
+    local pip_packages
+    local package
+    local persist_install="${PERSIST_INSTALL_BIN:-/usr/local/bin/persist-install}"
+    local -a pip_package_list=()
+
+    apk_packages=$(normalize_config_list "$(bashio::config 'persistent_apk_packages' '')")
+    pip_packages=$(normalize_config_list "$(bashio::config 'persistent_pip_packages' '')")
+
+    if [ -n "$apk_packages" ]; then
+        bashio::log.info "Auto-installing system packages from config..."
+        while IFS= read -r package; do
+            if [ -n "$package" ]; then
+                bashio::log.info "  Installing: $package"
+                "$persist_install" "$package" || bashio::log.warning "Failed to install: $package"
+            fi
+        done <<< "$apk_packages"
+    fi
+
+    if [ -n "$pip_packages" ]; then
         bashio::log.info "Auto-installing Python packages from config..."
+        while IFS= read -r package; do
+            [ -n "$package" ] && pip_package_list+=("$package")
+        done <<< "$pip_packages"
 
-        # Collect all package names
-        local all_packages=$(echo "$pip_packages" | jq -r '.[]' | tr '\n' ' ')
-
-        if [ -n "$all_packages" ]; then
-            bashio::log.info "  Installing: $all_packages"
-            /usr/local/bin/persist-install --python $all_packages || bashio::log.warning "Failed to install Python packages"
+        if [ "${#pip_package_list[@]}" -gt 0 ]; then
+            bashio::log.info "  Installing: ${pip_package_list[*]}"
+            "$persist_install" --python "${pip_package_list[@]}" || \
+                bashio::log.warning "Failed to install Python packages"
         fi
     fi
 }
@@ -472,7 +522,7 @@ start_web_terminal() {
         --writable \
         --ping-interval 30 \
         --client-option reconnect=5 \
-        /usr/local/bin/tmux-claude
+        "${TMUX_WRAPPER_PATH:-/usr/local/bin/tmux-claude}"
 }
 
 # Run health check
@@ -501,4 +551,6 @@ main() {
 }
 
 # Execute main function
-main "$@"
+if [ "${CLAUDE_RUN_SH_SKIP_MAIN:-false}" != "true" ]; then
+    main "$@"
+fi

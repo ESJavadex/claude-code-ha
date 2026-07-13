@@ -70,14 +70,19 @@ list_packages() {
 }
 
 install_system_packages() {
-    local packages="$@"
+    local pkg
 
-    echo "📦 Installing system packages: $packages"
+    if [ "$#" -eq 0 ]; then
+        echo "❌ No system packages specified"
+        return 1
+    fi
+
+    echo "📦 Installing system packages: $*"
     echo ""
 
     # Install via APK first
     echo "⏳ Installing via APK..."
-    if ! apk add --no-cache $packages; then
+    if ! apk add --no-cache "$@"; then
         echo "❌ Failed to install packages"
         exit 1
     fi
@@ -86,7 +91,7 @@ install_system_packages() {
     echo "💾 Copying to persistent storage..."
     mkdir -p "$PERSIST_BIN" "$PERSIST_ROOT/lib"
 
-    for pkg in $packages; do
+    for pkg in "$@"; do
         echo "  Processing: $pkg"
 
         # Get list of files installed by package
@@ -113,9 +118,12 @@ install_system_packages() {
 }
 
 install_python_packages() {
-    local packages="$@"
+    if [ "$#" -eq 0 ]; then
+        echo "❌ No Python packages specified"
+        return 1
+    fi
 
-    echo "🐍 Installing Python packages: $packages"
+    echo "🐍 Installing Python packages: $*"
     echo ""
 
     # Ensure Python and venv exist
@@ -140,7 +148,7 @@ install_python_packages() {
 
     echo "⏳ Installing packages..."
     pip install --upgrade pip -q
-    pip install $packages
+    pip install "$@"
 
     echo ""
     echo "✅ Python packages installed!"

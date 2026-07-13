@@ -50,22 +50,23 @@ setup_environment() {
 
 # Install APK package to persistent storage (via bind mount trick)
 persist_apk_install() {
-    local packages="$@"
+    local pkg
 
-    if [ -z "$packages" ]; then
+    if [ "$#" -eq 0 ]; then
         bashio::log.error "No packages specified"
         return 1
     fi
 
-    bashio::log.info "Installing APK packages to persistent storage: $packages"
+    bashio::log.info "Installing APK packages to persistent storage: $*"
 
     # Install to system first (needed for dependencies)
-    apk add --no-cache $packages
+    apk add --no-cache "$@"
 
     # Copy installed binaries to persistent storage
-    for pkg in $packages; do
+    for pkg in "$@"; do
         # Find which files were installed by this package
-        local pkg_files=$(apk info -L "$pkg" 2>/dev/null || echo "")
+        local pkg_files
+        pkg_files=$(apk info -L "$pkg" 2>/dev/null || echo "")
 
         if [ -n "$pkg_files" ]; then
             echo "$pkg_files" | while read -r file; do
@@ -92,43 +93,65 @@ persist_apk_install() {
 
 # Install Python package to persistent virtual environment
 persist_pip_install() {
-    local packages="$@"
-
-    if [ -z "$packages" ]; then
+    if [ "$#" -eq 0 ]; then
         bashio::log.error "No packages specified"
         return 1
     fi
 
-    bashio::log.info "Installing Python packages to persistent venv: $packages"
+    bashio::log.info "Installing Python packages to persistent venv: $*"
 
     # Activate venv and install
     source "$PERSIST_PYTHON/venv/bin/activate"
     pip install --upgrade pip
-    pip install $packages
+    pip install "$@"
 
     bashio::log.info "Python packages installed successfully"
 }
 
+# Normalize both Bashio list formats seen across Supervisor generations:
+# newline-separated values and JSON arrays.
+normalize_config_list() {
+    local raw="$1"
+
+    if [ -z "$raw" ] || [ "$raw" = "[]" ]; then
+        return 0
+    fi
+
+    if printf '%s' "$raw" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        printf '%s' "$raw" | jq -r '.[]'
+    else
+        printf '%s\n' "$raw"
+    fi
+}
+
 # Auto-install packages from configuration
 auto_install_packages() {
-    local apk_packages=$(bashio::config 'persistent_apk_packages' '[]')
-    local pip_packages=$(bashio::config 'persistent_pip_packages' '[]')
+    local apk_packages
+    local pip_packages
+    local -a apk_package_list=()
+    local -a pip_package_list=()
 
-    # Parse and install APK packages
-    if [ "$apk_packages" != "[]" ] && [ "$apk_packages" != "" ]; then
+    apk_packages=$(normalize_config_list "$(bashio::config 'persistent_apk_packages' '')")
+    pip_packages=$(normalize_config_list "$(bashio::config 'persistent_pip_packages' '')")
+
+    # bashio returns list options as newline-separated values, not JSON.
+    if [ -n "$apk_packages" ]; then
         bashio::log.info "Auto-installing APK packages from config..."
-        local pkg_list=$(echo "$apk_packages" | jq -r '.[]' | tr '\n' ' ')
-        if [ -n "$pkg_list" ]; then
-            persist_apk_install $pkg_list
+        while IFS= read -r package; do
+            [ -n "$package" ] && apk_package_list+=("$package")
+        done <<< "$apk_packages"
+        if [ "${#apk_package_list[@]}" -gt 0 ]; then
+            persist_apk_install "${apk_package_list[@]}"
         fi
     fi
 
-    # Parse and install Python packages
-    if [ "$pip_packages" != "[]" ] && [ "$pip_packages" != "" ]; then
+    if [ -n "$pip_packages" ]; then
         bashio::log.info "Auto-installing Python packages from config..."
-        local pkg_list=$(echo "$pip_packages" | jq -r '.[]' | tr '\n' ' ')
-        if [ -n "$pkg_list" ]; then
-            persist_pip_install $pkg_list
+        while IFS= read -r package; do
+            [ -n "$package" ] && pip_package_list+=("$package")
+        done <<< "$pip_packages"
+        if [ "${#pip_package_list[@]}" -gt 0 ]; then
+            persist_pip_install "${pip_package_list[@]}"
         fi
     fi
 }
@@ -145,7 +168,11 @@ list_persistent_packages() {
     pip list
 }
 
-# Main execution when sourced
+# Tests source this file to exercise its functions without running the dispatcher.
+if [ "${PERSISTENT_PACKAGES_SKIP_MAIN:-false}" = "true" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 case "${1:-init}" in
     init)
         init_persistent_storage
