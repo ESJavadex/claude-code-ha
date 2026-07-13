@@ -6,6 +6,8 @@
 - Disabled tmux mouse capture by default so browser paste, including OAuth codes, is reliable; added the `tmux_mouse` option for users who want it (#26).
 - Fixed configured APK and pip package installation by handling Bashio's newline-separated list output directly instead of parsing it as JSON (#25).
 - Updated persistent Claude detection for current npm releases, which provide `bin/claude` instead of the removed `cli.js` entry point (#21).
+- Restored ARMv7 builds after upstream asset changes: Claude Code uses the final portable JavaScript release (`1.0.128`), HA CLI stays on the last ARMv7 release (`4.46.0`), and GitHub CLI uses its ARMv6-compatible binary. The 64-bit builds continue using current native releases.
+- Persistent Claude overrides are now activated only after the installed binary passes a version check; ARMv7 startup updates stay on the portable release instead of replacing it with an unsupported native wrapper.
 
 ## 2.0.12
 

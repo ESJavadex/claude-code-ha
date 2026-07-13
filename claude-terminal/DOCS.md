@@ -75,6 +75,13 @@ If you enable `use_persistent_claude`, install the persistent Claude Code versio
 NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@latest --prefer-online
 ```
 
+On ARMv7, use the final portable JavaScript release because current Claude Code
+native releases do not publish ARM32 binaries:
+
+```bash
+NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@1.0.128 --prefer-online
+```
+
 After that, restarts will continue using the persistent version automatically.
 
 ## Usage

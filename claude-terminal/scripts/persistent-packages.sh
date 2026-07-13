@@ -50,22 +50,23 @@ setup_environment() {
 
 # Install APK package to persistent storage (via bind mount trick)
 persist_apk_install() {
-    local packages="$@"
+    local pkg
 
-    if [ -z "$packages" ]; then
+    if [ "$#" -eq 0 ]; then
         bashio::log.error "No packages specified"
         return 1
     fi
 
-    bashio::log.info "Installing APK packages to persistent storage: $packages"
+    bashio::log.info "Installing APK packages to persistent storage: $*"
 
     # Install to system first (needed for dependencies)
-    apk add --no-cache $packages
+    apk add --no-cache "$@"
 
     # Copy installed binaries to persistent storage
-    for pkg in $packages; do
+    for pkg in "$@"; do
         # Find which files were installed by this package
-        local pkg_files=$(apk info -L "$pkg" 2>/dev/null || echo "")
+        local pkg_files
+        pkg_files=$(apk info -L "$pkg" 2>/dev/null || echo "")
 
         if [ -n "$pkg_files" ]; then
             echo "$pkg_files" | while read -r file; do
@@ -92,19 +93,17 @@ persist_apk_install() {
 
 # Install Python package to persistent virtual environment
 persist_pip_install() {
-    local packages="$@"
-
-    if [ -z "$packages" ]; then
+    if [ "$#" -eq 0 ]; then
         bashio::log.error "No packages specified"
         return 1
     fi
 
-    bashio::log.info "Installing Python packages to persistent venv: $packages"
+    bashio::log.info "Installing Python packages to persistent venv: $*"
 
     # Activate venv and install
     source "$PERSIST_PYTHON/venv/bin/activate"
     pip install --upgrade pip
-    pip install $packages
+    pip install "$@"
 
     bashio::log.info "Python packages installed successfully"
 }
@@ -141,7 +140,9 @@ auto_install_packages() {
         while IFS= read -r package; do
             [ -n "$package" ] && apk_package_list+=("$package")
         done <<< "$apk_packages"
-        persist_apk_install "${apk_package_list[@]}"
+        if [ "${#apk_package_list[@]}" -gt 0 ]; then
+            persist_apk_install "${apk_package_list[@]}"
+        fi
     fi
 
     if [ -n "$pip_packages" ]; then
@@ -149,7 +150,9 @@ auto_install_packages() {
         while IFS= read -r package; do
             [ -n "$package" ] && pip_package_list+=("$package")
         done <<< "$pip_packages"
-        persist_pip_install "${pip_package_list[@]}"
+        if [ "${#pip_package_list[@]}" -gt 0 ]; then
+            persist_pip_install "${pip_package_list[@]}"
+        fi
     fi
 }
 
@@ -165,7 +168,7 @@ list_persistent_packages() {
     pip list
 }
 
-# Main execution when sourced
+# Tests source this file to exercise its functions without running the dispatcher.
 if [ "${PERSISTENT_PACKAGES_SKIP_MAIN:-false}" = "true" ]; then
     return 0 2>/dev/null || exit 0
 fi

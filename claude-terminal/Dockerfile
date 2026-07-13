@@ -22,27 +22,34 @@ RUN apk add --no-cache \
     wget \
     tree
 
-# Install Claude Code CLI
-# Try native installer first (recommended by Anthropic, uses Bun runtime).
-# Falls back to npm if native install fails (e.g., CPU lacks AVX support).
-RUN (curl -fsSL https://claude.ai/install.sh | bash \
-    && ln -sf /root/.local/bin/claude /usr/local/bin/claude) \
-    || npm install -g @anthropic-ai/claude-code
+ARG TARGETARCH
+
+# Install Claude Code CLI. Current native releases do not publish an ARMv7
+# binary, so ARMv7 uses the final portable 1.x JavaScript release. Supported
+# 64-bit targets keep the native-latest path with the existing npm fallback.
+RUN if [ "${TARGETARCH}" = "arm/v7" ]; then \
+        npm install -g @anthropic-ai/claude-code@1.0.128; \
+    else \
+        (curl -fsSL https://claude.ai/install.sh | bash \
+        && ln -sf /root/.local/bin/claude /usr/local/bin/claude) \
+        || npm install -g @anthropic-ai/claude-code; \
+    fi
 
 # Install Home Assistant CLI (ha command)
 # Download appropriate binary based on build architecture
 # Automatically fetches the latest version from GitHub
-ARG TARGETARCH
 RUN case "${TARGETARCH}" in \
-        amd64)   HA_ARCH="amd64" ;; \
-        arm64)   HA_ARCH="aarch64" ;; \
-        arm/v7)  HA_ARCH="armv7" ;; \
-        arm/v6)  HA_ARCH="armhf" ;; \
-        386)     HA_ARCH="i386" ;; \
+        amd64)   HA_ARCH="amd64"; HA_VERSION="latest" ;; \
+        arm64)   HA_ARCH="aarch64"; HA_VERSION="latest" ;; \
+        arm/v7)  HA_ARCH="armv7"; HA_VERSION="4.46.0" ;; \
+        arm/v6)  HA_ARCH="armhf"; HA_VERSION="4.46.0" ;; \
+        386)     HA_ARCH="i386"; HA_VERSION="4.46.0" ;; \
         *)       echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
     esac && \
-    echo "Fetching latest Home Assistant CLI version..." && \
-    HA_VERSION=$(curl -fsSL https://api.github.com/repos/home-assistant/cli/releases/latest | jq -r '.tag_name') && \
+    if [ "${HA_VERSION}" = "latest" ]; then \
+        echo "Fetching latest Home Assistant CLI version..."; \
+        HA_VERSION=$(curl -fsSL https://api.github.com/repos/home-assistant/cli/releases/latest | jq -r '.tag_name'); \
+    fi && \
     echo "Installing Home Assistant CLI ${HA_VERSION} for ${HA_ARCH}..." && \
     curl -fsSL -o /usr/bin/ha \
         "https://github.com/home-assistant/cli/releases/download/${HA_VERSION}/ha_${HA_ARCH}" && \
@@ -54,7 +61,7 @@ RUN case "${TARGETARCH}" in \
 RUN case "${TARGETARCH}" in \
         amd64)   GH_ARCH="amd64" ;; \
         arm64)   GH_ARCH="arm64" ;; \
-        arm/v7)  GH_ARCH="armv7" ;; \
+        arm/v7)  GH_ARCH="armv6" ;; \
         386)     GH_ARCH="386" ;; \
         *)       echo "Unsupported architecture for gh: ${TARGETARCH}" && exit 1 ;; \
     esac && \
