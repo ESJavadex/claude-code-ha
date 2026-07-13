@@ -272,10 +272,16 @@ podman run -d --name test-ha-claude -p 7681:7681 \
 ### Cross-Platform Testing
 
 ```bash
-# Test different base images
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.21 \
+# Test different base images. Home Assistant Supervisor always passes BUILD_ARCH;
+# reproduce that locally so the Dockerfile resolves the right architecture. For a
+# real cross-build add --platform so the emulated toolchain matches.
+podman build --platform linux/arm64 \
+  --build-arg BUILD_ARCH=aarch64 \
+  --build-arg BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.21 \
   -t local/claude-terminal:arm64 ./claude-terminal
 
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/armv7-base:3.21 \
+podman build --platform linux/arm/v7 \
+  --build-arg BUILD_ARCH=armv7 \
+  --build-arg BUILD_FROM=ghcr.io/home-assistant/armv7-base:3.21 \
   -t local/claude-terminal:armv7 ./claude-terminal
 ```

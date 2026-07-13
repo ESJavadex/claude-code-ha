@@ -6,8 +6,9 @@
 - Disabled tmux mouse capture by default so browser paste, including OAuth codes, is reliable; added the `tmux_mouse` option for users who want it (#26).
 - Fixed configured APK and pip package installation by handling Bashio's newline-separated list output directly instead of parsing it as JSON (#25).
 - Updated persistent Claude detection for current npm releases, which provide `bin/claude` instead of the removed `cli.js` entry point (#21).
-- Restored ARMv7 builds after upstream asset changes: Claude Code uses the final portable JavaScript release (`1.0.128`), HA CLI stays on the last ARMv7 release (`4.46.0`), and GitHub CLI uses its ARMv6-compatible binary. The 64-bit builds continue using current native releases.
-- Persistent Claude overrides are now activated only after the installed binary passes a version check; ARMv7 startup updates stay on the portable release instead of replacing it with an unsupported native wrapper.
+- Restored ARMv7 builds after upstream asset changes: Claude Code uses the final portable JavaScript release (`1.0.128`), HA CLI stays on the last release that still ships the ARMv7 asset (`4.46.0`), and GitHub CLI uses its ARMv6-compatible binary pinned to a version verified to publish it. The 64-bit builds continue using current native releases.
+- Fixed the architecture detection at the root: the Dockerfile now resolves the target from Home Assistant's `BUILD_ARCH` build argument (falling back to BuildKit's `TARGETARCH`/`TARGETVARIANT` and finally `uname`). The previous `TARGETARCH = "arm/v7"` check never matched — BuildKit reports 32-bit ARM as `TARGETARCH=arm` with `TARGETVARIANT=v7` — so ARMv7 builds silently fell through to the "unsupported architecture" error and the Claude version pin was ignored.
+- Persistent Claude overrides are now activated only after the installed binary passes a version check (run under a `timeout` so a hung `--version` cannot block startup); 32-bit ARM startup updates stay on the portable release instead of replacing it with an unsupported native wrapper.
 
 ## 2.0.12
 

@@ -263,10 +263,12 @@ setup_persistent_claude() {
 
     mkdir -p "$persistent_root"
 
-    # Current Claude Code native releases do not provide ARMv7 binaries.
-    if [ "$(uname -m)" = "armv7l" ]; then
-        claude_npm_spec="@anthropic-ai/claude-code@1.0.128"
-    fi
+    # Current Claude Code native releases do not provide 32-bit ARM binaries.
+    case "$(uname -m)" in
+        armv7l|armv6l|armhf)
+            claude_npm_spec="@anthropic-ai/claude-code@1.0.128"
+            ;;
+    esac
 
     if [ "$auto_update_claude_on_start" = "true" ]; then
         bashio::log.info "Persistent Claude override: updating Claude Code in /data/npm..."
@@ -277,9 +279,17 @@ setup_persistent_claude() {
         fi
     fi
 
+    # Smoke-test the persistent binary before trusting it: this rejects a stale
+    # or wrong-architecture install (e.g. an amd64 binary left in /data on a Pi).
+    # Run under a timeout so a hung `--version` can never block add-on startup.
+    local -a version_check=("$persistent_bin" --version)
+    if command -v timeout >/dev/null 2>&1; then
+        version_check=(timeout 15 "$persistent_bin" --version)
+    fi
+
     if [ -x "$persistent_bin" ] && \
        [ -f "$persistent_package" ] && \
-       "$persistent_bin" --version >/dev/null 2>&1; then
+       "${version_check[@]}" >/dev/null 2>&1; then
         ln -sf "$persistent_bin" "$claude_link"
         bashio::log.info "Persistent Claude override active: $claude_link -> $persistent_bin"
     else
