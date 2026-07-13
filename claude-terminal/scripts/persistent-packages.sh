@@ -109,6 +109,22 @@ persist_pip_install() {
     bashio::log.info "Python packages installed successfully"
 }
 
+# Normalize both Bashio list formats seen across Supervisor generations:
+# newline-separated values and JSON arrays.
+normalize_config_list() {
+    local raw="$1"
+
+    if [ -z "$raw" ] || [ "$raw" = "[]" ]; then
+        return 0
+    fi
+
+    if printf '%s' "$raw" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        printf '%s' "$raw" | jq -r '.[]'
+    else
+        printf '%s\n' "$raw"
+    fi
+}
+
 # Auto-install packages from configuration
 auto_install_packages() {
     local apk_packages
@@ -116,8 +132,8 @@ auto_install_packages() {
     local -a apk_package_list=()
     local -a pip_package_list=()
 
-    apk_packages=$(bashio::config 'persistent_apk_packages' '')
-    pip_packages=$(bashio::config 'persistent_pip_packages' '')
+    apk_packages=$(normalize_config_list "$(bashio::config 'persistent_apk_packages' '')")
+    pip_packages=$(normalize_config_list "$(bashio::config 'persistent_pip_packages' '')")
 
     # bashio returns list options as newline-separated values, not JSON.
     if [ -n "$apk_packages" ]; then

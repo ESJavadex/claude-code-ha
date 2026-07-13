@@ -51,6 +51,15 @@ setup_persistent_claude
 [ "$(readlink "$CLAUDE_BIN_LINK")" = "$PERSISTENT_CLAUDE_ROOT/bin/claude" ] || \
     fail "current npm Claude layout was not activated"
 
+# Older npm releases expose bin/claude as a symlink to cli.js. Keep accepting it.
+rm "$PERSISTENT_CLAUDE_ROOT/bin/claude"
+printf '#!/usr/bin/env node\n' > "$PERSISTENT_CLAUDE_ROOT/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+chmod +x "$PERSISTENT_CLAUDE_ROOT/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+ln -s ../lib/node_modules/@anthropic-ai/claude-code/cli.js "$PERSISTENT_CLAUDE_ROOT/bin/claude"
+setup_persistent_claude
+[ "$(readlink "$CLAUDE_BIN_LINK")" = "$PERSISTENT_CLAUDE_ROOT/bin/claude" ] || \
+    fail "legacy npm Claude layout was not activated"
+
 # Load the package helper definitions without running its command dispatcher.
 PERSISTENT_PACKAGES_SKIP_MAIN=true
 source "$repo_root/claude-terminal/scripts/persistent-packages.sh"
@@ -72,5 +81,22 @@ printf 'tmux\nopenssh-client\n' > "$tmp_dir/apk.expected"
 printf 'requests\nyaml\n' > "$tmp_dir/pip.expected"
 cmp -s "$tmp_dir/apk.expected" "$tmp_dir/apk.args" || fail "APK list was not passed as separate values"
 cmp -s "$tmp_dir/pip.expected" "$tmp_dir/pip.args" || fail "pip list was not passed as separate values"
+
+# Older Bashio versions may return JSON arrays; accept those too.
+config_apk_packages='["git","nano"]'
+config_pip_packages='["httpx","ruff"]'
+auto_install_packages
+printf 'git\nnano\n' > "$tmp_dir/apk.expected"
+printf 'httpx\nruff\n' > "$tmp_dir/pip.expected"
+cmp -s "$tmp_dir/apk.expected" "$tmp_dir/apk.args" || fail "JSON APK list compatibility failed"
+cmp -s "$tmp_dir/pip.expected" "$tmp_dir/pip.args" || fail "JSON pip list compatibility failed"
+
+# Empty options must be a no-op.
+config_apk_packages='[]'
+config_pip_packages=''
+rm "$tmp_dir/apk.args" "$tmp_dir/pip.args"
+auto_install_packages
+[ ! -e "$tmp_dir/apk.args" ] || fail "empty APK list should not install"
+[ ! -e "$tmp_dir/pip.args" ] || fail "empty pip list should not install"
 
 echo "All regression tests passed"
