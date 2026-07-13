@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.13
+
+### Bug fixes
+- Disabled tmux mouse capture by default so browser paste, including OAuth codes, is reliable; added the `tmux_mouse` option for users who want it (#26).
+- Fixed configured APK and pip package installation by handling Bashio's newline-separated list output directly instead of parsing it as JSON (#25).
+- Updated persistent Claude detection for current npm releases, which provide `bin/claude` instead of the removed `cli.js` entry point (#21).
+
 ## 2.0.12
 
 ### 🐛 Bug Fix - Claude Code ≥2.1.181 crashes with `statx: symbol not found`

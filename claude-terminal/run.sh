@@ -197,11 +197,15 @@ install_tools() {
 # Setup tmux configuration and session wrapper
 setup_tmux() {
     local tmux_conf="${HOME}/.tmux.conf"
+    local tmux_mouse
+    local tmux_wrapper="${TMUX_WRAPPER_PATH:-/usr/local/bin/tmux-claude}"
+
+    tmux_mouse=$(bashio::config 'tmux_mouse' 'false')
     bashio::log.info "Setting up tmux..."
 
-    cat > "$tmux_conf" << 'TMUX_EOF'
-# Mouse support: click to focus panes, scroll to scroll, drag to resize
-set -g mouse on
+    cat > "$tmux_conf" << TMUX_EOF
+# Mouse mode is disabled by default so ttyd/browser copy and paste keeps working.
+set -g mouse ${tmux_mouse}
 
 # Large scrollback buffer
 set -g history-limit 50000
@@ -222,7 +226,7 @@ set -g status-right '%H:%M'
 TMUX_EOF
 
     # Wrapper: attach to existing 'claude' session, or create a fresh one that runs the launch command
-    cat > /usr/local/bin/tmux-claude << 'WRAPPER_EOF'
+    cat > "$tmux_wrapper" << 'WRAPPER_EOF'
 #!/bin/bash
 if tmux has-session -t claude 2>/dev/null; then
     exec tmux attach-session -t claude
@@ -230,7 +234,7 @@ else
     exec tmux new-session -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
 fi
 WRAPPER_EOF
-    chmod +x /usr/local/bin/tmux-claude
+    chmod +x "$tmux_wrapper"
 
     bashio::log.info "tmux configured (${tmux_conf})"
 }
@@ -239,8 +243,10 @@ WRAPPER_EOF
 setup_persistent_claude() {
     local use_persistent_claude
     local auto_update_claude_on_start
-    local persistent_root="/data/npm"
-    local persistent_cli="$persistent_root/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+    local persistent_root="${PERSISTENT_CLAUDE_ROOT:-/data/npm}"
+    local persistent_bin="$persistent_root/bin/claude"
+    local persistent_package="$persistent_root/lib/node_modules/@anthropic-ai/claude-code/package.json"
+    local claude_link="${CLAUDE_BIN_LINK:-/usr/local/bin/claude}"
 
     use_persistent_claude=$(bashio::config 'use_persistent_claude' 'false')
     auto_update_claude_on_start=$(bashio::config 'auto_update_claude_on_start' 'false')
@@ -261,11 +267,11 @@ setup_persistent_claude() {
         fi
     fi
 
-    if [ -f "$persistent_cli" ]; then
-        ln -sf "$persistent_cli" /usr/local/bin/claude
-        bashio::log.info "Persistent Claude override active: /usr/local/bin/claude -> $persistent_cli"
+    if [ -x "$persistent_bin" ] && [ -f "$persistent_package" ]; then
+        ln -sf "$persistent_bin" "$claude_link"
+        bashio::log.info "Persistent Claude override active: $claude_link -> $persistent_bin"
     else
-        bashio::log.warning "Persistent Claude override enabled but no persistent Claude install found at $persistent_cli"
+        bashio::log.warning "Persistent Claude override enabled but no valid persistent Claude install found at $persistent_root"
         bashio::log.warning "Install it manually once with: NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@latest"
     fi
 }
@@ -501,4 +507,6 @@ main() {
 }
 
 # Execute main function
-main "$@"
+if [ "${CLAUDE_RUN_SH_SKIP_MAIN:-false}" != "true" ]; then
+    main "$@"
+fi

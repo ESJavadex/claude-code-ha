@@ -111,25 +111,29 @@ persist_pip_install() {
 
 # Auto-install packages from configuration
 auto_install_packages() {
-    local apk_packages=$(bashio::config 'persistent_apk_packages' '[]')
-    local pip_packages=$(bashio::config 'persistent_pip_packages' '[]')
+    local apk_packages
+    local pip_packages
+    local -a apk_package_list=()
+    local -a pip_package_list=()
 
-    # Parse and install APK packages
-    if [ "$apk_packages" != "[]" ] && [ "$apk_packages" != "" ]; then
+    apk_packages=$(bashio::config 'persistent_apk_packages' '')
+    pip_packages=$(bashio::config 'persistent_pip_packages' '')
+
+    # bashio returns list options as newline-separated values, not JSON.
+    if [ -n "$apk_packages" ]; then
         bashio::log.info "Auto-installing APK packages from config..."
-        local pkg_list=$(echo "$apk_packages" | jq -r '.[]' | tr '\n' ' ')
-        if [ -n "$pkg_list" ]; then
-            persist_apk_install $pkg_list
-        fi
+        while IFS= read -r package; do
+            [ -n "$package" ] && apk_package_list+=("$package")
+        done <<< "$apk_packages"
+        persist_apk_install "${apk_package_list[@]}"
     fi
 
-    # Parse and install Python packages
-    if [ "$pip_packages" != "[]" ] && [ "$pip_packages" != "" ]; then
+    if [ -n "$pip_packages" ]; then
         bashio::log.info "Auto-installing Python packages from config..."
-        local pkg_list=$(echo "$pip_packages" | jq -r '.[]' | tr '\n' ' ')
-        if [ -n "$pkg_list" ]; then
-            persist_pip_install $pkg_list
-        fi
+        while IFS= read -r package; do
+            [ -n "$package" ] && pip_package_list+=("$package")
+        done <<< "$pip_packages"
+        persist_pip_install "${pip_package_list[@]}"
     fi
 }
 
@@ -146,6 +150,10 @@ list_persistent_packages() {
 }
 
 # Main execution when sourced
+if [ "${PERSISTENT_PACKAGES_SKIP_MAIN:-false}" = "true" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 case "${1:-init}" in
     init)
         init_persistent_storage
