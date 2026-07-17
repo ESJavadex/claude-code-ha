@@ -26,6 +26,14 @@ The add-on offers several configuration options:
 - When enabled, Claude starts automatically when you open the terminal
 - When disabled, shows an interactive session picker menu
 
+### Remote Control
+- **Default**: `remote_control: false`
+- When enabled, the auto-launched Claude session starts with the `--remote-control` flag, pairing it with [claude.ai/code](https://claude.ai/code) and the Claude mobile app so you can drive the session from your phone, tablet, or another browser without opening the web terminal first (equivalent to running `claude --remote-control`)
+- Only applies while `auto_launch_claude: true`; it has no effect on the interactive session picker
+- Optionally set `remote_control_session_name` to give the session a fixed title in the session list; leave it empty to let Claude auto-generate one
+- **Requires** a claude.ai OAuth login (API keys are not supported) and Claude Code v2.1.51 or later. It is therefore not available on the ARMv7 build, which pins the portable `1.0.128` release
+- See Anthropic's [Remote Control guide](https://code.claude.com/docs/en/remote-control) for details
+
 ### Dangerously Skip Permissions
 - **Default**: `false`
 - When enabled, Claude runs with `--dangerously-skip-permissions` flag
@@ -56,6 +64,8 @@ The add-on offers several configuration options:
 **Example Configuration**:
 ```yaml
 auto_launch_claude: false
+remote_control: false
+remote_control_session_name: ""
 tmux_mouse: false
 dangerously_skip_permissions: true
 persistent_apk_packages:
