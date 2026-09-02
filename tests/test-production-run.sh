@@ -48,6 +48,23 @@ config_tmux_mouse=''
 setup_tmux
 grep -qx 'set -g mouse off' "$HOME/.tmux.conf" || fail "empty optional bool should safely disable mouse mode"
 
+# Claude Code's /copy emits OSC 52. tmux defaults to set-clipboard=external, which
+# drops what applications in the pane send, and only emits OSC 52 outwards when the
+# outer terminal advertises the Ms capability.
+grep -qx 'set -g set-clipboard on' "$HOME/.tmux.conf" || \
+    fail "tmux must accept and forward OSC 52 from applications"
+grep -qx "set -as terminal-features ',\*:clipboard'" "$HOME/.tmux.conf" || \
+    fail "tmux must advertise the clipboard capability so OSC 52 reaches ttyd"
+
+# The frontend fix has to be reachable from the page that embeds ttyd.
+clipboard_bridge="$repo_root/claude-terminal/image-service/public/terminal-clipboard.js"
+terminal_page="$repo_root/claude-terminal/image-service/public/index.html"
+[ -f "$clipboard_bridge" ] || fail "clipboard bridge is missing"
+grep -q 'src="terminal-clipboard.js"' "$terminal_page" || \
+    fail "terminal page must load the clipboard bridge"
+grep -q 'installTerminalClipboard(iframe)' "$terminal_page" || \
+    fail "terminal page must attach the clipboard bridge to the ttyd iframe"
+
 PERSISTENT_CLAUDE_ROOT="$tmp_dir/npm"
 CLAUDE_BIN_LINK="$tmp_dir/claude"
 mkdir -p "$PERSISTENT_CLAUDE_ROOT/bin" \
