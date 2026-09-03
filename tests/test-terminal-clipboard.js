@@ -41,9 +41,16 @@ function makeElement(tag) {
             if (!listeners.has(type)) listeners.set(type, []);
             listeners.get(type).push(handler);
         },
-        dispatch(type) {
-            const event = { preventDefault() {}, stopPropagation() {} };
+        dispatched: [],
+        dispatchEvent(event) { this.dispatched.push(event); return true; },
+        dispatch(type, extra) {
+            const event = Object.assign({
+                defaultPrevented: false,
+                preventDefault() { this.defaultPrevented = true; },
+                stopPropagation() {}
+            }, extra || {});
             (listeners.get(type) || []).forEach(handler => handler(event));
+            return event;
         },
         focus() {},
         select() {},
@@ -88,6 +95,8 @@ function makeWindow(options) {
         TextDecoder,
         setTimeout: (fn, ms) => setTimeout(fn, ms),
         clearTimeout: id => clearTimeout(id),
+        // Stands in for the iframe's WheelEvent constructor.
+        WheelEvent: function (type, init) { return Object.assign({ type: type }, init); },
         addEventListener(type, handler) {
             if (!windowListeners.has(type)) windowListeners.set(type, []);
             windowListeners.get(type).push(handler);
@@ -837,6 +846,140 @@ test('the link is found across tmux-wrapped rows, not as two halves', () => {
     });
     const controller = bridge.install(env.win);
     assert.strictEqual(controller.findLink().url, 'https://claude.com/oauth?code=1');
+});
+
+// --- Touch scrolling ------------------------------------------------------
+// xterm.js 5.5 drops touchstart/touchmove while the app has mouse reporting on
+// and never turns touch into a mouse report, so a phone could not scroll at
+// all. Measured on the live terminal: alternate_on=1, mouse_any_flag=1.
+// A row is 40/20 = 2px tall in this fixture (element height 40, rows 20).
+
+const swipe = (env, from, to, extra) => {
+    env.termElement.dispatch('touchstart', { touches: [{ clientY: from, clientX: 5 }] });
+    return env.termElement.dispatch('touchmove',
+        Object.assign({ touches: [{ clientY: to, clientX: 5 }] }, extra || {}));
+};
+const wheels = env => env.termElement.dispatched.filter(e => e.type === 'wheel');
+
+test('swiping down scrolls back, one wheel event per row', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    swipe(env, 100, 106); // finger down 6px = 3 rows
+    const sent = wheels(env);
+    assert.strictEqual(sent.length, 3, 'one event per row, not one per gesture');
+    assert.ok(sent.every(e => e.deltaY < 0), 'dragging content down reveals older output');
+});
+
+test('swiping up scrolls forward', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    swipe(env, 100, 94);
+    assert.ok(wheels(env).every(e => e.deltaY > 0));
+});
+
+test('a move shorter than one row scrolls nothing yet', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    swipe(env, 100, 101); // 1px, row is 2px
+    assert.deepStrictEqual(wheels(env), []);
+});
+
+test('sub-row moves accumulate instead of being discarded', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
+    env.termElement.dispatch('touchmove', { touches: [{ clientY: 101, clientX: 5 }] });
+    assert.deepStrictEqual(wheels(env), [], 'not yet a full row');
+    env.termElement.dispatch('touchmove', { touches: [{ clientY: 102, clientX: 5 }] });
+    assert.strictEqual(wheels(env).length, 1, 'the two halves make one row');
+});
+
+test('the leftover of a partial row carries into the next move', () => {
+    // 3px with a 2px row is one row and 1px over. Dropping that remainder
+    // instead of keeping it makes a slow drag lose about half its distance.
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
+    env.termElement.dispatch('touchmove', { touches: [{ clientY: 103, clientX: 5 }] });
+    assert.strictEqual(wheels(env).length, 1);
+    env.termElement.dispatch('touchmove', { touches: [{ clientY: 104, clientX: 5 }] });
+    assert.strictEqual(wheels(env).length, 2, '1px left over plus 1px is a second row');
+});
+
+test('a sub-row move leaves the gesture to the browser', () => {
+    // Claiming a move that scrolled nothing would swallow taps and flings.
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
+    const ev = env.termElement.dispatch('touchmove', { touches: [{ clientY: 101, clientX: 5 }] });
+    assert.strictEqual(ev.defaultPrevented, false);
+});
+
+test('a second finger mid-gesture stops the scroll', () => {
+    // Starting one-fingered and then pinching must not keep scrolling.
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
+    env.termElement.dispatch('touchmove', {
+        touches: [{ clientY: 110, clientX: 5 }, { clientY: 200, clientX: 5 }]
+    });
+    assert.deepStrictEqual(wheels(env), []);
+});
+
+test('the gesture is claimed, or the browser would treat it as a page scroll', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    const ev = swipe(env, 100, 106);
+    assert.strictEqual(ev.defaultPrevented, true);
+    assert.strictEqual(
+        env.termElement.style.touchAction, 'pan-x pinch-zoom',
+        'vertical must be ours while pinch-zoom stays with the browser'
+    );
+});
+
+test('a gesture xterm.js already handled is left alone', () => {
+    // xterm.js prevents the default when it scrolled the viewport itself.
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    swipe(env, 100, 106, { defaultPrevented: true });
+    assert.deepStrictEqual(wheels(env), [], 'must not scroll twice');
+});
+
+test('two fingers are left to the browser for pinch-zoom', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }, { clientY: 200, clientX: 5 }] });
+    env.termElement.dispatch('touchmove', { touches: [{ clientY: 106, clientX: 5 }, { clientY: 190, clientX: 5 }] });
+    assert.deepStrictEqual(wheels(env), []);
+});
+
+test('a fling is capped so one gesture cannot flood the app', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    swipe(env, 500, 900); // 400px = 200 rows
+    assert.strictEqual(wheels(env).length, 8);
+});
+
+test('touchend releases the gesture', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    bridge.install(env.win);
+
+    swipe(env, 100, 106);
+    const before = wheels(env).length;
+    env.termElement.dispatch('touchend', {});
+    env.termElement.dispatch('touchmove', { touches: [{ clientY: 200, clientX: 5 }] });
+    assert.strictEqual(wheels(env).length, before, 'a move after touchend is not a swipe');
 });
 
 (async () => {

@@ -339,6 +339,67 @@
         return { url: found.url, problem: found.problem, atEdge: atEdge };
     }
 
+    var TOUCH_LINES_PER_MOVE = 8;
+
+    /**
+     * Scroll by swiping. xterm.js 5.5 drops touchstart/touchmove outright while
+     * the app has mouse reporting on, and never turns touch into a mouse
+     * report - so with Claude Code (reporting on, alternate screen) a phone
+     * cannot scroll at all. The wheel has its own path, which is why a mouse
+     * works. Swipes become wheel events, so xterm.js encodes them exactly as it
+     * would a real wheel: a mouse report if the app wants one, else a scroll.
+     */
+    function installTouchScroll(win, term) {
+        var el = term.element;
+        if (!el) return;
+
+        // Vertical is ours; leave pinch-zoom and horizontal pan to the browser.
+        el.style.touchAction = 'pan-x pinch-zoom';
+
+        var lastY = null;
+        var pending = 0;
+
+        el.addEventListener('touchstart', function (ev) {
+            lastY = ev.touches.length === 1 ? ev.touches[0].clientY : null;
+            pending = 0;
+        }, { passive: true });
+
+        el.addEventListener('touchmove', function (ev) {
+            // xterm.js prevents the default when it scrolled the viewport
+            // itself - its signal that the gesture is already handled.
+            if (lastY === null || ev.defaultPrevented || ev.touches.length !== 1) return;
+
+            var touch = ev.touches[0];
+            var step = Math.max(1, el.getBoundingClientRect().height / Math.max(1, term.rows));
+            pending += lastY - touch.clientY;
+            lastY = touch.clientY;
+
+            var lines = Math.trunc(pending / step);
+            if (!lines) return;
+            pending -= lines * step;
+            ev.preventDefault();
+
+            // One event per line: a mouse report carries a direction, not a
+            // distance, so a single large delta would scroll one line.
+            var count = Math.min(Math.abs(lines), TOUCH_LINES_PER_MOVE);
+            for (var i = 0; i < count; i++) {
+                el.dispatchEvent(new win.WheelEvent('wheel', {
+                    deltaY: lines > 0 ? step : -step,
+                    deltaMode: 0,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    bubbles: true,
+                    cancelable: true
+                }));
+            }
+        }, { passive: false });
+
+        el.addEventListener('touchend', function () {
+            lastY = null;
+            pending = 0;
+        }, { passive: true });
+    }
+
     function install(win, options) {
         var opts = options || {};
         var term = win.term;
@@ -463,6 +524,8 @@
             hasSelection: function () { return !!term.getSelection(); },
             copyTextDirect: copyText
         };
+
+        installTouchScroll(win, term);
 
         term[INSTALL_FLAG] = true;
         term.__claudeClipboard = controller;

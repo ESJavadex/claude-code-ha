@@ -49,6 +49,13 @@
   a dangling `?`/`&`/`=`, or a link still running at the edge of the rows read all
   mean "widen the search, then say it is cut off" — pasting half a URL fails with
   nothing on screen explaining why.
+- **Swiping scrolls the terminal.** xterm.js 5.5 drops `touchstart`/`touchmove`
+  outright while the application has mouse reporting on, and never turns touch
+  into a mouse report — so on a phone or a touch PC the history could not be
+  scrolled at all. The wheel has its own code path, which is why a mouse always
+  worked. Swipes are now translated into wheel events, so xterm.js encodes them
+  exactly as it would a real wheel. Vertical is claimed only once a full row of
+  movement has built up; pinch-zoom and horizontal panning stay with the browser.
 
 ### 🔧 Technical
 - Header buttons have a fixed height and a separately sized icon. Emoji sit on a
@@ -61,7 +68,7 @@
   points at `📋`. Serving Home Assistant over HTTPS enables it.
 - OSC 52 *read* requests are swallowed instead of answered, so a program running
   in the terminal cannot read the host clipboard.
-- New regression coverage: 60 Node tests for the clipboard bridge
+- New regression coverage: 72 Node tests for the clipboard bridge
   (`tests/test-terminal-clipboard.js`, wired into `tests/run-tests.sh`) plus tmux
   clipboard assertions in `tests/test-production-run.sh`. The link-rebuilding
   fixtures are the literal rows captured from a running terminal.
