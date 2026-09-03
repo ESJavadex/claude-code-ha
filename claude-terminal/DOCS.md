@@ -74,6 +74,18 @@ is handling a user gesture:
   can do changes this — it is the browser's security model, not a bug.
 - Serving Home Assistant over HTTPS makes `/copy` work too.
 
+### Scrolling on a Phone or Touch Screen
+
+Swipe up and down over the terminal. A mouse wheel has always worked, but touch
+did not: xterm.js ignores touch entirely while the program in the terminal has
+taken over the mouse, which Claude Code does. Swipes are now translated into
+wheel events, so they behave the same as a wheel.
+
+Pinch-zoom and horizontal panning still belong to the browser, and putting a
+second finger down stops the scroll — so a pinch is not read as a drag.
+
+### Reading the Clipboard
+
 **Reading** the clipboard *from* the terminal is deliberately not implemented:
 OSC 52 read requests (`\e]52;c;?\a`) are swallowed rather than answered, so a
 program in the terminal cannot exfiltrate your clipboard.
