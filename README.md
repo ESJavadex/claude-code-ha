@@ -157,3 +157,7 @@ Built and maintained with the help of Claude Code itself.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## About the author
+
+Maintained by **Javier Santos** ([@ESJavadex](https://github.com/ESJavadex)) — AI consultant and founder of [Javadex](https://www.javadex.es/), where I help companies run private AI platforms. I also build [Cortex](https://www.javadex.es/plataforma), a self-hosted multi-model AI platform (the same "your AI, your data" philosophy as this add-on). More AI + Home Assistant content (in Spanish) on the [Javadex blog](https://www.javadex.es/blog).
