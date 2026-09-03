@@ -65,6 +65,11 @@ grep -q 'src="terminal-clipboard.js"' "$terminal_page" || \
 grep -q 'installTerminalClipboard(iframe)' "$terminal_page" || \
     fail "terminal page must attach the clipboard bridge to the ttyd iframe"
 
+# The on-screen keyboard shrinks the visual viewport but not 100vh, so without
+# this the prompt ends up behind the keyboard.
+grep -q 'window.visualViewport' "$terminal_page" || \
+    fail "terminal page must follow the visual viewport so the keyboard cannot cover the prompt"
+
 PERSISTENT_CLAUDE_ROOT="$tmp_dir/npm"
 CLAUDE_BIN_LINK="$tmp_dir/claude"
 mkdir -p "$PERSISTENT_CLAUDE_ROOT/bin" \

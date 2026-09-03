@@ -19,6 +19,8 @@
             height: 100vh;
         }
 
+        /* Height is overwritten in px from visualViewport once the on-screen
+           keyboard is up - 100vh ignores it. See trackOnScreenKeyboard(). */
         #container {
             display: flex;
             flex-direction: column;
@@ -1020,6 +1022,32 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && copyModal.classList.contains('active')) closeCopyModal();
         });
+
+        // --- Keep the prompt above the on-screen keyboard ---
+        // The keyboard shrinks the visual viewport but leaves 100vh alone, so
+        // the terminal keeps its full height and its bottom rows - the prompt -
+        // sit behind the keyboard. Track the visual viewport instead; shrinking
+        // the container makes the iframe fire resize, and ttyd refits.
+
+        function trackOnScreenKeyboard() {
+            const viewport = window.visualViewport;
+            const container = document.getElementById('container');
+            if (!viewport || !container) return;
+
+            const apply = () => {
+                // A bogus height would collapse the terminal entirely.
+                if (viewport.height < 120) return;
+                container.style.height = viewport.height + 'px';
+                // iOS pans the layout viewport when an input takes focus.
+                window.scrollTo(0, 0);
+            };
+
+            viewport.addEventListener('resize', apply);
+            viewport.addEventListener('scroll', apply);
+            apply();
+        }
+
+        trackOnScreenKeyboard();
 
         // --- One-tap link copy ---
         // What people copy is almost always a login URL, and selecting it by
