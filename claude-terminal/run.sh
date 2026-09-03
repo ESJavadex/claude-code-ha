@@ -393,16 +393,39 @@ auto_install_packages() {
 get_claude_launch_command() {
     local auto_launch_claude
     local dangerously_skip_permissions
+    local remote_control
+    local remote_control_session_name
     local claude_flags=""
 
     # Get configuration values
     auto_launch_claude=$(bashio::config 'auto_launch_claude' 'true')
     dangerously_skip_permissions=$(bashio::config 'dangerously_skip_permissions' 'false')
+    remote_control=$(bashio::config 'remote_control' 'false')
+    remote_control_session_name=$(bashio::config 'remote_control_session_name' '')
 
     # Build Claude flags
     if [ "$dangerously_skip_permissions" = "true" ]; then
         claude_flags="--dangerously-skip-permissions"
         bashio::log.warning "Claude will run with --dangerously-skip-permissions (unrestricted file access)"
+    fi
+
+    # Remote Control: start the auto-launched interactive session already paired
+    # with claude.ai/code and the Claude mobile app (same as `claude --remote-control`),
+    # so a phone or browser can drive it without opening the web terminal first.
+    # Only affects the auto-launch path below; the session picker builds its own
+    # commands. Needs a claude.ai OAuth login and Claude Code v2.1.51+, so it does
+    # nothing on the ARMv7 image that pins the portable 1.0.128 release.
+    if [ "$remote_control" = "true" ]; then
+        claude_flags="${claude_flags:+${claude_flags} }--remote-control"
+        if [ -n "$remote_control_session_name" ]; then
+            # printf %q shell-quotes the name so spaces (and any other special
+            # characters) survive the eval in the tmux wrapper as a single argument.
+            claude_flags="${claude_flags} $(printf '%q' "$remote_control_session_name")"
+        fi
+        bashio::log.info "Remote Control enabled: Claude will start with --remote-control"
+        if [ "$auto_launch_claude" != "true" ]; then
+            bashio::log.warning "remote_control is set but has no effect while auto_launch_claude is false"
+        fi
     fi
 
     if [ "$auto_launch_claude" = "true" ]; then

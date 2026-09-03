@@ -1,7 +1,7 @@
 ---
 name: "Claude Terminal Pro"
 description: "Enhanced terminal interface for Anthropic's Claude Code CLI with persistent auth, package management, and image paste support. Fork of heytcass/home-assistant-addons"
-version: "2.0.13"
+version: "2.0.14"
 slug: "claude_terminal_pro"
 init: false
 
@@ -32,6 +32,8 @@ ports_description:
 # Add-on configuration options
 options:
   auto_launch_claude: true
+  remote_control: false
+  remote_control_session_name: ""
   tmux_mouse: false
   dangerously_skip_permissions: false
   persistent_apk_packages: []
@@ -41,6 +43,8 @@ options:
 
 schema:
   auto_launch_claude: bool?
+  remote_control: bool?
+  remote_control_session_name: str?
   tmux_mouse: bool?
   dangerously_skip_permissions: bool?
   persistent_apk_packages:
