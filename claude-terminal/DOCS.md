@@ -38,6 +38,58 @@ The add-on offers several configuration options:
 - Keep disabled for reliable native browser copy/paste in the ttyd terminal, including OAuth codes
 - Enable only if you prefer tmux mouse selection, scrolling, and pane controls
 
+### Copying Text Out of the Terminal
+
+There are four ways, and which ones you need depends on the device:
+
+- **`🔗 Copy link`** appears in the header on its own whenever a link is on
+  screen. One tap copies it, and the status line names the host it took. This is
+  the quickest way to get an OAuth login URL out, on any device.
+- **`📋 Copy`** opens the terminal's text in a box you can select from. On a
+  phone this is the only way to copy arbitrary text: xterm.js has no touch
+  support in its selection code and draws to a canvas, so a finger cannot select
+  anything in the terminal itself. Long-press in the box for the native selection
+  handles, or use **Copy all**. The switch chooses the visible screen or the
+  whole scrollback.
+- **Mouse selection** copies automatically on a computer. The scissors overlay
+  (`✂`) appears only when the clipboard was actually written.
+- **Claude Code's `/copy`** emits an OSC 52 escape sequence; tmux forwards it
+  (`set-clipboard on`) and the browser writes it to the clipboard.
+
+**Long links.** The terminal breaks a long URL across rows, and the add-on puts
+it back together — including the case where the tail is re-indented, which would
+otherwise leave spaces inside the link. If a link is cut off at the edge of the
+screen it is refused rather than copied in half, and the status line says so;
+scroll until all of it is visible.
+
+**Plain HTTP.** Over `http://homeassistant.local:8123` browsers do not expose
+`navigator.clipboard` at all — that API is restricted to secure contexts. The
+add-on falls back to a hidden-textarea copy, which Chrome only permits while it
+is handling a user gesture:
+
+- Every **button** works, because your tap is the gesture. So does mouse
+  selection, because releasing the button is one.
+- **`/copy` does not.** It arrives from the terminal with no tap behind it, so
+  the browser refuses it; the add-on says so and points at `📋`. Nothing the page
+  can do changes this — it is the browser's security model, not a bug.
+- Serving Home Assistant over HTTPS makes `/copy` work too.
+
+### Scrolling on a Phone or Touch Screen
+
+Swipe up and down over the terminal. A mouse wheel has always worked, but touch
+did not: xterm.js ignores touch entirely while the program in the terminal has
+taken over the mouse, which Claude Code does. Swipes are now translated into
+wheel events, so they behave the same as a wheel.
+
+Pinch-zoom and horizontal panning still belong to the browser, and putting a
+second finger down stops the scroll — so a pinch is not read as a drag.
+
+### Reading the Clipboard
+
+**Reading** the clipboard *from* the terminal is deliberately not implemented:
+OSC 52 read requests (`\e]52;c;?\a`) are swallowed rather than answered, so a
+program in the terminal cannot exfiltrate your clipboard.
+
 ### Persistent Packages
 - Configure APK and pip packages to auto-install on startup
 - Packages are stored in `/data/packages` and survive restarts

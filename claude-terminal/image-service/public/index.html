@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- interactive-widget shrinks the layout viewport when the keyboard opens,
+         so 100vh and the iframe shrink with it. The default, resizes-visual,
+         leaves layout alone and the prompt stays behind the keyboard until
+         something else forces a redraw. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>Claude Terminal Pro</title>
     <style>
         * {
@@ -19,6 +23,8 @@
             height: 100vh;
         }
 
+        /* Height is overwritten in px from visualViewport once the on-screen
+           keyboard is up - 100vh ignores it. See trackOnScreenKeyboard(). */
         #container {
             display: flex;
             flex-direction: column;
@@ -41,17 +47,31 @@
             color: #ccc;
         }
 
+        /* One fixed height for every header button. Emoji sit on a larger em
+           box than the label text, so without this each button takes its height
+           from its own icon and the row comes out ragged. */
         .header-btn {
             background: #007acc;
             color: white;
             border: none;
-            padding: 6px 12px;
+            height: 30px;
+            padding: 0 12px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
-            display: flex;
+            line-height: 1;
+            white-space: nowrap;
+            display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
+        }
+
+        /* The icon span: sized on its own so it cannot stretch the button. */
+        .header-btn > span:first-child {
+            font-size: 14px;
+            line-height: 1;
+            display: block;
         }
 
         .header-btn:hover {
@@ -267,6 +287,155 @@
         #voice-status.listening {
             color: #d9534f;
         }
+
+        /* Copy modal: the only way to copy on a touch device, where xterm.js
+           has no selection at all. */
+        #copy-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        #copy-modal.active {
+            display: flex;
+        }
+
+        #copy-modal-content {
+            background: #2d2d2d;
+            border-radius: 8px;
+            padding: 16px;
+            max-width: 700px;
+            width: 94%;
+            border: 1px solid #3d3d3d;
+        }
+
+        #copy-modal-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        #copy-hint {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        /* A real textarea, so a long-press gives the native mobile
+           selection handles and the OS copy menu. */
+        #copy-text {
+            width: 100%;
+            height: 45vh;
+            background: #1e1e1e;
+            border: 1px solid #3d3d3d;
+            border-radius: 4px;
+            padding: 10px;
+            color: #ddd;
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.45;
+            white-space: pre;
+            overflow: auto;
+            resize: none;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        .copy-options {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin: 10px 0;
+            font-size: 12px;
+            color: #aaa;
+            flex-wrap: wrap;
+        }
+
+        .copy-options label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        #copy-status {
+            font-size: 12px;
+            color: #888;
+            min-height: 18px;
+            margin-bottom: 8px;
+        }
+
+        #copy-status.success {
+            color: #5cb85c;
+        }
+
+        #copy-status.error {
+            color: #d9534f;
+        }
+
+        /* The link button appears on its own when a URL shows up in the
+           terminal, so copying an OAuth link is one tap and no selecting. */
+        #link-btn {
+            background: #2ea043;
+        }
+
+        #link-btn:hover {
+            background: #268a39;
+        }
+
+        #link-btn.copied {
+            background: #1a7f37;
+        }
+
+        /* Phones: the button labels do not fit next to the title. */
+        @media (max-width: 700px) {
+            #header-title {
+                display: none;
+            }
+
+            #header {
+                justify-content: flex-end;
+            }
+
+            /* Icon-only, so make them square rather than letting the padding
+               decide the width per emoji. */
+            .header-btn {
+                width: 38px;
+                height: 34px;
+                padding: 0;
+            }
+
+            .header-btn > span:first-child {
+                font-size: 16px;
+            }
+
+            .header-btn .btn-label {
+                display: none;
+            }
+
+            .modal-buttons {
+                flex-wrap: wrap;
+            }
+
+            .modal-btn {
+                flex: 1 1 auto;
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+
+            #copy-text {
+                height: 40vh;
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -275,13 +444,21 @@
             <div id="header-title">Claude Terminal Pro - Voice & image support</div>
             <div style="display: flex; align-items: center; gap: 12px;">
                 <span id="status"></span>
+                <button id="link-btn" class="header-btn" title="Copy the link shown in the terminal" style="display: none;">
+                    <span>🔗</span>
+                    <span class="btn-label">Copy link</span>
+                </button>
+                <button id="copy-btn" class="header-btn" title="Copy terminal text">
+                    <span>📋</span>
+                    <span class="btn-label">Copy</span>
+                </button>
                 <button id="voice-btn" class="header-btn">
                     <span>🎤</span>
-                    <span>Voice Input</span>
+                    <span class="btn-label">Voice Input</span>
                 </button>
                 <button id="upload-btn" class="header-btn">
                     <span>📎</span>
-                    <span>Upload Image</span>
+                    <span class="btn-label">Upload Image</span>
                 </button>
             </div>
         </div>
@@ -293,6 +470,31 @@
         </div>
     </div>
     <input type="file" id="file-input" accept="image/*">
+
+    <!-- Copy Modal: touch devices cannot select terminal text at all -->
+    <div id="copy-modal">
+        <div id="copy-modal-content">
+            <div id="copy-modal-title">📋 Copy terminal text</div>
+            <div id="copy-hint">Long-press in the box to select part of it, or use "Copy all".</div>
+            <div id="copy-status"></div>
+            <textarea id="copy-text" readonly spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+            <div class="copy-options">
+                <label><input type="radio" name="copy-scope" value="screen" checked> Visible screen</label>
+                <label><input type="radio" name="copy-scope" value="all"> Full scrollback</label>
+                <label id="copy-scope-selection" style="display: none;"><input type="radio" name="copy-scope" value="selection"> Selection</label>
+            </div>
+            <div class="copy-options">
+                <label title="tmux breaks long lines at the pane width; rejoining them keeps URLs in one piece">
+                    <input type="checkbox" id="copy-join" checked> Rejoin wrapped lines
+                </label>
+            </div>
+            <div class="modal-buttons">
+                <button id="copy-url-btn" class="modal-btn modal-btn-primary" style="display: none;">Copy link</button>
+                <button id="copy-all-btn" class="modal-btn modal-btn-primary">Copy all</button>
+                <button id="copy-close-btn" class="modal-btn modal-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Voice Input Modal -->
     <div id="voice-modal">
@@ -308,6 +510,7 @@
         </div>
     </div>
 
+    <script src="terminal-clipboard.js"></script>
     <script>
         let ttydPort = 7681;
         let uploadDir = '/data/images';
@@ -333,6 +536,31 @@
             const iframe = document.getElementById('terminal-frame');
             // Use relative path for Home Assistant ingress compatibility
             iframe.src = 'terminal/';
+            // ttyd cannot copy an xterm.js selection on its own, and ignores OSC 52
+            installTerminalClipboard(iframe);
+        }
+
+        // Fixes mouse-selection copy and Claude Code's /copy (OSC 52) inside ttyd.
+        let clipboardBridge = null;
+
+        function installTerminalClipboard(iframe) {
+            const bridge = window.ClaudeTerminalClipboard;
+            if (!bridge) {
+                console.warn('terminal-clipboard.js not loaded, terminal copy will not work');
+                return;
+            }
+            clipboardBridge = bridge.attach(iframe, {
+                onError: (err) => console.error('Clipboard bridge failed:', err),
+                onTimeout: () => console.warn('Terminal did not expose window.term, clipboard bridge inactive'),
+                // Only reachable for /copy on a plain-HTTP origin, where the
+                // browser has no clipboard API and refuses the fallback without
+                // a user gesture. Say so and point at a button that has one.
+                onRefused: () => setStatus(
+                    'The browser blocked /copy over plain HTTP — use 📋 instead (or open Home Assistant over HTTPS)',
+                    'error',
+                    true
+                )
+            });
         }
 
         const status = document.getElementById('status');
@@ -674,6 +902,232 @@
             const iframe = document.getElementById('terminal-frame');
             iframe.addEventListener('dragover', (e) => e.preventDefault());
             iframe.addEventListener('drop', (e) => e.preventDefault());
+        });
+
+        // --- Copy terminal text: the only path a touch device has ---
+        // xterm.js has no touch selection and paints to a canvas, so a finger
+        // selects nothing. Read the buffer into a textarea instead, where a
+        // long-press gives the native handles.
+
+        const copyModal = document.getElementById('copy-modal');
+        const copyBtn = document.getElementById('copy-btn');
+        const copyTextArea = document.getElementById('copy-text');
+        const copyStatus = document.getElementById('copy-status');
+        const copyAllBtn = document.getElementById('copy-all-btn');
+        const copyUrlBtn = document.getElementById('copy-url-btn');
+        const copyCloseBtn = document.getElementById('copy-close-btn');
+        const copyScopeSelection = document.getElementById('copy-scope-selection');
+        const copyJoin = document.getElementById('copy-join');
+
+        function currentCopyScope() {
+            const checked = document.querySelector('input[name="copy-scope"]:checked');
+            return checked ? checked.value : 'screen';
+        }
+
+        function setCopyStatus(message, type = '') {
+            copyStatus.textContent = message;
+            copyStatus.className = type;
+        }
+
+        function terminalController() {
+            return clipboardBridge ? clipboardBridge.getController() : null;
+        }
+
+        function refreshCopyText() {
+            const controller = terminalController();
+            if (!controller) {
+                copyTextArea.value = '';
+                setCopyStatus('Terminal is not ready yet.', 'error');
+                return;
+            }
+            copyTextArea.value = controller.read(currentCopyScope(), copyJoin.checked);
+
+            // Ask the terminal, not the textarea: rebuilding a link that was
+            // split across rows needs the row geometry, which the flattened
+            // text no longer has.
+            const found = controller.findLink();
+            copyUrlBtn.style.display = found.url ? 'block' : 'none';
+            copyUrlBtn.dataset.url = found.url || '';
+            if (found.url) {
+                setCopyStatus('Found a link — "Copy link" copies just that.');
+            } else if (found.problem === 'truncated') {
+                setCopyStatus('A link is on screen but cut off — try "Full scrollback".', 'error');
+            } else {
+                setCopyStatus('');
+            }
+        }
+
+        function openCopyModal() {
+            const controller = terminalController();
+            // Only offer the "Selection" scope when there actually is one
+            // (desktop with a mouse); on a phone there never is.
+            const hasSelection = !!(controller && controller.hasSelection());
+            copyScopeSelection.style.display = hasSelection ? 'flex' : 'none';
+            if (hasSelection) {
+                copyScopeSelection.querySelector('input').checked = true;
+            } else if (currentCopyScope() === 'selection') {
+                document.querySelector('input[name="copy-scope"][value="screen"]').checked = true;
+            }
+
+            refreshCopyText();
+            copyModal.classList.add('active');
+        }
+
+        function closeCopyModal() {
+            copyModal.classList.remove('active');
+            setCopyStatus('');
+        }
+
+        copyBtn.addEventListener('click', openCopyModal);
+        copyCloseBtn.addEventListener('click', closeCopyModal);
+        copyModal.addEventListener('click', (e) => {
+            if (e.target === copyModal) closeCopyModal();
+        });
+        document.querySelectorAll('input[name="copy-scope"]').forEach((radio) => {
+            radio.addEventListener('change', refreshCopyText);
+        });
+        copyJoin.addEventListener('change', refreshCopyText);
+
+        copyUrlBtn.addEventListener('click', async () => {
+            const url = copyUrlBtn.dataset.url;
+            if (!url) return;
+
+            if (await copyToClipboard(url)) {
+                setCopyStatus(`✓ Copied the link (${url.length} chars).`, 'success');
+                return;
+            }
+            // Select just the link so the OS copy menu picks it up.
+            const at = copyTextArea.value.indexOf(url);
+            copyTextArea.focus();
+            if (at !== -1) copyTextArea.setSelectionRange(at, at + url.length);
+            setCopyStatus('Could not copy automatically - the link is selected, use your device\'s Copy.', 'error');
+        });
+
+        // The tap on this button is the user gesture that the execCommand
+        // fallback needs, so this works on plain HTTP too.
+        copyAllBtn.addEventListener('click', async () => {
+            const text = copyTextArea.value;
+            if (!text) {
+                setCopyStatus('Nothing to copy.', 'error');
+                return;
+            }
+
+            if (await copyToClipboard(text)) {
+                setCopyStatus(`✓ Copied ${text.split('\n').length} lines.`, 'success');
+                return;
+            }
+
+            // Last resort: hand it to the OS selection UI.
+            copyTextArea.focus();
+            copyTextArea.setSelectionRange(0, text.length);
+            setCopyStatus('Could not copy automatically - the text is selected, use your device\'s Copy.', 'error');
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && copyModal.classList.contains('active')) closeCopyModal();
+        });
+
+        // --- Keep the prompt above the on-screen keyboard ---
+        // interactive-widget in the viewport meta does this on Chrome. Safari
+        // ignores it, so follow the visual viewport as well; shrinking the
+        // container makes the iframe fire resize and ttyd refits.
+
+        function trackOnScreenKeyboard() {
+            const viewport = window.visualViewport;
+            const container = document.getElementById('container');
+            if (!viewport || !container) return;
+
+            let settle;
+
+            const apply = () => {
+                // A bogus height would collapse the terminal entirely.
+                if (viewport.height < 120) return;
+                container.style.height = viewport.height + 'px';
+                // iOS pans the layout viewport when an input takes focus.
+                window.scrollTo(0, 0);
+
+                // The keyboard animates, so the height arrives in steps. Pin to
+                // the bottom once it stops moving, rather than on every step -
+                // otherwise the view only catches up when something else
+                // redraws, which is why it used to wait for a keystroke.
+                clearTimeout(settle);
+                settle = setTimeout(() => {
+                    const controller = terminalController();
+                    if (controller) controller.scrollToBottom();
+                }, 150);
+            };
+
+            viewport.addEventListener('resize', apply);
+            viewport.addEventListener('scroll', apply);
+            apply();
+        }
+
+        trackOnScreenKeyboard();
+
+        // --- One-tap link copy ---
+        // What people copy is almost always a login URL, and selecting it by
+        // finger is painful even above. Watch for one and offer a button; the
+        // tap is also the gesture the execCommand fallback needs.
+
+        const linkBtn = document.getElementById('link-btn');
+        let pendingLink = null;
+
+        const LINK_PROBLEM_MESSAGE = {
+            none: 'No link on screen',
+            truncated: 'The link on screen is cut off - scroll so all of it is visible',
+            invalid: 'That does not look like a complete link'
+        };
+
+        function scanForLink() {
+            const controller = terminalController();
+            if (!controller) return;
+
+            const url = controller.findLink().url;
+            if (url === pendingLink) return;
+
+            pendingLink = url;
+            linkBtn.style.display = url ? 'inline-flex' : 'none';
+            linkBtn.classList.remove('copied');
+            // Shows the host on hover, so it is obvious what will be copied.
+            linkBtn.title = url ? `Copy ${url}` : 'Copy the link shown in the terminal';
+        }
+
+        setInterval(scanForLink, 1500);
+
+        linkBtn.addEventListener('click', async () => {
+            // Re-check on the tap rather than trusting the 1.5s poll: the
+            // screen may have changed, and a stale truncated link is exactly
+            // the "unfinished http..." that is worse than no link at all.
+            const controller = terminalController();
+            const found = controller ? controller.findLink() : { url: null, problem: 'none' };
+
+            if (!found.url) {
+                pendingLink = null;
+                linkBtn.style.display = 'none';
+                setStatus(LINK_PROBLEM_MESSAGE[found.problem] || LINK_PROBLEM_MESSAGE.none, 'error');
+                return;
+            }
+
+            pendingLink = found.url;
+            if (await copyToClipboard(found.url)) {
+                linkBtn.classList.add('copied');
+                // Name the host: on a phone there is no hover, so this is the
+                // only way to see which link was taken when several are up.
+                let host = found.url;
+                try { host = new URL(found.url).host; } catch (err) { /* keep the raw URL */ }
+                setStatus(`✓ Copied link to ${host} (${found.url.length} chars)`, 'success');
+                return;
+            }
+
+            // Copy was refused: fall back to the dialog, where the link is
+            // preselected for the OS copy menu.
+            setStatus('Could not copy automatically - opening the copy dialog', 'error');
+            openCopyModal();
+            const at = copyTextArea.value.indexOf(found.url);
+            if (at !== -1) {
+                copyTextArea.focus();
+                copyTextArea.setSelectionRange(at, at + found.url.length);
+            }
         });
 
         // ========================================

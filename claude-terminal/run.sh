@@ -211,6 +211,14 @@ setup_tmux() {
 # Mouse mode is disabled by default so ttyd/browser copy and paste keeps working.
 set -g mouse ${tmux_mouse}
 
+# Let applications in the pane (Claude Code's /copy) set the clipboard through
+# OSC 52 and forward it out to ttyd. The default 'external' drops what they send.
+set -g set-clipboard on
+
+# tmux only emits OSC 52 when the outer terminal advertises the 'Ms' capability.
+# ttyd's frontend always accepts it, so declare it instead of trusting terminfo.
+set -as terminal-features ',*:clipboard'
+
 # Large scrollback buffer
 set -g history-limit 50000
 
