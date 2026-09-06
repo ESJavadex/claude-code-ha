@@ -436,8 +436,31 @@
         var coarse = !!(win.matchMedia && win.matchMedia('(pointer: coarse)').matches);
         if (!textarea || !coarse) return false;
 
-        textarea.setAttribute('inputmode', 'url');
         textarea.setAttribute('autocomplete', 'off');
+
+        // xterm.js only empties the helper textarea on Enter or Ctrl+C, so a
+        // long stretch of typing leaves the whole sentence sitting in it. The
+        // keyboard keeps a composing region over that text, and every commit
+        // re-sends all of it - which is why the prompt filled up with the same
+        // phrase again and again, and why reloading the page cured it.
+        //
+        // Emptying it after each committed keystroke keeps the region small.
+        // The value is only there for IMEs and screen readers; the keystrokes
+        // themselves have already been sent by the time this runs, because
+        // xterm.js listens in the capture phase and this listens in the bubble
+        // phase.
+        var composing = false;
+
+        textarea.addEventListener('compositionstart', function () { composing = true; });
+        textarea.addEventListener('compositionend', function () {
+            composing = false;
+            textarea.value = '';
+        });
+        textarea.addEventListener('input', function () {
+            // Clearing mid-composition would destroy the word being typed.
+            if (!composing) textarea.value = '';
+        });
+
         return true;
     }
 

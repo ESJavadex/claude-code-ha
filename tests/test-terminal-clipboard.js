@@ -1040,19 +1040,41 @@ test('touchend releases the gesture', () => {
 // the prompt several times over. Nothing outside xterm.js can cancel what it
 // sends, so the keyboard is put in a non-composing mode instead.
 
-test('a touch device gets a keyboard that does not compose', () => {
+test('the helper textarea is emptied after every committed keystroke', () => {
+    // xterm.js only clears it on Enter or Ctrl+C, so a long stretch of typing
+    // leaves the whole sentence in it for the keyboard to keep composing over,
+    // and each commit re-sends all of it.
     const env = makeWindow({ clipboardApi: true, touch: true });
     bridge.install(env.win);
+    const textarea = env.win.term.textarea;
 
-    assert.strictEqual(env.win.term.textarea.attributes.inputmode, 'url');
-    assert.strictEqual(env.win.term.textarea.attributes.autocomplete, 'off');
+    textarea.value = 'a whole sentence typed without pressing enter';
+    textarea.dispatch('input');
+    assert.strictEqual(textarea.value, '', 'nothing must be left to re-send');
 });
 
-test('a mouse keeps its normal keyboard', () => {
+test('the textarea is left alone while a word is being composed', () => {
+    const env = makeWindow({ clipboardApi: true, touch: true });
+    bridge.install(env.win);
+    const textarea = env.win.term.textarea;
+
+    textarea.dispatch('compositionstart');
+    textarea.value = 'partia';
+    textarea.dispatch('input');
+    assert.strictEqual(textarea.value, 'partia', 'clearing here would destroy the word');
+
+    textarea.dispatch('compositionend');
+    assert.strictEqual(textarea.value, '', 'but it goes once the word is committed');
+});
+
+test('a mouse keyboard is not touched at all', () => {
     const env = makeWindow({ clipboardApi: true, touch: false });
     bridge.install(env.win);
+    const textarea = env.win.term.textarea;
 
-    assert.strictEqual(env.win.term.textarea.attributes.inputmode, undefined);
+    textarea.value = 'desktop typing';
+    textarea.dispatch('input');
+    assert.strictEqual(textarea.value, 'desktop typing');
 });
 
 test('a terminal with no textarea is left alone', () => {
