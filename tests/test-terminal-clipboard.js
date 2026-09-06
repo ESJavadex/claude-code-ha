@@ -37,6 +37,12 @@ function makeElement(tag) {
             return child;
         },
         getBoundingClientRect() { return { width: 100, height: 40 }; },
+        classList: {
+            _set: new Set(),
+            add(name) { this._set.add(name); },
+            remove(name) { this._set.delete(name); },
+            contains(name) { return this._set.has(name); }
+        },
         addEventListener(type, handler) {
             if (!listeners.has(type)) listeners.set(type, []);
             listeners.get(type).push(handler);
@@ -873,6 +879,18 @@ const swipe = (env, from, to, extra) => {
         Object.assign({ touches: [{ clientY: to, clientX: 5 }] }, extra || {}));
 };
 const wheels = env => env.termElement.dispatched.filter(e => e.type === 'wheel');
+
+test('a swipe scrolls a full-screen app once it takes the mouse', () => {
+    // With mouse reporting on (the tmux_mouse option) a wheel event leaves as
+    // a mouse report, so it is safe to pass on even with no scrollback - and
+    // it is the only way to scroll a full-screen app.
+    const env = makeWindow({ clipboardApi: true, rows: 20, altScreen: true, buffer: SCROLLBACK });
+    bridge.install(env.win);
+    env.termElement.classList.add('enable-mouse-events');
+
+    swipe(env, 100, 106);
+    assert.strictEqual(wheels(env).length, 3);
+});
 
 test('a swipe sends nothing when there is no scrollback', () => {
     // xterm.js turns a wheel event into arrow keys when the buffer has no
