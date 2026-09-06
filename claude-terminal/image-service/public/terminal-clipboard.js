@@ -400,6 +400,26 @@
         }, { passive: true });
     }
 
+    /**
+     * Stop the on-screen keyboard from composing.
+     *
+     * Gboard's predictive text keeps a composing region, and xterm.js re-emits
+     * a commit it has already sent (xtermjs/xterm.js#6060, open), so the same
+     * phrase lands in the prompt several times over. Nothing outside xterm.js
+     * can cancel what it sends, so the only lever left is to stop the keyboard
+     * composing at all: inputmode=url puts it in a plain, no-suggestions mode.
+     * The cost is the suggestion strip.
+     */
+    function installMobileInput(win, term) {
+        var textarea = term.textarea;
+        var coarse = !!(win.matchMedia && win.matchMedia('(pointer: coarse)').matches);
+        if (!textarea || !coarse) return false;
+
+        textarea.setAttribute('inputmode', 'url');
+        textarea.setAttribute('autocomplete', 'off');
+        return true;
+    }
+
     function install(win, options) {
         var opts = options || {};
         var term = win.term;
@@ -522,10 +542,26 @@
                 return last;
             },
             hasSelection: function () { return !!term.getSelection(); },
+            /**
+             * Settle the terminal after the viewport changed size.
+             *
+             * ttyd exposes fit() on the terminal it exports. Calling it pushes
+             * the new size through to the pty, and that SIGWINCH is what makes
+             * a full-screen app redraw with its prompt at the new bottom - the
+             * iframe's own resize event does not reliably land while the
+             * keyboard is still animating.
+             */
+            scrollToBottom: function () {
+                if (typeof term.fit === 'function') {
+                    try { term.fit(); } catch (err) { /* mid-teardown */ }
+                }
+                if (typeof term.scrollToBottom === 'function') term.scrollToBottom();
+            },
             copyTextDirect: copyText
         };
 
         installTouchScroll(win, term);
+        installMobileInput(win, term);
 
         term[INSTALL_FLAG] = true;
         term.__claudeClipboard = controller;
@@ -593,6 +629,7 @@
         readTerminalText: readTerminalText,
         findLastUrl: findLastUrl,
         findLinkInRows: findLinkInRows,
+        installMobileInput: installMobileInput,
         urlProblem: urlProblem,
         decodeBase64Utf8: decodeBase64Utf8,
         copyWithTextarea: copyWithTextarea,

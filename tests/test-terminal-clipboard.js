@@ -72,7 +72,9 @@ function makeWindow(options) {
         clipboardWrites: [],
         execCommandCopies: [],
         overlayMessages: [],
-        appendedTextareas: []
+        appendedTextareas: [],
+        fits: 0,
+        scrollsToBottom: 0
     };
 
     const doc = {
@@ -124,12 +126,20 @@ function makeWindow(options) {
     // and `isWrapped` marks a row that continues the one above it.
     const bufferLines = opts.buffer || [];
     const wrapped = opts.wrapped || [];
+    win.matchMedia = query => ({
+        matches: query === '(pointer: coarse)' ? !!opts.touch : !opts.touch
+    });
+
     win.term = {
         element: termElement,
+        textarea: makeElement('textarea'),
         rows: opts.rows || 24,
         // Wide enough that the plain fixtures above are never "full".
         cols: opts.cols || 80,
         getSelection: () => selection,
+        // ttyd adds fit(); xterm.js provides scrollToBottom().
+        fit() { state.fits += 1; },
+        scrollToBottom() { state.scrollsToBottom += 1; },
         onSelectionChange(handler) { selectionHandlers.push(handler); },
         buffer: {
             active: {
@@ -980,6 +990,66 @@ test('touchend releases the gesture', () => {
     env.termElement.dispatch('touchend', {});
     env.termElement.dispatch('touchmove', { touches: [{ clientY: 200, clientX: 5 }] });
     assert.strictEqual(wheels(env).length, before, 'a move after touchend is not a swipe');
+});
+
+// --- Mobile keyboard ------------------------------------------------------
+// Gboard's predictive text drives an IME composing region and xterm.js re-emits
+// a commit it already sent (xtermjs/xterm.js#6060), so a typed phrase lands in
+// the prompt several times over. Nothing outside xterm.js can cancel what it
+// sends, so the keyboard is put in a non-composing mode instead.
+
+test('a touch device gets a keyboard that does not compose', () => {
+    const env = makeWindow({ clipboardApi: true, touch: true });
+    bridge.install(env.win);
+
+    assert.strictEqual(env.win.term.textarea.attributes.inputmode, 'url');
+    assert.strictEqual(env.win.term.textarea.attributes.autocomplete, 'off');
+});
+
+test('a mouse keeps its normal keyboard', () => {
+    const env = makeWindow({ clipboardApi: true, touch: false });
+    bridge.install(env.win);
+
+    assert.strictEqual(env.win.term.textarea.attributes.inputmode, undefined);
+});
+
+test('a terminal with no textarea is left alone', () => {
+    const env = makeWindow({ clipboardApi: true, touch: true });
+    delete env.win.term.textarea;
+    assert.strictEqual(bridge.installMobileInput(env.win, env.win.term), false);
+});
+
+// --- Viewport settling ----------------------------------------------------
+// The on-screen keyboard shrinks the viewport in steps as it animates. Only a
+// refit pushes the new size through to the pty, and that SIGWINCH is what makes
+// a full-screen app redraw with its prompt at the new bottom - which is why the
+// view used to catch up only once a keystroke forced a redraw.
+
+test('settling the viewport refits so the app is told the new size', () => {
+    const env = makeWindow({ clipboardApi: true });
+    const controller = bridge.install(env.win);
+
+    controller.scrollToBottom();
+    assert.strictEqual(env.state.fits, 1, 'a refit is what reaches the pty');
+    assert.strictEqual(env.state.scrollsToBottom, 1);
+});
+
+test('a terminal without ttyd fit() still scrolls', () => {
+    const env = makeWindow({ clipboardApi: true });
+    const controller = bridge.install(env.win);
+    delete env.win.term.fit;
+
+    controller.scrollToBottom();
+    assert.strictEqual(env.state.scrollsToBottom, 1);
+});
+
+test('a throwing fit() does not stop the scroll', () => {
+    const env = makeWindow({ clipboardApi: true });
+    const controller = bridge.install(env.win);
+    env.win.term.fit = () => { throw new Error('mid-teardown'); };
+
+    controller.scrollToBottom();
+    assert.strictEqual(env.state.scrollsToBottom, 1);
 });
 
 (async () => {

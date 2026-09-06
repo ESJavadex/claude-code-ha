@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- interactive-widget shrinks the layout viewport when the keyboard opens,
+         so 100vh and the iframe shrink with it. The default, resizes-visual,
+         leaves layout alone and the prompt stays behind the keyboard until
+         something else forces a redraw. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>Claude Terminal Pro</title>
     <style>
         * {
@@ -1024,15 +1028,16 @@
         });
 
         // --- Keep the prompt above the on-screen keyboard ---
-        // The keyboard shrinks the visual viewport but leaves 100vh alone, so
-        // the terminal keeps its full height and its bottom rows - the prompt -
-        // sit behind the keyboard. Track the visual viewport instead; shrinking
-        // the container makes the iframe fire resize, and ttyd refits.
+        // interactive-widget in the viewport meta does this on Chrome. Safari
+        // ignores it, so follow the visual viewport as well; shrinking the
+        // container makes the iframe fire resize and ttyd refits.
 
         function trackOnScreenKeyboard() {
             const viewport = window.visualViewport;
             const container = document.getElementById('container');
             if (!viewport || !container) return;
+
+            let settle;
 
             const apply = () => {
                 // A bogus height would collapse the terminal entirely.
@@ -1040,6 +1045,16 @@
                 container.style.height = viewport.height + 'px';
                 // iOS pans the layout viewport when an input takes focus.
                 window.scrollTo(0, 0);
+
+                // The keyboard animates, so the height arrives in steps. Pin to
+                // the bottom once it stops moving, rather than on every step -
+                // otherwise the view only catches up when something else
+                // redraws, which is why it used to wait for a keystroke.
+                clearTimeout(settle);
+                settle = setTimeout(() => {
+                    const controller = terminalController();
+                    if (controller) controller.scrollToBottom();
+                }, 150);
             };
 
             viewport.addEventListener('resize', apply);

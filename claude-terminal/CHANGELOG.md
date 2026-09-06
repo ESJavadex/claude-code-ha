@@ -61,6 +61,13 @@
   bottom rows — where you type — sat behind the keyboard. The page follows
   `visualViewport` instead, which makes ttyd refit to what is actually visible.
 
+- **Typing no longer repeats itself.** Gboard's predictive text drives an IME
+  composing region, and xterm.js re-emits a commit it has already sent
+  (xtermjs/xterm.js#6060, still open), so a typed phrase landed in the prompt
+  several times over. Nothing outside xterm.js can cancel what it sends, so on
+  touch devices the helper textarea asks for a non-composing keyboard instead.
+  The cost is the suggestion strip.
+
 ### 🔧 Technical
 - Header buttons have a fixed height and a separately sized icon. Emoji sit on a
   larger em box than the label text, so each button was taking its height and

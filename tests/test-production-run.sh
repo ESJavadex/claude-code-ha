@@ -69,6 +69,8 @@ grep -q 'installTerminalClipboard(iframe)' "$terminal_page" || \
 # this the prompt ends up behind the keyboard.
 grep -q 'window.visualViewport' "$terminal_page" || \
     fail "terminal page must follow the visual viewport so the keyboard cannot cover the prompt"
+grep -q 'interactive-widget=resizes-content' "$terminal_page" || \
+    fail "the viewport must shrink with the on-screen keyboard, not sit behind it"
 
 PERSISTENT_CLAUDE_ROOT="$tmp_dir/npm"
 CLAUDE_BIN_LINK="$tmp_dir/claude"
