@@ -1040,41 +1040,20 @@ test('touchend releases the gesture', () => {
 // the prompt several times over. Nothing outside xterm.js can cancel what it
 // sends, so the keyboard is put in a non-composing mode instead.
 
-test('the helper textarea is emptied after every committed keystroke', () => {
-    // xterm.js only clears it on Enter or Ctrl+C, so a long stretch of typing
-    // leaves the whole sentence in it for the keyboard to keep composing over,
-    // and each commit re-sends all of it.
+test('typing is never interfered with', () => {
+    // Emptying the textarea after each keystroke was tried and reverted:
+    // Gboard commits a word only when space lands, so clearing on `input`
+    // deleted the word being typed.
     const env = makeWindow({ clipboardApi: true, touch: true });
     bridge.install(env.win);
     const textarea = env.win.term.textarea;
 
-    textarea.value = 'a whole sentence typed without pressing enter';
+    textarea.value = 'slovo';
     textarea.dispatch('input');
-    assert.strictEqual(textarea.value, '', 'nothing must be left to re-send');
-});
-
-test('the textarea is left alone while a word is being composed', () => {
-    const env = makeWindow({ clipboardApi: true, touch: true });
-    bridge.install(env.win);
-    const textarea = env.win.term.textarea;
-
-    textarea.dispatch('compositionstart');
-    textarea.value = 'partia';
-    textarea.dispatch('input');
-    assert.strictEqual(textarea.value, 'partia', 'clearing here would destroy the word');
+    assert.strictEqual(textarea.value, 'slovo', 'the word must survive');
 
     textarea.dispatch('compositionend');
-    assert.strictEqual(textarea.value, '', 'but it goes once the word is committed');
-});
-
-test('a mouse keyboard is not touched at all', () => {
-    const env = makeWindow({ clipboardApi: true, touch: false });
-    bridge.install(env.win);
-    const textarea = env.win.term.textarea;
-
-    textarea.value = 'desktop typing';
-    textarea.dispatch('input');
-    assert.strictEqual(textarea.value, 'desktop typing');
+    assert.strictEqual(textarea.value, 'slovo');
 });
 
 test('a terminal with no textarea is left alone', () => {
