@@ -421,16 +421,9 @@
         }, { passive: true });
     }
 
-    /**
-     * Stop the on-screen keyboard from composing.
-     *
-     * Gboard's predictive text keeps a composing region, and xterm.js re-emits
-     * a commit it has already sent (xtermjs/xterm.js#6060, open), so the same
-     * phrase lands in the prompt several times over. Nothing outside xterm.js
-     * can cancel what it sends, so the only lever left is to stop the keyboard
-     * composing at all: inputmode=url puts it in a plain, no-suggestions mode.
-     * The cost is the suggestion strip.
-     */
+    // Only a hint that this is not a form field. Two attempts at curing the
+    // repeated text (xtermjs/xterm.js#6060) were tried here and reverted -
+    // see the comment inside.
     function installMobileInput(win, term) {
         var textarea = term.textarea;
         var coarse = !!(win.matchMedia && win.matchMedia('(pointer: coarse)').matches);
