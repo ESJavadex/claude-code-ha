@@ -341,6 +341,15 @@
 
     var TOUCH_LINES_PER_MOVE = 8;
 
+    // Mirrors the check xterm.js makes before it converts a wheel event into
+    // arrow keys. The alternate buffer never has scrollback, and that is what
+    // tmux and every full-screen app runs in.
+    function hasScrollback(term) {
+        var buffer = term.buffer && term.buffer.active;
+        if (!buffer || buffer.type !== 'normal') return false;
+        return buffer.length > term.rows;
+    }
+
     /**
      * Scroll by swiping. xterm.js 5.5 drops touchstart/touchmove outright while
      * the app has mouse reporting on, and never turns touch into a mouse
@@ -368,6 +377,12 @@
             // xterm.js prevents the default when it scrolled the viewport
             // itself - its signal that the gesture is already handled.
             if (lastY === null || ev.defaultPrevented || ev.touches.length !== 1) return;
+            // With no scrollback, xterm.js turns a wheel event into arrow keys
+            // and sends them as INPUT. Under tmux that means every swipe walks
+            // Claude Code's message history into the prompt. Scrolling a
+            // full-screen app needs real mouse reporting (the tmux_mouse
+            // option); without it a swipe must do nothing at all.
+            if (!hasScrollback(term)) return;
 
             var touch = ev.touches[0];
             var step = Math.max(1, el.getBoundingClientRect().height / Math.max(1, term.rows));

@@ -56,6 +56,10 @@
   worked. Swipes are now translated into wheel events, so xterm.js encodes them
   exactly as it would a real wheel. Vertical is claimed only once a full row of
   movement has built up; pinch-zoom and horizontal panning stay with the browser.
+  A swipe is ignored when the buffer has no scrollback: xterm.js turns a wheel
+  event into arrow keys there and sends them as *input*, so under tmux every
+  swipe walked Claude Code's message history into the prompt. Scrolling a
+  full-screen app needs real mouse reporting — turn on the `tmux_mouse` option.
 - **The on-screen keyboard no longer covers the prompt.** It shrinks the visual
   viewport but leaves `100vh` alone, so the terminal kept its full height and its
   bottom rows — where you type — sat behind the keyboard. The page follows

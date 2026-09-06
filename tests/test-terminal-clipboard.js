@@ -143,6 +143,7 @@ function makeWindow(options) {
         onSelectionChange(handler) { selectionHandlers.push(handler); },
         buffer: {
             active: {
+                type: opts.altScreen ? 'alternate' : 'normal',
                 length: bufferLines.length,
                 viewportY: opts.viewportY || 0,
                 getLine(y) {
@@ -864,6 +865,8 @@ test('the link is found across tmux-wrapped rows, not as two halves', () => {
 // all. Measured on the live terminal: alternate_on=1, mouse_any_flag=1.
 // A row is 40/20 = 2px tall in this fixture (element height 40, rows 20).
 
+const SCROLLBACK = Array.from({ length: 40 }, (_, i) => 'line ' + i);
+
 const swipe = (env, from, to, extra) => {
     env.termElement.dispatch('touchstart', { touches: [{ clientY: from, clientX: 5 }] });
     return env.termElement.dispatch('touchmove',
@@ -871,8 +874,29 @@ const swipe = (env, from, to, extra) => {
 };
 const wheels = env => env.termElement.dispatched.filter(e => e.type === 'wheel');
 
+test('a swipe sends nothing when there is no scrollback', () => {
+    // xterm.js turns a wheel event into arrow keys when the buffer has no
+    // scrollback, and sends them as input - under tmux that walks Claude
+    // Code's message history into the prompt, which reads as the terminal
+    // inventing text. The alternate buffer never has scrollback.
+    // A long buffer, so only the alternate-buffer check can reject this.
+    const env = makeWindow({ clipboardApi: true, rows: 20, altScreen: true, buffer: SCROLLBACK });
+    bridge.install(env.win);
+
+    swipe(env, 100, 130);
+    assert.deepStrictEqual(wheels(env), [], 'a swipe must never reach the pty as keystrokes');
+});
+
+test('a swipe sends nothing when the scrollback is shorter than the screen', () => {
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: ['only one line'] });
+    bridge.install(env.win);
+
+    swipe(env, 100, 130);
+    assert.deepStrictEqual(wheels(env), []);
+});
+
 test('swiping down scrolls back, one wheel event per row', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     swipe(env, 100, 106); // finger down 6px = 3 rows
@@ -882,7 +906,7 @@ test('swiping down scrolls back, one wheel event per row', () => {
 });
 
 test('swiping up scrolls forward', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     swipe(env, 100, 94);
@@ -890,7 +914,7 @@ test('swiping up scrolls forward', () => {
 });
 
 test('a move shorter than one row scrolls nothing yet', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     swipe(env, 100, 101); // 1px, row is 2px
@@ -898,7 +922,7 @@ test('a move shorter than one row scrolls nothing yet', () => {
 });
 
 test('sub-row moves accumulate instead of being discarded', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
@@ -911,7 +935,7 @@ test('sub-row moves accumulate instead of being discarded', () => {
 test('the leftover of a partial row carries into the next move', () => {
     // 3px with a 2px row is one row and 1px over. Dropping that remainder
     // instead of keeping it makes a slow drag lose about half its distance.
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
@@ -923,7 +947,7 @@ test('the leftover of a partial row carries into the next move', () => {
 
 test('a sub-row move leaves the gesture to the browser', () => {
     // Claiming a move that scrolled nothing would swallow taps and flings.
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
@@ -933,7 +957,7 @@ test('a sub-row move leaves the gesture to the browser', () => {
 
 test('a second finger mid-gesture stops the scroll', () => {
     // Starting one-fingered and then pinching must not keep scrolling.
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }] });
@@ -944,7 +968,7 @@ test('a second finger mid-gesture stops the scroll', () => {
 });
 
 test('the gesture is claimed, or the browser would treat it as a page scroll', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     const ev = swipe(env, 100, 106);
@@ -957,7 +981,7 @@ test('the gesture is claimed, or the browser would treat it as a page scroll', (
 
 test('a gesture xterm.js already handled is left alone', () => {
     // xterm.js prevents the default when it scrolled the viewport itself.
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     swipe(env, 100, 106, { defaultPrevented: true });
@@ -965,7 +989,7 @@ test('a gesture xterm.js already handled is left alone', () => {
 });
 
 test('two fingers are left to the browser for pinch-zoom', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     env.termElement.dispatch('touchstart', { touches: [{ clientY: 100, clientX: 5 }, { clientY: 200, clientX: 5 }] });
@@ -974,7 +998,7 @@ test('two fingers are left to the browser for pinch-zoom', () => {
 });
 
 test('a fling is capped so one gesture cannot flood the app', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     swipe(env, 500, 900); // 400px = 200 rows
@@ -982,7 +1006,7 @@ test('a fling is capped so one gesture cannot flood the app', () => {
 });
 
 test('touchend releases the gesture', () => {
-    const env = makeWindow({ clipboardApi: true, rows: 20 });
+    const env = makeWindow({ clipboardApi: true, rows: 20, buffer: SCROLLBACK });
     bridge.install(env.win);
 
     swipe(env, 100, 106);
