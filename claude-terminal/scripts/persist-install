@@ -96,6 +96,10 @@ install_system_packages() {
 
         # Get list of files installed by package
         apk info -L "$pkg" 2>/dev/null | while read -r file; do
+            # apk info -L prints paths without a leading slash ("usr/bin/op"),
+            # so normalize to absolute before matching the globs below
+            file="/${file#/}"
+
             # Copy executables
             if [[ "$file" == /usr/bin/* ]] || [[ "$file" == /usr/sbin/* ]] || [[ "$file" == /bin/* ]]; then
                 if [ -f "$file" ] && [ -x "$file" ]; then
