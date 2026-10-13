@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.1.7
+
+### 🐛 Bug Fix - Startup and backup fixes from the original add-on
+- **Startup no longer needs the network**: ttyd and tmux are now part of the
+  image instead of being installed with `apk` on every boot. Before, a boot
+  with no internet (or a slow Alpine mirror) stopped the add-on before the
+  terminal started.
+- **Smaller backups**: npm and pip caches no longer go into `/data`, which is
+  included in every Home Assistant backup. The persistent Claude install
+  (`use_persistent_claude`) left its npm cache in `/data/home/.npm`, and
+  `persist-install --python` left pip's cache in `/data/.cache/pip`; both are
+  deleted on the next start.
+- **Old Claude Code versions pruned**: each native `claude update` leaves a
+  ~250 MB binary in `/data`. On startup, all but the active version and the
+  newest one are removed.
+- **Missing AVX is reported**: Claude Code needs AVX on x86-64, and VMs using
+  a generic CPU type (Proxmox/QEMU `kvm64` or `qemu64`) hide it, so every
+  `claude` command hangs at 100% CPU with nothing in the log. The add-on log
+  and health check now say so and name the fix: set the VM's CPU type to
+  `host`, then fully shut the VM down and start it again.
+- **Health check runs Claude instead of only finding it**: it now runs
+  `claude --version` (with a 10 second timeout) and shows the error, so a
+  binary that exists but can't run is no longer reported as fine.
+  Adapted from heytcass/home-assistant-addons 2.3.0, 2.5.3 and 2.5.4.
+
 ## 2.1.6
 
 ### 🔒 Security - Close the unauthenticated ports and drop an unused permission

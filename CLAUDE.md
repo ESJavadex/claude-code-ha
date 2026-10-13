@@ -69,7 +69,7 @@ Because `/data` is per add-on, installing the add-on from a different repository
 ### Container Execution Flow (`main` in run.sh)
 1. Run the health check
 2. Initialize `/data` directories and environment variables, migrating any legacy auth files
-3. Install ttyd, jq, curl and tmux via apk
+3. Warn if the CPU lacks AVX; remove leftover npm/pip caches and old Claude versions from `/data` (ttyd, tmux, jq and curl are baked into the image)
 4. Configure tmux and the `tmux-claude` wrapper
 5. Set up persistent Claude (if `use_persistent_claude`)
 6. Install the session picker and auth helper

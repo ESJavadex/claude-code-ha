@@ -184,14 +184,60 @@ migrate_legacy_auth_files() {
     fi
 }
 
-# Install required tools
-install_tools() {
-    bashio::log.info "Installing additional tools..."
-    if ! apk add --no-cache ttyd jq curl tmux; then
-        bashio::log.error "Failed to install required tools"
-        exit 1
+# Older versions let npm and pip caches pile up in /data, inflating HA backups
+# (HOME is /data/home, so npm's ~/.npm persisted). The Dockerfile now points
+# both caches at /tmp or disables them; this removes what is left behind.
+clean_persistent_storage() {
+    rm -rf "$HOME/.npm" "$XDG_CACHE_HOME/pip"
+    prune_claude_versions
+}
+
+# A native Claude Code update (`claude update`, or `claude install`) leaves
+# a ~250 MB binary in versions/ every time, carried into every HA backup from
+# then on. Keep the version the active symlink resolves to plus the newest
+# entry (rollback), prune the rest. A pruned binary that is mid-execution keeps
+# running (the inode stays alive until the process exits).
+# Adapted from heytcass/home-assistant-addons 2.5.4.
+prune_claude_versions() {
+    local versions_dir="$XDG_DATA_HOME/claude/versions"
+    [ -d "$versions_dir" ] || return 0
+
+    local active newest="" entry pruned=0
+    active=$(readlink -f "$HOME/.local/bin/claude" 2>/dev/null || true)
+    # Find the newest entry without a pipe: under pipefail, `ls -t | head -1`
+    # can die of SIGPIPE when head exits first, and set -e then kills startup
+    for entry in "$versions_dir"/*; do
+        [ -e "$entry" ] || continue
+        if [ -z "$newest" ] || [ "$entry" -nt "$newest" ]; then
+            newest="$entry"
+        fi
+    done
+
+    for entry in "$versions_dir"/*; do
+        [ -e "$entry" ] || continue
+        [ "$entry" = "$active" ] && continue
+        [ "$entry" = "$newest" ] && continue
+        rm -rf "$entry"
+        pruned=$((pruned + 1))
+    done
+
+    if [ "$pruned" -gt 0 ]; then
+        bashio::log.info "Pruned $pruned old Claude Code version(s) from persistent storage"
     fi
-    bashio::log.info "Tools installed successfully"
+}
+
+# Claude Code's runtime (Bun) requires AVX on x86-64. Hypervisor default CPU
+# types (Proxmox/QEMU kvm64, qemu64) mask it even when the host CPU has it,
+# and every claude invocation then crashes or spins at 100% CPU. Warn in the
+# add-on log, since the terminal itself is unusable in that state.
+check_cpu_features() {
+    if [ "$(uname -m)" = "x86_64" ] && ! grep -q avx /proc/cpuinfo; then
+        bashio::log.warning "This CPU does not expose AVX - Claude Code will likely hang or crash on every invocation"
+        bashio::log.warning "On a Proxmox/QEMU VM, set the VM's CPU type to 'host', then fully shut the VM down and start it again (a reboot is not enough)"
+    fi
+    # The test above is false on a healthy CPU; don't let that become the
+    # function's status under set -e
+    return 0
 }
 
 # Setup tmux configuration and session wrapper
@@ -588,7 +634,8 @@ main() {
     run_health_check
 
     init_environment
-    install_tools
+    check_cpu_features
+    clean_persistent_storage
     setup_tmux
     setup_persistent_claude
     setup_session_picker

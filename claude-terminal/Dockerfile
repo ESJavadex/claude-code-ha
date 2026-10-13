@@ -2,7 +2,8 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Install packages in a single layer to minimize image size
-# Node.js and npm kept for image-service dependency
+# Node.js and npm kept for image-service dependency. ttyd and tmux are baked in
+# (they used to be apk-installed on every boot) so startup never needs the network.
 RUN apk add --no-cache \
     nodejs \
     npm \
@@ -20,7 +21,14 @@ RUN apk add --no-cache \
     git \
     vim \
     wget \
-    tree
+    tree \
+    tmux \
+    ttyd
+
+# Keep npm and pip caches out of /data so they never land in HA backups
+# (HOME is /data/home at runtime, so npm's default ~/.npm would persist)
+ENV npm_config_cache=/tmp/npm-cache \
+    PIP_NO_CACHE_DIR=1
 
 # Home Assistant Supervisor always passes BUILD_ARCH (amd64|aarch64|armv7|armhf|i386)
 # as a --build-arg. TARGETARCH/TARGETVARIANT are the automatic BuildKit values and

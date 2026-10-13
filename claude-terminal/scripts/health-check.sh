@@ -67,22 +67,51 @@ check_node_installation() {
     fi
 }
 
+check_cpu_features() {
+    bashio::log.info "=== CPU Capability Check ==="
+
+    # Claude Code's runtime (Bun) requires AVX on x86-64. Hypervisor default
+    # CPU types (Proxmox/QEMU kvm64, qemu64) mask it even when the physical
+    # CPU has it, and every claude invocation then crashes or spins at 100%
+    # CPU with no output. Not applicable on ARM.
+    if [ "$(uname -m)" != "x86_64" ]; then
+        bashio::log.info "Architecture $(uname -m): AVX check not applicable ✓"
+        return 0
+    fi
+
+    if grep -q avx /proc/cpuinfo; then
+        bashio::log.info "CPU exposes AVX ✓"
+    else
+        bashio::log.error "CPU does not expose AVX ✗"
+        bashio::log.info "Claude Code's runtime (Bun) requires AVX; without it every"
+        bashio::log.info "claude invocation hangs at 100% CPU or crashes with SIGILL."
+        bashio::log.info "On a VM this usually means the hypervisor hides the host CPU:"
+        bashio::log.info "  • Proxmox/QEMU: set the VM's CPU type to 'host' (not kvm64/qemu64),"
+        bashio::log.info "    then fully shut the VM down and start it (a reboot is not enough)"
+        bashio::log.info "  • Other hypervisors: enable host CPU passthrough"
+        return 1
+    fi
+}
+
 check_claude_cli() {
     bashio::log.info "=== Claude CLI Check ==="
 
-    if command -v claude >/dev/null 2>&1; then
-        bashio::log.info "Claude CLI found at: $(which claude) ✓"
-
-        # Check if Claude CLI is executable
-        if [ -x "$(which claude)" ]; then
-            bashio::log.info "Claude CLI is executable ✓"
-        else
-            bashio::log.error "Claude CLI is not executable ✗"
-            return 1
-        fi
-    else
+    local claude_path
+    if ! claude_path=$(command -v claude 2>/dev/null); then
         bashio::log.error "Claude CLI not found ✗"
-        bashio::log.info "Attempting to install Claude CLI..."
+        return 1
+    fi
+    bashio::log.info "Claude CLI found at: ${claude_path} ✓"
+
+    # Present and executable is not enough: a libc mismatch, a wrong-arch
+    # binary or a missing CPU feature all leave the file +x but unable to run.
+    # Actually run it, under a timeout so a hung binary can't stall startup.
+    if timeout 10 "$claude_path" --version >/dev/null 2>&1; then
+        bashio::log.info "Claude CLI runs: $(timeout 10 "$claude_path" --version 2>/dev/null) ✓"
+    else
+        bashio::log.error "Claude CLI is present but fails to run ✗"
+        bashio::log.info "Output of '${claude_path} --version':"
+        timeout 10 "$claude_path" --version 2>&1 | head -5 || true
         return 1
     fi
 }
@@ -139,6 +168,7 @@ run_diagnostics() {
     check_system_resources || ((errors++))
     check_directory_permissions || ((errors++))
     check_node_installation || ((errors++))
+    check_cpu_features || ((errors++))
     check_claude_cli || ((errors++))
     check_network_connectivity || ((errors++))
 
@@ -179,6 +209,9 @@ run_diagnostics() {
             bashio::log.info ""
             bashio::log.info "=== Virtual Environment Detected (Possibly Proxmox) ==="
             bashio::log.info "If running in Proxmox, ensure:"
+            bashio::log.info "  • VM CPU type is 'host' - the default kvm64/qemu64 types hide"
+            bashio::log.info "    AVX, which Claude Code requires (see CPU Capability Check above);"
+            bashio::log.info "    apply with a full VM shutdown + start, not a reboot"
             bashio::log.info "  • VM has sufficient resources (2GB+ RAM)"
             bashio::log.info "  • Network device uses VirtIO (recommended)"
             bashio::log.info "  • Firewall rules allow container registry access"
