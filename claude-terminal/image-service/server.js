@@ -25,6 +25,10 @@ const app = express();
 const PORT = process.env.IMAGE_SERVICE_PORT || 7680;
 const TTYD_PORT = process.env.TTYD_PORT || 7681;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/images';
+// Set by run.sh when port 7680 is published to the host
+const ALLOW_DIRECT_ACCESS = process.env.ALLOW_DIRECT_ACCESS === '1';
+// The Supervisor's ingress proxy, plus loopback for in-container checks
+const INGRESS_ADDRESSES = new Set(['172.30.32.2', '127.0.0.1', '::1']);
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -98,7 +102,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
 // This allows ttyd to work through Home Assistant ingress
 // Handles both HTTP and WebSocket connections
 app.use('/terminal', createProxyMiddleware({
-    target: `http://localhost:${TTYD_PORT}`,
+    target: `http://127.0.0.1:${TTYD_PORT}`,
     changeOrigin: true,
     ws: true, // Enable WebSocket proxying
     pathRewrite: {
@@ -142,6 +146,20 @@ app.use((err, req, res, next) => {
 
 // Create HTTP server and start listening
 const server = http.createServer(app);
+
+// This page is a root shell with no login of its own. Unless the port has
+// been published deliberately, refuse anything but ingress at the socket, so
+// other add-ons on the hassio network can't reach it. Checking the socket
+// also covers WebSocket upgrades, which bypass Express middleware.
+if (!ALLOW_DIRECT_ACCESS) {
+    server.on('connection', (socket) => {
+        const address = (socket.remoteAddress || '').replace(/^::ffff:/, '');
+        if (!INGRESS_ADDRESSES.has(address)) {
+            console.warn(`Refused connection from ${address} (only ingress is allowed)`);
+            socket.destroy();
+        }
+    });
+}
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Claude Terminal Image Service running on port ${PORT}`);

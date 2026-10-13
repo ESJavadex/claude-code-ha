@@ -442,6 +442,16 @@ get_claude_launch_command() {
 }
 
 
+# True if the user has mapped this container port to a host port.
+# DEV_DIRECT_ACCESS=1 (docker/podman -e, for local testing without a
+# Supervisor) forces it; add-on users have no way to set it.
+port_is_published() {
+    [ "${DEV_DIRECT_ACCESS:-0}" = "1" ] && return 0
+    local host_port
+    host_port=$(bashio::addon.port "${1}" 2>/dev/null || true)
+    [ -n "${host_port}" ] && [ "${host_port}" != "null" ]
+}
+
 # Start image upload service
 start_image_service() {
     local image_port=7680
@@ -460,6 +470,15 @@ start_image_service() {
     export IMAGE_SERVICE_PORT="${image_port}"
     export TTYD_PORT="${ttyd_port}"
     export UPLOAD_DIR="${upload_dir}"
+
+    # Without a published port, only ingress (and the container itself) may
+    # connect; other add-ons on the hassio network are refused.
+    if port_is_published "${image_port}"; then
+        export ALLOW_DIRECT_ACCESS=1
+        bashio::log.warning "Port ${image_port} is published: the web UI is reachable without a Home Assistant login"
+    else
+        export ALLOW_DIRECT_ACCESS=0
+    fi
 
     # Check if server.js exists
     if [ ! -f "${server_file}" ]; then
@@ -531,12 +550,21 @@ start_web_terminal() {
         bashio::log.info "Reusing existing tmux session 'claude'..."
     fi
 
+    # ttyd has no login of its own. Unless 7681 is published for direct access,
+    # bind it to loopback so only the image service proxy can reach it, not
+    # other add-ons on the internal hassio network.
+    local interface=127.0.0.1
+    if port_is_published 7681; then
+        interface=0.0.0.0
+        bashio::log.warning "Port 7681 is published: ttyd is reachable without a Home Assistant login"
+    fi
+
     # ttyd attaches every browser connection to the persistent tmux session.
     # If Claude is running and you close the browser tab, it keeps running.
     # Reopening the tab re-attaches to the same session.
     exec ttyd \
         --port "${port}" \
-        --interface 0.0.0.0 \
+        --interface "${interface}" \
         --writable \
         --ping-interval 30 \
         --client-option reconnect=5 \

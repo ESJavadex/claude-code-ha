@@ -29,8 +29,11 @@ The add-on offers several configuration options:
 ### Dangerously Skip Permissions
 - **Default**: `false`
 - When enabled, Claude runs with `--dangerously-skip-permissions` flag
-- **⚠️ WARNING**: This gives Claude unrestricted file system access
-- Use only if you understand the security implications
+- **⚠️ WARNING**: This gives Claude unrestricted file system access, and
+  removes the last human checkpoint: a misunderstanding, or a prompt injection
+  in any file or web page Claude reads, can change your configuration without
+  asking you first
+- Use only if you understand the security implications (see [Security](#security))
 - Useful for advanced users who need full file access
 
 ### tmux Mouse Mode
@@ -186,12 +189,36 @@ reverse proxy and appear to pass through the frontend's service worker
 dropping the underlying WebSocket connection - the input just queues and then
 flushes all at once.
 
-Both `http://<home-assistant-host>:7680/` (this add-on's own web UI, still
-proxied to ttyd) and `http://<home-assistant-host>:7681/` (ttyd directly) are
-published ports (see `config.yaml`) that bypass Home Assistant's ingress
-entirely. If typing feels laggy through the sidebar panel, try one of those
-URLs directly - if the lag disappears, it confirms the ingress layer rather
-than anything in this add-on.
+Both ports are closed by default. To try bypassing ingress, open the add-on's
+**Configuration** tab, set a host port under **Network** for 7680 (this add-on's
+own web UI, still proxied to ttyd, with image paste) or 7681 (ttyd directly),
+then restart the add-on and open `http://<home-assistant-host>:<port>/`. If
+the lag disappears, it confirms the ingress layer rather than anything in this
+add-on. **Read [Security](#security) first**: neither port has a login.
+
+## Security
+
+**This add-on gives Claude a lot of power by design**: it runs as root in its
+container, has read/write access to `/config`, and can call the Supervisor and
+Home Assistant APIs.
+
+**Any Home Assistant user can reach the terminal, not just administrators.**
+`panel_admin: true` hides the sidebar entry from non-admins, but it does not
+restrict the ingress URL behind it. That is how ingress works in Home Assistant
+generally, not something this add-on can switch off: any signed-in user can get
+an ingress session and the add-on's ingress URL (see
+[core#60120](https://github.com/home-assistant/core/pull/60120)). Here that
+means a non-admin account is one URL away from a root shell that can write
+anywhere in `/config` and drive the Supervisor API. Treat every account on
+your instance as trusted while this add-on is installed.
+
+**Publishing port 7680 or 7681 exposes an unauthenticated root shell.** Both
+ports are closed by default and ingress needs neither. If you map one to your
+host, anyone who can reach that port on your network gets the same shell with
+no Home Assistant account involved at all. Leave them unset unless the port is
+firewalled off and you accept that. While a port is unpublished, the add-on
+also refuses connections to it from other add-ons on Home Assistant's internal
+network.
 
 ## Credits
 

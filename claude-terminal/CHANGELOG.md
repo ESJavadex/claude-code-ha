@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.1.6
+
+### 🔒 Security - Close the unauthenticated ports and drop an unused permission
+- **Ports 7680 and 7681 are no longer published by default**: both serve a
+  root shell with no login of their own, so anyone on the local network could
+  open one without a Home Assistant account. Ingress (the sidebar panel) does
+  not need either. If you used them to work around ingress typing lag, map them
+  again under Configuration → Network; the log warns while they are published.
+  Installs that changed the port mapping keep their setting.
+- **Unpublished ports are now closed to other add-ons too**: the web UI
+  accepts only Home Assistant's ingress proxy unless 7680 is published, and
+  ttyd binds to loopback unless 7681 is published. Before, any add-on on the
+  internal hassio network could reach the shell.
+- **`auth_api` permission dropped**: it only allows checking Home Assistant
+  usernames and passwords, and nothing in the add-on uses it.
+- **Security section in DOCS.md**: explains that any signed-in Home Assistant
+  user, not only admins, can open the terminal through its ingress URL.
+  Adapted from heytcass/home-assistant-addons 2.2.1 and 2.5.4.
+
 ## 2.1.5
 
 ### 🐛 Bug Fix - Image and text paste in the web terminal

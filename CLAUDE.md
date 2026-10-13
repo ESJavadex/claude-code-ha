@@ -31,7 +31,7 @@ direnv allow
 podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal-pro ./claude-terminal
 
 # Run locally
-podman run -p 7681:7681 -v $(pwd)/config:/config local/claude-terminal-pro
+podman run -p 7680:7680 -p 7681:7681 -e DEV_DIRECT_ACCESS=1 -v $(pwd)/config:/config local/claude-terminal-pro
 
 # Lint
 hadolint ./claude-terminal/Dockerfile
@@ -93,7 +93,9 @@ mkdir -p /tmp/test-config /tmp/test-data
 echo '{"auto_launch_claude": false}' > /tmp/test-data/options.json
 
 # Run test container
-podman run -d --name test-claude-dev -p 7680:7680 -p 7681:7681 \
+# DEV_DIRECT_ACCESS=1: there is no Supervisor to report published ports, so
+# without it the web UI refuses non-ingress clients and ttyd binds to loopback
+podman run -d --name test-claude-dev -p 7680:7680 -p 7681:7681 -e DEV_DIRECT_ACCESS=1 \
   -v /tmp/test-config:/config -v /tmp/test-data:/data local/claude-terminal:test
 
 # Check logs
