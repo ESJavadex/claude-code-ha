@@ -31,16 +31,18 @@ init_environment() {
     chmod 755 "$data_home" "$config_dir" "$cache_dir" "$state_dir" "$claude_config_dir" "$gh_config_dir" \
               "$persist_root" "$persist_bin" "$persist_lib" "$persist_python"
 
-    # Ensure Claude native binary is available at $HOME/.local/bin/claude
-    # The native installer places it at /root/.local/bin/claude during Docker build,
-    # but at runtime HOME=/data/home, so Claude's self-check looks in /data/home/.local/bin/
+    # Ensure Claude is available at $HOME/.local/bin/claude, where Claude's
+    # native self-check looks (HOME=/data/home at runtime). The image installs
+    # it at /usr/local/bin/claude. Up to 2.1.9 this link pointed at
+    # /root/.local/bin/claude, which no longer exists, so replace a dangling
+    # link too; a working one (e.g. from `claude update`) is left alone.
     local native_bin_dir="$data_home/.local/bin"
     if [ ! -d "$native_bin_dir" ]; then
         mkdir -p "$native_bin_dir"
     fi
-    if [ -f /root/.local/bin/claude ] && [ ! -f "$native_bin_dir/claude" ]; then
-        ln -sf /root/.local/bin/claude "$native_bin_dir/claude"
-        bashio::log.info "  - Claude native binary linked: $native_bin_dir/claude"
+    if [ ! -e "$native_bin_dir/claude" ] && [ -x /usr/local/bin/claude ]; then
+        ln -sf /usr/local/bin/claude "$native_bin_dir/claude"
+        bashio::log.info "  - Claude binary linked: $native_bin_dir/claude"
     fi
 
     # Set XDG and application environment variables

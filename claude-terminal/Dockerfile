@@ -67,16 +67,41 @@ RUN ADDON_ARCH="${BUILD_ARCH}"; \
     echo "Resolved add-on architecture: ${ADDON_ARCH} (BUILD_ARCH='${BUILD_ARCH}' TARGETARCH='${TARGETARCH}/${TARGETVARIANT}' uname='$(uname -m)')"
 
 # Install Claude Code CLI. Current native releases do not publish a 32-bit ARM
-# binary, so armv7/armhf use the final portable 1.x JavaScript release. Supported
-# 64-bit targets keep the native-latest path with the existing npm fallback.
-RUN ADDON_ARCH=$(cat /etc/addon-arch); \
+# binary, so armv7/armhf use the final portable 1.x JavaScript release.
+# 64-bit targets fetch the native musl binary straight from the npm registry
+# rather than running https://claude.ai/install.sh, whose final
+# `claude install` step is an interactive TUI that can hang a no-TTY build
+# forever (ESJavadex/claude-code-ha#44) - and a hang never reaches a fallback.
+# The npm package is only a wrapper that installs this same binary; it is kept
+# as the fallback if the direct download fails. Approach adapted from
+# heytcass/home-assistant-addons 2.5.1.
+RUN set -o pipefail; \
+    ADDON_ARCH=$(cat /etc/addon-arch); \
+    case "${ADDON_ARCH}" in \
+        amd64)   CLAUDE_PKG="linux-x64-musl" ;; \
+        aarch64) CLAUDE_PKG="linux-arm64-musl" ;; \
+        *)       CLAUDE_PKG="" ;; \
+    esac; \
     if [ "${ADDON_ARCH}" = "armv7" ] || [ "${ADDON_ARCH}" = "armhf" ]; then \
         echo "32-bit ARM (${ADDON_ARCH}): installing portable Claude Code 1.0.128"; \
         npm install -g @anthropic-ai/claude-code@1.0.128; \
+    elif [ -n "${CLAUDE_PKG}" ] \
+        && CLAUDE_VERSION=$(curl -fsSL --max-time 60 https://registry.npmjs.org/@anthropic-ai/claude-code/latest | jq -r .version) \
+        && [ -n "${CLAUDE_VERSION}" ] && [ "${CLAUDE_VERSION}" != "null" ] \
+        && mkdir -p /tmp/claude-pkg \
+        && curl -fsSL --max-time 600 "https://registry.npmjs.org/@anthropic-ai/claude-code-${CLAUDE_PKG}/-/claude-code-${CLAUDE_PKG}-${CLAUDE_VERSION}.tgz" \
+            | tar -xz -C /tmp/claude-pkg package/claude \
+        && install -m 0755 /tmp/claude-pkg/package/claude /usr/local/bin/claude \
+        && /usr/local/bin/claude --version; then \
+        echo "Installed native Claude Code ${CLAUDE_VERSION} (${CLAUDE_PKG})"; \
     else \
-        (curl -fsSL https://claude.ai/install.sh | bash \
-        && ln -sf /root/.local/bin/claude /usr/local/bin/claude) \
-        || npm install -g @anthropic-ai/claude-code; \
+        echo "Direct native download failed; falling back to npm install"; \
+        rm -f /usr/local/bin/claude; \
+        npm install -g @anthropic-ai/claude-code; \
+    fi; \
+    rm -rf /tmp/claude-pkg; \
+    if [ ! -x /usr/local/bin/claude ]; then \
+        echo "Claude Code install failed (direct download and npm)" >&2; exit 1; \
     fi
 
 # Install Home Assistant CLI (ha command)

@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.1.10
+
+### 🐛 Bug Fix - Add-on build can no longer hang forever installing Claude Code
+- **The image no longer runs `https://claude.ai/install.sh`**: its final
+  `claude install` step is an interactive screen, and in a build with no
+  terminal it could wait forever with no error anywhere. The `npm` fallback
+  never ran, because nothing failed (ESJavadex/claude-code-ha#44, thanks
+  @faignartvercouter-web and @Solidus756).
+- **Claude Code is now downloaded directly**: the native musl binary for the
+  latest version comes straight from the npm registry, the same binary the
+  installer would have fetched. If that fails the build falls back to
+  `npm install`, and if both fail the build now stops with an error instead
+  of producing an image without Claude. Approach adapted from
+  heytcass/home-assistant-addons 2.5.1.
+- **`/data/home/.local/bin/claude` now links to `/usr/local/bin/claude`**: the
+  old link pointed at the installer's `/root/.local/bin/claude`, so on
+  existing installs it is replaced on the next start. A link made by
+  `claude update` is left alone. armv7 is unchanged (npm, 1.0.128).
+
 ## 2.1.9
 
 ### ✨ New Feature - Login link as a Home Assistant notification
