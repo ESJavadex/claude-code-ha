@@ -23,7 +23,7 @@ show_banner() {
     clear
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║                    🤖 Claude Terminal                        ║"
-    echo "║                   Interactive Session Picker                ║"
+    echo "║                   Interactive Session Picker                 ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
 }
@@ -118,7 +118,7 @@ show_menu() {
     echo "  1) 🆕 New interactive session (default)"
     echo "  2) ⏩ Continue most recent conversation (-c)"
     echo "  3) 📋 Resume from conversation list (-r)"
-    echo "  4) ⚙️  Custom Claude command (manual flags)"
+    echo "  4) ⚙️ Custom Claude command (manual flags)"
     echo "  5) 🔐 Claude authentication helper"
     echo "  6) 🐙 GitHub CLI login (gh auth)"
     if is_persistent_claude_enabled; then

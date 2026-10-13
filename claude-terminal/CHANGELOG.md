@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.11
+
+### 🐛 Bug Fix - Session picker alignment
+- **Header box**: the "Interactive Session Picker" line was one space short,
+  so its right border sat one column left of the rest of the box.
+- **Menu option 4**: removed the extra space after the ⚙️ icon so "Custom
+  Claude command" lines up with the other options.
+
 ## 2.1.10
 
 ### 🐛 Bug Fix - Add-on build can no longer hang forever installing Claude Code
