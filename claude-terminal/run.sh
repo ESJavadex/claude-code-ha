@@ -631,6 +631,20 @@ start_image_service() {
     fi
 }
 
+# Post Claude's OAuth login URL as a clickable HA notification when it
+# appears, and dismiss it after login (see scripts/login-url-watcher.sh)
+start_login_url_watcher() {
+    local watcher="/opt/scripts/login-url-watcher.sh"
+    if [ ! -f "$watcher" ]; then
+        bashio::log.warning "Login URL watcher not found: $watcher"
+        return 0
+    fi
+    bashio::log.info "Starting login URL watcher in background"
+    bash "$watcher" 2>&1 | while IFS= read -r line; do
+        bashio::log.info "[Login watcher] $line"
+    done &
+}
+
 # Start main web terminal
 start_web_terminal() {
     local port=7681
@@ -672,6 +686,8 @@ start_web_terminal() {
     else
         bashio::log.info "Reusing existing tmux session 'claude'..."
     fi
+
+    start_login_url_watcher
 
     # ttyd has no login of its own. Unless 7681 is published for direct access,
     # bind it to loopback so only the image service proxy can reach it, not

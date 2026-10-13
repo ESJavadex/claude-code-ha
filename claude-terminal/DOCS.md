@@ -182,6 +182,27 @@ Claude launches automatically when you open the terminal. You can also start Cla
 node /usr/local/bin/claude
 ```
 
+### Logging In
+
+The first time Claude starts it shows a login link. There are two ways to
+open it:
+
+- **Home Assistant notification**: the add-on posts the link as a "Claude Code
+  login" notification as soon as it appears, including in the Companion app.
+  Tap it to sign in. The notification disappears by itself once login
+  succeeds, and a stale one left over from before a restart is cleared on
+  startup.
+- **`🔗 Copy link`** in the terminal header (see below).
+
+Either way, the browser then shows an **authorization code**: paste it into
+the terminal at Claude's prompt. That step can't be automated, because Claude
+receives the code through a callback inside the container, which your browser
+can't reach.
+
+Notifications are visible to every Home Assistant user, not only admins. The
+link alone can't log anyone in, since the code still has to be pasted into
+your terminal. No link is posted when you use `claude_code_oauth_token`.
+
 ### Common Commands
 
 - `claude -i` - Start an interactive Claude session

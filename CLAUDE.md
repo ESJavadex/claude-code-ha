@@ -74,7 +74,7 @@ Because `/data` is per add-on, installing the add-on from a different repository
 5. Set up persistent Claude (if `use_persistent_claude`)
 6. Install the session picker and auth helper
 7. Set up `persist-install` and auto-install packages listed in the options
-8. Start the image service (7680) and ttyd (7681)
+8. Start the image service (7680), the login URL watcher (posts Claude's login link as an HA notification) and ttyd (7681)
 
 ## Development Notes
 

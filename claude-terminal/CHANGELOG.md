@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.9
+
+### ✨ New Feature - Login link as a Home Assistant notification
+- **Claude's OAuth login link is posted as a clickable notification** the
+  moment it appears in the terminal, so you can open it from the Home
+  Assistant UI or the Companion app instead of copying a long wrapped URL. The
+  notification is dismissed automatically once login succeeds, and any left
+  over from before a restart (whose link can no longer work) is cleared on
+  startup. You still paste the authorization code into the terminal.
+- **A used link is never posted again**: unlike the original, the watcher
+  remembers which links it has posted, so when the access token later expires
+  it doesn't re-post the dead link still in the terminal's scrollback.
+  Adapted from heytcass/home-assistant-addons 2.5.2 and 2.5.3 (contributed
+  there by @heman22union).
+
 ## 2.1.8
 
 ### ✨ New Feature - Four new options from the original add-on
