@@ -3,11 +3,15 @@
 # Claude Session Picker - Interactive menu for choosing Claude session type
 # Provides options for new session, continue, resume, manual command, or regular shell
 
-# Get Claude flags from environment
+# Get Claude flags from environment. CLAUDE_FLAGS (set by run.sh) is shell
+# text, so launches eval it once and quoting in claude_extra_args survives.
 get_claude_flags() {
-    local flags=""
-    if [ "${CLAUDE_DANGEROUS_MODE}" = "true" ]; then
+    local flags="${CLAUDE_FLAGS-}"
+    # Older run.sh only exported the dangerous-mode switch
+    if [ -z "${CLAUDE_FLAGS+set}" ] && [ "${CLAUDE_DANGEROUS_MODE}" = "true" ]; then
         flags="--dangerously-skip-permissions"
+    fi
+    if [[ "$flags" == *"--dangerously-skip-permissions"* ]]; then
         echo "⚠️  Running in DANGEROUS mode (unrestricted file access)" >&2
         # Set IS_SANDBOX=1 to allow dangerous mode when running as root
         export IS_SANDBOX=1
@@ -145,7 +149,7 @@ launch_claude_new() {
     local flags=$(get_claude_flags)
     echo "🚀 Starting new Claude session..."
     sleep 1
-    /usr/local/bin/claude $flags
+    eval "/usr/local/bin/claude $flags"
     # Returns here when Claude exits, loop in main() shows menu again
 }
 
@@ -153,14 +157,14 @@ launch_claude_continue() {
     local flags=$(get_claude_flags)
     echo "⏩ Continuing most recent conversation..."
     sleep 1
-    /usr/local/bin/claude -c $flags
+    eval "/usr/local/bin/claude -c $flags"
 }
 
 launch_claude_resume() {
     local flags=$(get_claude_flags)
     echo "📋 Opening conversation list for selection..."
     sleep 1
-    /usr/local/bin/claude -r $flags
+    eval "/usr/local/bin/claude -r $flags"
 }
 
 launch_claude_custom() {
@@ -169,8 +173,8 @@ launch_claude_custom() {
     echo "Enter your Claude command (e.g., 'claude --help' or 'claude -p \"hello\"'):"
     echo "Available flags: -c (continue), -r (resume), -p (print), --model,"
     echo "                 --dangerously-skip-permissions, etc."
-    if [ "${CLAUDE_DANGEROUS_MODE}" = "true" ]; then
-        echo "Note: --dangerously-skip-permissions will be automatically added"
+    if [ -n "$base_flags" ]; then
+        echo "Note: these will be added automatically: $base_flags"
     fi
     echo -n "> claude "
     read -r custom_args

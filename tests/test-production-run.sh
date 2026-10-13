@@ -19,8 +19,18 @@ config_use_persistent_claude=true
 config_auto_update_claude_on_start=false
 config_apk_packages=''
 config_pip_packages=''
+config_dangerous=false
+config_remote_control=false
+config_extra_args=''
+config_working_directory=''
+config_auto_launch=true
 bashio::config() {
     case "$1" in
+        dangerously_skip_permissions) printf '%s\n' "$config_dangerous" ;;
+        enable_remote_control) printf '%s\n' "$config_remote_control" ;;
+        claude_extra_args) printf '%s\n' "$config_extra_args" ;;
+        working_directory) printf '%s\n' "$config_working_directory" ;;
+        auto_launch_claude) printf '%s\n' "$config_auto_launch" ;;
         tmux_mouse) printf '%s\n' "$config_tmux_mouse" ;;
         use_persistent_claude) printf '%s\n' "$config_use_persistent_claude" ;;
         auto_update_claude_on_start) printf '%s\n' "$config_auto_update_claude_on_start" ;;
@@ -141,5 +151,39 @@ export PERSIST_INSTALL_FAIL_ON
 setup_persistent_packages
 printf '%s\n' '---' 'missing-package' '---' 'git' > "$tmp_dir/expected.log"
 cmp -s "$tmp_dir/expected.log" "$PERSIST_INSTALL_LOG" || fail "package failure did not continue safely"
+
+
+# Launch flags: built once as shell text, then parsed exactly once by eval,
+# so quoting in claude_extra_args survives into separate argv entries.
+[ -z "$(build_claude_flags)" ] || fail "no options should mean no flags"
+config_dangerous=true
+config_remote_control=true
+config_extra_args="--model x --append-system-prompt 'be terse'"
+flags=$(build_claude_flags)
+argv_dump() { for a in "$@"; do printf '[%s]' "$a"; done; }
+got=$(eval "argv_dump $flags")
+[ "$got" = "[--dangerously-skip-permissions][--remote-control][Home Assistant][--model][x][--append-system-prompt][be terse]" ] || \
+    fail "flags must parse into the expected argv, got: $got"
+launch=$(get_claude_launch_command)
+[[ "$launch" == *"/usr/local/bin/claude $flags"* ]] || fail "auto-launch command must carry the flags"
+if [ ! -f /usr/local/bin/claude-session-picker ]; then
+    # Without the picker, picker mode falls back to launching Claude directly
+    config_auto_launch=false
+    [[ "$(get_claude_launch_command)" == *"/usr/local/bin/claude $flags"* ]] || \
+        fail "picker-mode fallback must carry the flags too"
+    config_auto_launch=true
+fi
+config_dangerous=false; config_remote_control=false; config_extra_args=''
+
+# Working directory: default, existing path, and a typo falls back
+[ "$(get_working_directory)" = "/config" ] || fail "working_directory should default to /config"
+config_working_directory="$tmp_dir"
+[ "$(get_working_directory)" = "$tmp_dir" ] || fail "an existing working_directory should be used"
+config_working_directory="$tmp_dir/does-not-exist"
+[ "$(get_working_directory)" = "/config" ] || fail "a missing working_directory should fall back to /config"
+config_working_directory=''
+
+grep -q 'new-session -s claude -c "${CLAUDE_WORKDIR:-/config}"' "$TMUX_WRAPPER_PATH" || \
+    fail "tmux wrapper must start new sessions in CLAUDE_WORKDIR"
 
 echo "Production run.sh regression suite passed"

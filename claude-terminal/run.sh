@@ -289,7 +289,7 @@ TMUX_EOF
 if tmux has-session -t claude 2>/dev/null; then
     exec tmux attach-session -t claude
 else
-    exec tmux new-session -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
+    exec tmux new-session -s claude -c "${CLAUDE_WORKDIR:-/config}" bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
 fi
 WRAPPER_EOF
     chmod +x "$tmux_wrapper"
@@ -452,22 +452,90 @@ auto_install_packages() {
 
 # Legacy monitoring functions removed - using simplified /data approach
 
+# Flags added to every Claude launch, as shell text. The launch command (and
+# the session picker) evals it exactly once, so ordinary quoting in
+# claude_extra_args works: --append-system-prompt 'be terse' arrives as one
+# argument.
+build_claude_flags() {
+    local flags=""
+    local extra
+
+    if [ "$(bashio::config 'dangerously_skip_permissions' 'false')" = "true" ]; then
+        flags="--dangerously-skip-permissions"
+    fi
+
+    # The interactive flag, not `claude remote-control` server mode: the
+    # session stays typeable in the browser and also appears in the Claude app
+    # and at claude.ai/code. The default name is the container hostname, an
+    # opaque hex slug, so give it a readable one.
+    if [ "$(bashio::config 'enable_remote_control' 'false')" = "true" ]; then
+        flags="${flags:+$flags }--remote-control 'Home Assistant'"
+    fi
+
+    extra=$(bashio::config 'claude_extra_args' '')
+    if [ -n "$extra" ] && [ "$extra" != "null" ]; then
+        flags="${flags:+$flags }$extra"
+    fi
+
+    echo "$flags"
+}
+
+# Directory the tmux session starts in. Defaults to /config; a path that
+# doesn't exist logs a warning and falls back, so a typo can't leave a dead
+# terminal. Claude asks its one-time folder-trust question per new directory.
+get_working_directory() {
+    local dir
+    dir=$(bashio::config 'working_directory' '')
+    if [ -z "$dir" ] || [ "$dir" = "null" ]; then
+        echo "/config"
+    elif [ -d "$dir" ]; then
+        echo "$dir"
+    else
+        bashio::log.warning "working_directory '$dir' does not exist; starting in /config instead"
+        echo "/config"
+    fi
+}
+
+# A token from `claude setup-token` reaches every claude in the session
+# through the environment (tmux inherits it from this script). The value
+# itself is never logged.
+export_oauth_token() {
+    local token
+    token=$(bashio::config 'claude_code_oauth_token' '')
+    if [ -n "$token" ] && [ "$token" != "null" ]; then
+        export CLAUDE_CODE_OAUTH_TOKEN="$token"
+        bashio::log.info "CLAUDE_CODE_OAUTH_TOKEN set from add-on configuration"
+    fi
+}
+
+# Say at boot what the launch flags mean, rather than leaving the user to
+# find out in the terminal. Nothing here is fatal.
+log_claude_flags() {
+    local flags="$1"
+
+    if [[ "$flags" == *"--dangerously-skip-permissions"* ]]; then
+        bashio::log.warning "Claude will run with --dangerously-skip-permissions (unrestricted file access)"
+    fi
+
+    [[ "$flags" == *"--remote-control"* ]] || return 0
+    bashio::log.info "Remote Control enabled: the session appears as 'Home Assistant' in the Claude app and at claude.ai/code"
+    if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+        bashio::log.warning "Remote Control needs a full claude.ai login; a claude_code_oauth_token from 'claude setup-token' cannot establish it"
+    fi
+    if [[ "$flags" == *"--dangerously-skip-permissions"* ]]; then
+        bashio::log.warning "dangerously_skip_permissions + Remote Control: any device signed in to this Claude account can drive an unprompted root shell with write access to /config"
+    fi
+}
+
 # Determine Claude launch command based on configuration
 # Session picker handles its own loop, so Claude exiting returns to the menu (#6)
 get_claude_launch_command() {
     local auto_launch_claude
-    local dangerously_skip_permissions
-    local claude_flags=""
+    local claude_flags
 
     # Get configuration values
     auto_launch_claude=$(bashio::config 'auto_launch_claude' 'true')
-    dangerously_skip_permissions=$(bashio::config 'dangerously_skip_permissions' 'false')
-
-    # Build Claude flags
-    if [ "$dangerously_skip_permissions" = "true" ]; then
-        claude_flags="--dangerously-skip-permissions"
-        bashio::log.warning "Claude will run with --dangerously-skip-permissions (unrestricted file access)"
-    fi
+    claude_flags=$(build_claude_flags)
 
     if [ "$auto_launch_claude" = "true" ]; then
         # Auto-launch Claude first, then fall back to session picker on exit
@@ -482,7 +550,7 @@ get_claude_launch_command() {
             echo "clear && /usr/local/bin/claude-session-picker"
         else
             bashio::log.warning "Session picker not found, falling back to auto-launch"
-            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && /usr/local/bin/claude"
+            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && /usr/local/bin/claude ${claude_flags}"
         fi
     fi
 }
@@ -573,6 +641,15 @@ start_web_terminal() {
     bashio::log.info "ANTHROPIC_CONFIG_DIR=${ANTHROPIC_CONFIG_DIR}"
     bashio::log.info "HOME=${HOME}"
 
+    # Shared with the session picker, which launches Claude itself
+    export_oauth_token
+    export CLAUDE_FLAGS
+    CLAUDE_FLAGS=$(build_claude_flags)
+    log_claude_flags "$CLAUDE_FLAGS"
+    export CLAUDE_WORKDIR
+    CLAUDE_WORKDIR=$(get_working_directory)
+    bashio::log.info "Working directory: ${CLAUDE_WORKDIR}"
+
     # Get the appropriate launch command based on configuration
     local launch_command
     launch_command=$(get_claude_launch_command)
@@ -591,7 +668,7 @@ start_web_terminal() {
     # Pre-create the persistent tmux session so the first browser connection is instant
     if ! tmux has-session -t claude 2>/dev/null; then
         bashio::log.info "Creating persistent tmux session 'claude'..."
-        tmux new-session -d -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
+        tmux new-session -d -s claude -c "$CLAUDE_WORKDIR" bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
     else
         bashio::log.info "Reusing existing tmux session 'claude'..."
     fi

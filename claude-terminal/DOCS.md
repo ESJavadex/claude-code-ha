@@ -26,6 +26,22 @@ The add-on offers several configuration options:
 - When enabled, Claude starts automatically when you open the terminal
 - When disabled, shows an interactive session picker menu
 
+### Working Directory
+- **Default**: empty (starts in `/config`)
+- The folder the terminal and Claude start in, e.g. `/config/my_repo`
+- Claude asks its one-time "do you trust this folder?" question the first time
+  it sees a new directory, then remembers the answer
+- A path that doesn't exist logs a warning and falls back to `/config`
+
+### Claude Code OAuth Token
+- **Default**: empty (log in through the browser as usual)
+- A long-lived token from `claude setup-token` (run it on any machine where
+  you're logged in), for setups where the browser login is impractical
+- Masked in the Home Assistant UI and never written to the log, but like every
+  add-on option it is stored in the add-on configuration, which is included in
+  Home Assistant backups
+- Can't be used for Remote Control (below), which needs the normal login
+
 ### Dangerously Skip Permissions
 - **Default**: `false`
 - When enabled, Claude runs with `--dangerously-skip-permissions` flag
@@ -35,6 +51,25 @@ The add-on offers several configuration options:
   asking you first
 - Use only if you understand the security implications (see [Security](#security))
 - Useful for advanced users who need full file access
+
+### Enable Remote Control
+- **Default**: `false`
+- Launches Claude with `--remote-control`, so the same session also appears as
+  "Home Assistant" in the Claude mobile app and at
+  [claude.ai/code](https://claude.ai/code), where you can drive it from another
+  device. The browser terminal keeps working as usual: it's one session
+- Applies to every Claude launch, including those from the session picker
+- Needs a normal claude.ai login (Pro/Max/Team/Enterprise), not
+  `claude_code_oauth_token` or an API key. Claude asks a one-time
+  "Enable Remote Control?" question per directory
+- **⚠️ With Dangerously Skip Permissions on**, any device signed in to your
+  Claude account can drive a root shell that runs tools without asking
+
+### Claude Extra Args
+- **Default**: empty
+- Extra flags added to every Claude launch, e.g. `--model claude-sonnet-5-5`
+- Parsed like a shell command line, so quoting works:
+  `--append-system-prompt 'be terse'` arrives as one argument
 
 ### tmux Mouse Mode
 - **Default**: `false`

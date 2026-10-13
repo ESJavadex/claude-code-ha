@@ -61,7 +61,7 @@ curl -X GET http://localhost:7681/
 - `HOME=/data/home` - Claude's `~/.claude*` files, including OAuth credentials
 - `/data/.config/claude` - `ANTHROPIC_CONFIG_DIR`; XDG config/cache/state dirs are also under `/data`
 - `/data/packages` - `persist-install` packages; `/data/npm` - the optional persistent Claude install (`use_persistent_claude`)
-- `/data/options.json` - add-on options, written by the Supervisor on each start
+- `/data/options.json` - add-on options, written by the Supervisor on each start (bashio reads them from the Supervisor API, not this file)
 - `/config/claude-config` is only a **legacy** location: if it exists, its files are copied into `/data/.config/claude` on startup (`migrate_legacy_auth_files`). Nothing is saved there any more.
 
 Because `/data` is per add-on, installing the add-on from a different repository (or branch) starts with a fresh `/data`: the user must log in again and only options can be copied across (Configuration → Edit in YAML).
@@ -87,16 +87,24 @@ For rapid development and debugging without pushing new versions:
 podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal:test ./claude-terminal
 
 # Create test directories (/data holds all add-on state, /config is HA's config dir)
-mkdir -p /tmp/test-config /tmp/test-data
+mkdir -p /tmp/test-config /tmp/test-data /tmp/test-tmp/.bashio
 
-# Configure session picker (optional) - bashio reads options from /data/options.json
-echo '{"auto_launch_claude": false}' > /tmp/test-data/options.json
+# Options (optional). bashio::config asks the Supervisor API, not
+# /data/options.json, and caches the answer; with no Supervisor, seed that
+# cache. List every option: a missing key comes back as the string "null".
+cat > /tmp/test-tmp/.bashio/addons.self.options.config.cache << 'OPTIONS'
+{"auto_launch_claude": false, "tmux_mouse": false, "working_directory": "",
+ "claude_code_oauth_token": "", "dangerously_skip_permissions": false,
+ "enable_remote_control": false, "claude_extra_args": "",
+ "persistent_apk_packages": [], "persistent_pip_packages": [],
+ "use_persistent_claude": false, "auto_update_claude_on_start": false}
+OPTIONS
 
 # Run test container
 # DEV_DIRECT_ACCESS=1: there is no Supervisor to report published ports, so
 # without it the web UI refuses non-ingress clients and ttyd binds to loopback
 podman run -d --name test-claude-dev -p 7680:7680 -p 7681:7681 -e DEV_DIRECT_ACCESS=1 \
-  -v /tmp/test-config:/config -v /tmp/test-data:/data local/claude-terminal:test
+  -v /tmp/test-config:/config -v /tmp/test-data:/data -v /tmp/test-tmp:/tmp local/claude-terminal:test
 
 # Check logs
 podman logs test-claude-dev

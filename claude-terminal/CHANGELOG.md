@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.1.8
+
+### ✨ New Feature - Four new options from the original add-on
+- **`working_directory`**: start the terminal and Claude somewhere other than
+  `/config`, e.g. `/config/my_repo`. A path that doesn't exist logs a warning
+  and falls back to `/config`.
+- **`claude_code_oauth_token`**: log in non-interactively with a token from
+  `claude setup-token`. It reaches every Claude in the session through the
+  environment, is masked in the UI and never logged, but is stored in the
+  add-on configuration and so in backups.
+- **`enable_remote_control`**: launch Claude with `--remote-control`, so the
+  session also appears as "Home Assistant" in the Claude app and at
+  claude.ai/code. Needs a normal claude.ai login; the log warns if it is
+  combined with a token or with `dangerously_skip_permissions`.
+- **`claude_extra_args`**: extra flags for every Claude launch, e.g.
+  `--model ...`. Quoting works: `--append-system-prompt 'be terse'` arrives as
+  one argument.
+- All launch flags now apply to the session picker's New / Continue / Resume /
+  custom options too, not only to auto-launch.
+  Adapted from heytcass/home-assistant-addons 2.3.0, 2.5.4, 2.5.5 and 2.6.0.
+
 ## 2.1.7
 
 ### 🐛 Bug Fix - Startup and backup fixes from the original add-on
