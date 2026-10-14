@@ -108,6 +108,29 @@ chmod +x "$PERSISTENT_CLAUDE_ROOT/bin/claude"
 setup_persistent_claude
 [ ! -e "$CLAUDE_BIN_LINK" ] || fail "non-working persistent Claude should not replace the baked binary"
 
+# /data/npm is excluded from backups: after a restore it is empty, and the
+# install must come back rather than silently using the baked binary.
+rm -rf "$PERSISTENT_CLAUDE_ROOT"
+npm_calls="$tmp_dir/npm-calls"
+npm() {
+    printf '%s %s\n' "$NPM_CONFIG_PREFIX" "$*" >> "$npm_calls"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin" "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code"
+    printf '#!/bin/sh\n' > "$NPM_CONFIG_PREFIX/bin/claude"
+    chmod +x "$NPM_CONFIG_PREFIX/bin/claude"
+    printf '{}\n' > "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code/package.json"
+}
+setup_persistent_claude
+grep -q "^$PERSISTENT_CLAUDE_ROOT install -g @anthropic-ai/claude-code@" "$npm_calls" || \
+    fail "missing persistent Claude was not reinstalled"
+[ "$(readlink "$CLAUDE_BIN_LINK")" = "$PERSISTENT_CLAUDE_ROOT/bin/claude" ] || \
+    fail "reinstalled persistent Claude was not activated"
+
+# An existing install is not reinstalled on every start
+: > "$npm_calls"
+setup_persistent_claude
+[ ! -s "$npm_calls" ] || fail "existing persistent Claude should not be reinstalled"
+unset -f npm
+
 PERSIST_INSTALL_LOG="$tmp_dir/persist-install.log"
 PERSIST_INSTALL_BIN="$tmp_dir/persist-install"
 PERSIST_INSTALL_SOURCE="$tmp_dir/no-bundled-installer"

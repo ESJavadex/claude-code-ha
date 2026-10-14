@@ -336,7 +336,17 @@ setup_persistent_claude() {
     export CLAUDE_BIN_LINK="$claude_link"
     export CLAUDE_NPM_SPEC="$claude_npm_spec"
 
-    if [ "$auto_update_claude_on_start" = "true" ]; then
+    # /data/npm is left out of HA backups (backup_exclude), so after a restore
+    # it is missing: install it again rather than silently falling back to
+    # the image's copy. A broken install is left alone (see the check below).
+    if [ ! -e "$persistent_package" ]; then
+        bashio::log.info "Persistent Claude override: installing Claude Code into $persistent_root..."
+        if NPM_CONFIG_PREFIX="$persistent_root" npm install -g "$claude_npm_spec" --prefer-online; then
+            bashio::log.info "Persistent Claude override: install completed"
+        else
+            bashio::log.warning "Persistent Claude override: install failed"
+        fi
+    elif [ "$auto_update_claude_on_start" = "true" ]; then
         bashio::log.info "Persistent Claude override: updating Claude Code in /data/npm..."
         if NPM_CONFIG_PREFIX="$persistent_root" npm install -g "$claude_npm_spec" --prefer-online; then
             bashio::log.info "Persistent Claude override: update completed"

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.1.12
+
+### 🛠️ Improvement - Smaller Home Assistant backups
+- **Downloadable files are left out of backups** (`backup_exclude`): the
+  `use_persistent_claude` install in `/data/npm` (about 240 MB), old Claude
+  binaries from `claude update`, and caches. Login, settings, sessions,
+  skills, plugins and `persist-install` packages are still backed up.
+- **The persistent Claude install comes back by itself**: with
+  `use_persistent_claude` on and nothing in `/data/npm` (after a restore, or
+  when first enabled), startup now installs it instead of only logging a
+  warning and using the image's copy. An install that exists but fails its
+  check is still left alone.
+- The image itself (about 240 MB compressed) is still in every backup,
+  because Home Assistant builds the add-on locally and saves locally built
+  images with it.
+
 ## 2.1.11
 
 ### 🐛 Bug Fix - Session picker alignment
