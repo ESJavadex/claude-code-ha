@@ -36,6 +36,14 @@ if (!fs.existsSync(UPLOAD_DIR)) {
     console.log(`Created upload directory: ${UPLOAD_DIR}`);
 }
 
+const MIME_EXTENSIONS = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/svg+xml': '.svg'
+};
+
 // Configure multer for image uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -43,7 +51,9 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const timestamp = Date.now();
-        const ext = path.extname(file.originalname) || '.png';
+        // The extension comes from the MIME type, never the browser's file
+        // name: the path is typed at the prompt after upload
+        const ext = MIME_EXTENSIONS[file.mimetype] || '.png';
         const filename = `pasted-${timestamp}${ext}`;
         cb(null, filename);
     }

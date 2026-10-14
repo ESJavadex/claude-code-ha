@@ -70,6 +70,10 @@ persist_apk_install() {
 
         if [ -n "$pkg_files" ]; then
             echo "$pkg_files" | while read -r file; do
+                # apk info -L prints paths without a leading slash ("usr/bin/op"),
+                # so normalize to absolute before matching the globs below (#34)
+                file="/${file#/}"
+
                 # Copy executables to persistent bin
                 if [[ "$file" == /usr/bin/* ]] || [[ "$file" == /usr/sbin/* ]]; then
                     if [ -f "$file" ] && [ -x "$file" ]; then

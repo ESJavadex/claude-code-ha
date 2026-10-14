@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.1.13
+
+This release brings the community work from
+[nsleigh/claude-code-ha](https://github.com/nsleigh/claude-code-ha) (2.1.0 to
+2.1.12 below) into the main repository. Thank you @nsleigh, @PeterLinuxOSS
+and @mmackenzie2026.
+
+### 🐛 Bug Fix - Session picker ignores the keyboard (#32, #36)
+- When Claude Code exits without restoring the terminal (a crash, a kill, an
+  out-of-memory restart), it leaves the terminal in raw mode with extended
+  keyboard reporting on. The menu then never sees Enter and nothing echoes.
+- The session picker now resets the terminal every time it draws the menu.
+
+### 🐛 Bug Fix - `persist-install` didn't persist anything (#34, #38)
+- `apk info -L` prints paths without a leading slash, so no file ever matched
+  and nothing was copied to `/data/packages`, although the script reported
+  success. Fixed in `persist-install` (#38 by @mmackenzie2026) and in
+  `persistent-packages.sh`.
+
+### 🔒 Security
+- The login link watcher only posts Claude's OAuth authorize link, not other
+  claude.ai links in the terminal (Remote Control sessions, docs). It does not
+  run at all when `claude_code_oauth_token` is set.
+- Uploaded images get their file extension from the MIME type instead of the
+  browser's file name, because the path is typed at the prompt.
+
 ## 2.1.12
 
 ### 🛠️ Improvement - Smaller Home Assistant backups

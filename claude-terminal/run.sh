@@ -651,6 +651,12 @@ start_login_url_watcher() {
         bashio::log.warning "Login URL watcher not found: $watcher"
         return 0
     fi
+    # With a long-lived token there is no browser login to help with, and no
+    # .credentials.json, so the watcher would treat every session as logged out
+    if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+        bashio::log.info "Login URL watcher not needed (claude_code_oauth_token is set)"
+        return 0
+    fi
     bashio::log.info "Starting login URL watcher in background"
     bash "$watcher" 2>&1 | while IFS= read -r line; do
         bashio::log.info "[Login watcher] $line"

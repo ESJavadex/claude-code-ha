@@ -19,7 +19,19 @@ get_claude_flags() {
     echo "$flags"
 }
 
+# Claude Code puts the terminal in raw mode and turns on extended keyboard
+# reporting. If it dies without undoing that (crash, OOM, kill), the menu
+# can't see Enter and nothing echoes, so it looks frozen (#32, #36).
+reset_terminal() {
+    [ -t 0 ] || return 0
+    stty sane 2>/dev/null
+    # Keyboard protocols (kitty, modifyOtherKeys), bracketed paste, focus
+    # events, mouse tracking, alternate screen; then show the cursor again
+    printf '\033[<u\033[>4;0m\033[?2004l\033[?1004l\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049l\033[?25h'
+}
+
 show_banner() {
+    reset_terminal
     clear
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║                    🤖 Claude Terminal                        ║"

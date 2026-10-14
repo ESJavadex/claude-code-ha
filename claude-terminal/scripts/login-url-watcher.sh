@@ -20,10 +20,11 @@ SUPERVISOR_URL="${LOGIN_WATCHER_SUPERVISOR_URL:-http://supervisor}"
 # Rebuild the URL from the pane. Claude hard-wraps it with real line breaks
 # (which capture-pane -J does not rejoin) and may indent it or draw a border
 # round it, so take the URL characters from the first line and from each
-# following line until a blank one.
+# following line until a blank one. Only the OAuth authorize link counts:
+# Remote Control session links and doc links are also claude.ai URLs.
 extract_url() {
     tmux capture-pane -p -J -t claude -S -500 2>/dev/null | awk '
-        $0 ~ /https:\/\/(claude\.(com|ai)|console\.anthropic\.com|platform\.claude\.com)/ {
+        $0 ~ /https:\/\/(claude\.(com|ai)|console\.anthropic\.com|platform\.claude\.com)\/[^ ]*oauth\/authorize/ {
             match($0, /https:\/\/[A-Za-z0-9._~:\/?#@!$&()*+,;=%-]*/)
             url = substr($0, RSTART, RLENGTH)
             collecting = 1
