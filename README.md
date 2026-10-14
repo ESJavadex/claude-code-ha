@@ -1,6 +1,6 @@
 # Claude Terminal Pro for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-2.0.13-1f6feb)](claude-terminal/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.1.13-1f6feb)](claude-terminal/CHANGELOG.md)
 [![Latest release](https://img.shields.io/github/v/release/ESJavadex/claude-code-ha?label=release&color=1f6feb)](https://github.com/ESJavadex/claude-code-ha/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3fb950)](LICENSE)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64%20%7C%20armv7-8957e5)](#architecture-support)
@@ -151,6 +151,11 @@ Found a bug or have a request? [Open an issue](https://github.com/ESJavadex/clau
 
 - **Original creator:** Tom Cassady ([@heytcass](https://github.com/heytcass)) — the initial Claude Terminal add-on
 - **Fork maintainer:** Javier Santos ([@esjavadex](https://github.com/esjavadex)) — persistent packages, tmux persistence, multi-arch, and ongoing enhancements
+- **Contributors:** thank you to everyone who has sent fixes and features:
+  - [@nsleigh](https://github.com/nsleigh): the 2.1.x series. Session picker update option, image and text paste in the iframe, security hardening (closed ports, ingress-only web UI), offline startup, smaller backups, login link as an HA notification, `working_directory`, `claude_code_oauth_token`, `enable_remote_control`, `claude_extra_args`, and a build that can't hang
+  - [@PeterLinuxOSS](https://github.com/PeterLinuxOSS): copying out of the terminal, touch-device copy and swipe scrolling (#37)
+  - [@mmackenzie2026](https://github.com/mmackenzie2026): `persist-install` actually persisting packages (#38)
+  - [@miczu71](https://github.com/miczu71), [@RobSlabaugh](https://github.com/RobSlabaugh), [@owine](https://github.com/owine) and [@martinboksa](https://github.com/martinboksa) for earlier fixes and ideas
 
 Built and maintained with the help of Claude Code itself.
 
