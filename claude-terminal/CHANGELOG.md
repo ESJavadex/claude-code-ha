@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.1
+
+### 🔒 Security - Secrets never go into a checkpoint
+- An existing `/config` repository may not ignore `secrets.yaml`. The Changes
+  tab now never lists, diffs, reverts or commits secrets, `.storage`,
+  `.cloud`, databases, keys, `.env` or `.git-credentials`, whatever the
+  repository's `.gitignore` says, so a checkpoint you push later can't
+  publish them.
+- `.git` is hidden from the Files tab and can't be previewed: remote URLs in
+  `.git/config` can contain access tokens.
+
 ## 2.3.0
 
 ### ✨ New Feature - Changes tab: see and undo what Claude edited

@@ -46,6 +46,8 @@ function resolveInsideRoots(requested) {
         return null;
     }
     const inside = ROOTS.some((root) => real === root || real.startsWith(root + path.sep));
+    // .git/config can hold credentials (tokens in remote URLs)
+    if (real.split(path.sep).includes('.git')) return null;
     return inside ? real : null;
 }
 
@@ -111,6 +113,7 @@ function register(app) {
             return res.status(400).json({ error: `Cannot read folder: ${err.code || err.message}` });
         }
         const items = entries
+            .filter((dirent) => dirent.name !== '.git')
             .slice(0, MAX_ENTRIES)
             .map((dirent) => entryInfo(dir, dirent))
             .filter(Boolean)

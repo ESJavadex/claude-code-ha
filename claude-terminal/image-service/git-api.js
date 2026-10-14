@@ -22,6 +22,23 @@ const CONFIG_DIR = (() => {
 const MAX_DIFF_BYTES = 512 * 1024;
 const COMMIT_TIMEOUT = 180000;
 
+// Never listed, diffed or committed by the panel, whatever the repository's
+// .gitignore says: an existing repo may not ignore secrets.yaml, and a
+// checkpoint that later gets pushed would publish it
+const SENSITIVE = [
+    '**/secrets.yaml', '**/secrets.yml', '**/.storage/**', '**/.cloud/**',
+    '**/*.db', '**/*.db-shm', '**/*.db-wal', '**/.git-credentials',
+    '**/.ssh/**', '**/*.pem', '**/*.key', '**/.env'
+];
+const SAFE_PATHSPEC = ['--', '.', ...SENSITIVE.map((glob) => `:(exclude,glob)${glob}`)];
+
+function isSensitive(relative) {
+    const name = relative.split('/').pop();
+    return /^secrets\.ya?ml$/.test(name) || /\.(db|db-shm|db-wal|pem|key)$/.test(name) ||
+        name === '.git-credentials' || name === '.env' ||
+        /(^|\/)(\.storage|\.cloud|\.ssh)\//.test(relative);
+}
+
 // Used only when the user has no git identity of their own
 const FALLBACK_IDENTITY = ['-c', 'user.name=Claude Terminal Pro', '-c', 'user.email=claude-terminal@localhost'];
 
@@ -129,7 +146,7 @@ function register(app) {
     app.get('/api/git/status', async (req, res) => {
         const top = await repoRoot();
         if (!top) return res.json({ repo: false, configDir: CONFIG_DIR });
-        const status = await git(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+        const status = await git(['status', '--porcelain=v1', '-z', '--untracked-files=all', ...SAFE_PATHSPEC]);
         if (!status.ok) return res.status(500).json({ repo: true, error: status.stderr || 'git status failed' });
         const last = await git(['log', '-1', '--format=%ct%x00%s']);
         let lastCheckpoint = null;
@@ -144,7 +161,7 @@ function register(app) {
         const top = await repoRoot();
         if (!top) return res.status(400).json({ error: 'Not a git repository' });
         const file = insideRepo(top, req.query.path);
-        if (!file) return res.status(400).json({ error: 'Path not allowed' });
+        if (!file || isSensitive(file)) return res.status(400).json({ error: 'Path not allowed' });
 
         let result;
         if (await inLastCheckpoint(file)) {
@@ -171,7 +188,7 @@ function register(app) {
         if (!fs.existsSync(gitignore)) {
             try { fs.writeFileSync(gitignore, DEFAULT_GITIGNORE, { mode: 0o644 }); } catch { /* commit anyway */ }
         }
-        const add = await git(['add', '-A'], { timeout: COMMIT_TIMEOUT });
+        const add = await git(['add', '-A', ...SAFE_PATHSPEC], { timeout: COMMIT_TIMEOUT });
         if (!add.ok) return res.json({ ok: false, message: add.stderr || 'git add failed' });
         const commit = await git([...await identityArgs(), 'commit', '-q', '--allow-empty', '-m', 'Starting point (Claude Terminal Pro)'], { timeout: COMMIT_TIMEOUT });
         res.json({ ok: commit.ok, message: commit.ok ? 'Now tracking changes in /config' : (commit.stderr || 'git commit failed') });
@@ -181,7 +198,7 @@ function register(app) {
         const top = await repoRoot();
         if (!top) return res.status(400).json({ ok: false, message: 'Not a git repository' });
         const file = insideRepo(top, req.query.path);
-        if (!file) return res.status(400).json({ ok: false, message: 'Path not allowed' });
+        if (!file || isSensitive(file)) return res.status(400).json({ ok: false, message: 'Path not allowed' });
 
         if (!await inLastCheckpoint(file)) {
             // A new file has no previous version to go back to. Deleting it
@@ -206,7 +223,7 @@ function register(app) {
     app.post('/api/git/checkpoint', exclusive(async (req, res) => {
         const top = await repoRoot();
         if (!top) return res.status(400).json({ ok: false, message: 'Not a git repository' });
-        const add = await git(['add', '-A'], { timeout: COMMIT_TIMEOUT });
+        const add = await git(['add', '-A', ...SAFE_PATHSPEC], { timeout: COMMIT_TIMEOUT });
         if (!add.ok) return res.json({ ok: false, message: add.stderr || 'git add failed' });
         const message = `Checkpoint ${new Date().toISOString().replace('T', ' ').slice(0, 16)} (Claude Terminal Pro)`;
         const commit = await git([...await identityArgs(), 'commit', '-q', '-m', message], { timeout: COMMIT_TIMEOUT });
@@ -217,4 +234,4 @@ function register(app) {
     }));
 }
 
-module.exports = { register, parseStatus, insideRepo };
+module.exports = { register, parseStatus, insideRepo, isSensitive };

@@ -53,5 +53,22 @@ ok('git status -z is parsed, including renames and spaces', () => {
     ]);
 });
 
+ok('.git is never browsable (remote URLs can hold tokens)', () => {
+    fs.mkdirSync(path.join(root, '.git'));
+    fs.writeFileSync(path.join(root, '.git', 'config'), '[remote]\n');
+    assert.strictEqual(files.resolveInsideRoots(path.join(root, '.git', 'config')), null);
+    assert.strictEqual(files.resolveInsideRoots(path.join(root, '.git')), null);
+});
+
+ok('secrets and databases are sensitive, normal files are not', () => {
+    for (const p of ['secrets.yaml', 'packages/secrets.yaml', 'secrets.yml', '.storage/auth', 'home-assistant_v2.db',
+        'x.db-wal', '.ssh/id_rsa', 'certs/server.key', 'certs/a.pem', '.env', '.git-credentials', 'sub/.cloud/x']) {
+        assert.strictEqual(gitApi.isSensitive(p), true, p);
+    }
+    for (const p of ['automations.yaml', 'packages/clima.yaml', 'secrets_example.md', 'storage.yaml', 'keyboard.yaml']) {
+        assert.strictEqual(gitApi.isSensitive(p), false, p);
+    }
+});
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(`\nAll ${passed} sidebar API tests passed`);
