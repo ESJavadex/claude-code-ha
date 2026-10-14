@@ -673,6 +673,63 @@
         #check-config-result.ok { color: #4ec9b0; }
         #check-config-result.error { color: #f48771; }
 
+        .change-status {
+            width: 14px;
+            flex-shrink: 0;
+            font-weight: 600;
+            font-family: Menlo, Consolas, monospace;
+            text-align: center;
+        }
+
+        .change-status.modified { color: #e2c08d; }
+        .change-status.added { color: #73c991; }
+        .change-status.deleted { color: #f48771; }
+        .change-status.renamed { color: #75beff; }
+
+        .changes-note {
+            color: #aaa;
+            padding: 10px 12px;
+            line-height: 1.5;
+            font-size: 12px;
+        }
+
+        .changes-note button {
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .sidebar-action {
+            background: #007acc;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 7px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .sidebar-action:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        #accept-changes-btn {
+            width: 100%;
+            margin-bottom: 6px;
+            display: none;
+        }
+
+        .diff-line { display: block; }
+        .diff-add { background: rgba(115, 201, 145, 0.15); color: #9fe0b5; }
+        .diff-del { background: rgba(244, 135, 113, 0.15); color: #f8a898; }
+        .diff-hunk { color: #75beff; }
+        .diff-meta { color: #888; }
+
+        #preview-revert-btn.confirm {
+            background: #d9534f;
+            color: #fff;
+        }
+
         #preview-modal {
             position: fixed;
             inset: 0;
@@ -785,10 +842,12 @@
                     <button class="rail-btn" id="rail-expand" title="Show the sidebar">«</button>
                     <button class="rail-btn" data-open-tab="files" title="Files">📁</button>
                     <button class="rail-btn" data-open-tab="recent" title="Recent changes">🕒</button>
+                    <button class="rail-btn" data-open-tab="changes" title="Changes since the last checkpoint">±</button>
                 </div>
                 <div id="sidebar-tabs">
                     <button class="sidebar-tab active" data-tab="files">📁 Files</button>
-                    <button class="sidebar-tab" data-tab="recent">🕒 Recent changes</button>
+                    <button class="sidebar-tab" data-tab="recent">🕒 Recent</button>
+                    <button class="sidebar-tab" data-tab="changes">± Changes</button>
                     <button id="sidebar-hide" title="Hide the sidebar">»</button>
                 </div>
                 <div id="sidebar-toolbar">
@@ -802,6 +861,7 @@
                 </div>
                 <div id="sidebar-list"></div>
                 <div id="sidebar-footer">
+                    <button id="accept-changes-btn" class="sidebar-action" title="Save the current state as the new checkpoint (a local git commit, never pushed)">✓ Accept all changes</button>
                     <button id="check-config-btn" title="Run Home Assistant's configuration check (ha core check)">✓ Check HA configuration</button>
                     <div id="check-config-result"></div>
                 </div>
@@ -819,6 +879,7 @@
             <div class="modal-buttons">
                 <button id="preview-insert-btn" class="modal-btn modal-btn-primary" title="Type the path at the terminal prompt">Insert path</button>
                 <button id="preview-copy-btn" class="modal-btn modal-btn-secondary">Copy path</button>
+                <button id="preview-revert-btn" class="modal-btn modal-btn-secondary" style="display: none;" title="Put this file back as it was at the last checkpoint">↩ Revert file</button>
                 <button id="preview-close-btn" class="modal-btn modal-btn-secondary">Close</button>
             </div>
         </div>
@@ -1869,15 +1930,187 @@
                 }
             }
 
+            const acceptBtn = document.getElementById('accept-changes-btn');
+            const revertBtn = document.getElementById('preview-revert-btn');
+            let diffPath = null;
+            let revertArmed = null;
+
+            async function postJson(url) {
+                const res = await fetch(url, { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok && data.ok === undefined) throw new Error(data.error || res.statusText);
+                return data;
+            }
+
+            async function renderChanges() {
+                list.replaceChildren(emptyRow('Loading…'));
+                acceptBtn.style.display = 'none';
+                let data;
+                try {
+                    data = await getJson('api/git/status');
+                } catch (err) {
+                    list.replaceChildren(emptyRow('⚠️ ' + err.message));
+                    return;
+                }
+                list.replaceChildren();
+                if (!data.repo) {
+                    const note = document.createElement('div');
+                    note.className = 'changes-note';
+                    note.append(
+                        'Track changes in ' + data.configDir + ' to see exactly what Claude edits, line by line, and undo any file.',
+                        document.createElement('br'), document.createElement('br'),
+                        'This creates a local git repository there and saves the current state as the starting point. Nothing is uploaded anywhere. secrets.yaml, .storage, databases and logs are left out.'
+                    );
+                    const start = document.createElement('button');
+                    start.className = 'sidebar-action';
+                    start.textContent = 'Start tracking changes';
+                    start.addEventListener('click', async () => {
+                        start.disabled = true;
+                        start.textContent = 'Setting up… (can take a minute)';
+                        try {
+                            const r = await postJson('api/git/init');
+                            setStatus((r.ok ? '✅ ' : '❌ ') + r.message, r.ok ? 'success' : 'error');
+                        } catch (err) {
+                            setStatus('❌ ' + err.message, 'error');
+                        }
+                        renderChanges();
+                    });
+                    note.append(start);
+                    list.append(note);
+                    return;
+                }
+                if (data.error) {
+                    list.append(emptyRow('⚠️ ' + data.error));
+                    return;
+                }
+                if (data.lastCheckpoint) {
+                    const since = emptyRow('Since checkpoint ' + formatAgo(data.lastCheckpoint.time));
+                    since.title = data.lastCheckpoint.subject;
+                    list.append(since);
+                }
+                if (!data.files.length) {
+                    list.append(emptyRow('No changes'));
+                    return;
+                }
+                acceptBtn.style.display = 'block';
+                const letters = { modified: 'M', added: 'A', deleted: 'D', renamed: 'R' };
+                for (const file of data.files) {
+                    const row = document.createElement('div');
+                    row.className = 'tree-row';
+                    row.title = file.path;
+                    const status = document.createElement('span');
+                    status.className = 'change-status ' + file.status;
+                    status.textContent = letters[file.status] || '?';
+                    const name = document.createElement('span');
+                    name.className = 'tree-name';
+                    name.textContent = file.path;
+                    row.append(status, name);
+                    row.addEventListener('click', () => { select(row); openDiff(file.path); });
+                    list.append(row);
+                }
+            }
+
+            // Colour a unified diff line by line, as text nodes only
+            function renderDiff(diff) {
+                const frag = document.createDocumentFragment();
+                for (const line of diff.split('\n')) {
+                    const span = document.createElement('span');
+                    span.className = 'diff-line';
+                    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('new file') || line.startsWith('deleted file')) span.classList.add('diff-meta');
+                    else if (line.startsWith('+')) span.classList.add('diff-add');
+                    else if (line.startsWith('-')) span.classList.add('diff-del');
+                    else if (line.startsWith('@@')) span.classList.add('diff-hunk');
+                    span.textContent = line || ' ';
+                    frag.append(span);
+                }
+                return frag;
+            }
+
+            function disarmRevert() {
+                clearTimeout(revertArmed);
+                revertArmed = null;
+                revertBtn.classList.remove('confirm');
+                revertBtn.textContent = '↩ Revert file';
+            }
+
+            async function openDiff(relativePath) {
+                diffPath = relativePath;
+                disarmRevert();
+                revertBtn.style.display = '';
+                previewPath = null;
+                previewTitle.textContent = relativePath;
+                previewMeta.textContent = 'Changes since the last checkpoint';
+                previewBody.textContent = 'Loading…';
+                previewModal.classList.add('active');
+                try {
+                    const data = await getJson('api/git/diff?path=' + encodeURIComponent(relativePath));
+                    previewPath = data.fullPath;
+                    previewBody.replaceChildren();
+                    if (data.binary) previewBody.textContent = '(binary file changed)';
+                    else if (!data.diff.trim()) previewBody.textContent = '(no differences)';
+                    else previewBody.append(renderDiff(data.diff));
+                    if (data.truncated) previewMeta.textContent += ' · showing the first 512 KB';
+                } catch (err) {
+                    previewBody.textContent = '⚠️ ' + err.message;
+                }
+            }
+
+            revertBtn.addEventListener('click', async () => {
+                if (!diffPath) return;
+                // Two clicks: the first arms it, the second within 4 s reverts
+                if (!revertArmed) {
+                    revertBtn.classList.add('confirm');
+                    revertBtn.textContent = 'Click again to revert';
+                    revertArmed = setTimeout(disarmRevert, 4000);
+                    return;
+                }
+                disarmRevert();
+                try {
+                    const r = await postJson('api/git/revert?path=' + encodeURIComponent(diffPath));
+                    setStatus((r.ok ? '↩ ' : '❌ ') + r.message, r.ok ? 'success' : 'error');
+                    if (r.ok) closePreview();
+                } catch (err) {
+                    setStatus('❌ ' + err.message, 'error');
+                }
+                if (currentTab === 'changes') renderChanges();
+            });
+
+            let acceptArmed = null;
+            acceptBtn.addEventListener('click', async () => {
+                if (!acceptArmed) {
+                    acceptBtn.textContent = 'Click again to accept';
+                    acceptArmed = setTimeout(() => { acceptArmed = null; acceptBtn.textContent = '✓ Accept all changes'; }, 4000);
+                    return;
+                }
+                clearTimeout(acceptArmed);
+                acceptArmed = null;
+                acceptBtn.disabled = true;
+                acceptBtn.textContent = 'Saving checkpoint…';
+                try {
+                    const r = await postJson('api/git/checkpoint');
+                    setStatus((r.ok ? '✅ ' : '❌ ') + r.message, r.ok ? 'success' : 'error');
+                } catch (err) {
+                    setStatus('❌ ' + err.message, 'error');
+                } finally {
+                    acceptBtn.disabled = false;
+                    acceptBtn.textContent = '✓ Accept all changes';
+                    renderChanges();
+                }
+            });
+
             function refresh() {
                 hiddenToggle.style.display = currentTab === 'files' ? '' : 'none';
                 recentHours.style.display = currentTab === 'recent' ? '' : 'none';
+                acceptBtn.style.display = 'none';
                 if (currentTab === 'files') renderFolder(rootPath, list, 0);
-                else renderRecent();
+                else if (currentTab === 'recent') renderRecent();
+                else renderChanges();
             }
 
             async function openPreview(filePath) {
                 previewPath = filePath;
+                diffPath = null;
+                revertBtn.style.display = 'none';
                 previewTitle.textContent = filePath;
                 previewMeta.textContent = '';
                 previewBody.textContent = 'Loading…';

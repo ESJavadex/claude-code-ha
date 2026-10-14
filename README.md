@@ -4,7 +4,7 @@
 
 # Claude Terminal Pro for Home Assistant
 
-**Claude Code inside your Home Assistant sidebar.** A browser terminal with the tools you need for HA work, a session that survives restarts, and a file panel to see what Claude changed.
+**Claude Code inside your Home Assistant sidebar.** A browser terminal with the tools you need for HA work, a session that survives restarts, and a side panel to see, check and undo what Claude changed.
 
 [![Add-on version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FESJavadex%2Fclaude-code-ha%2Fmain%2Fclaude-terminal%2Fconfig.yaml&query=%24.version&label=add-on&color=1f6feb)](claude-terminal/CHANGELOG.md)
 [![Latest release](https://img.shields.io/github/v/release/ESJavadex/claude-code-ha?label=release&color=1f6feb)](https://github.com/ESJavadex/claude-code-ha/releases)
@@ -20,6 +20,7 @@
 
 ## What's new
 
+- **2.3: Changes tab.** See exactly what Claude changed in `/config`, line by line, undo any file with two clicks, and accept the rest as a checkpoint. It uses a local git repository and can create one for you.
 - **2.2: Files sidebar.** A tree of `/config`, a *Recent changes* list showing what Claude just edited, and a button that runs Home Assistant's config check before you restart. It sits on the right and collapses to a thin rail.
 - **2.1: community release.** New installs build in seconds again. Copy and paste work properly, including on phones. The session picker no longer freezes after a crash. New options: `init_commands`, `working_directory`, `enable_remote_control`, `claude_code_oauth_token` and `claude_extra_args`. Security is tighter too: ingress only by default.
 
@@ -48,7 +49,10 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 **Files sidebar**
 - A read-only tree of `/config` with previews. **Insert path** types a file's path at the prompt
 - **Recent changes**: files changed in the last hour, day or week
+- **± Changes**: a coloured diff of everything changed since the last checkpoint, with **Revert file** and **Accept all changes** (local git, never pushed)
 - **✓ Check HA configuration** runs `ha core check`
+
+<img src="docs/images/changes-diff.png" alt="The Changes tab showing a diff" width="700" />
 
 **Home Assistant tooling**
 - The `ha` and `gh` CLIs, git, Python 3, Node.js, jq, yq, vim, nano and tree are included
@@ -109,7 +113,7 @@ This add-on gives Claude a lot of power by design. It runs as root in its contai
 - **Any signed-in Home Assistant user can reach it**, not only admins. That's how ingress works in HA. Treat every account on your instance as trusted while it's installed.
 - **Ports 7680 and 7681 are closed by default.** Opening one gives anyone on your network a root shell with no login.
 - **The web UI only accepts Home Assistant's ingress proxy**, and ttyd listens only inside the container.
-- **The Files sidebar is read-only and limited to `/config`.** Your Claude login in `/data` can't be browsed.
+- **The sidebar is limited to `/config`.** Your Claude login in `/data` can't be browsed. Files and Recent are read-only. Changes only writes when you click Revert, Accept or Start tracking, and never pushes.
 - **`dangerously_skip_permissions` removes the last human check.** A prompt injection in any file or page Claude reads could change your config without asking.
 
 More in [DOCS.md → Security](claude-terminal/DOCS.md#security).

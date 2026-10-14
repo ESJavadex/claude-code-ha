@@ -93,6 +93,8 @@ app.get('/config', (req, res) => {
 
 // Read-only file browser for the sidebar, plus HA's config check
 require('./files-api').register(app);
+// Changes tab: git status/diff of /config, revert and checkpoints
+require('./git-api').register(app);
 
 // Image upload endpoint
 app.post('/upload', upload.single('image'), (req, res) => {

@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.0
+
+### ✨ New Feature - Changes tab: see and undo what Claude edited
+- **± Changes** in the sidebar lists every file in `/config` that changed
+  since the last checkpoint (M modified, A added, D deleted). Click one to see
+  the diff, coloured line by line.
+- **↩ Revert file** puts a file back as it was at the last checkpoint,
+  including files Claude deleted. It takes two clicks. New files are never
+  deleted for you.
+- **✓ Accept all changes** saves the current state as the new checkpoint (a
+  local git commit; nothing is ever pushed). Also two clicks.
+- **No git yet?** The tab offers to start tracking `/config`: a local
+  repository with a `.gitignore` that leaves out `secrets.yaml`, `.storage`,
+  databases and logs. An existing repository is used as it is, with your own
+  git identity if you have one.
+- Restored files keep their original owner. git runs without a shell, every
+  path must stay inside `/config`, and a repository rooted above `/config` is
+  ignored.
+
 ## 2.2.1
 
 ### 🛠️ Improvement - Sidebar on the right, collapses to a rail

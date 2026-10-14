@@ -80,7 +80,8 @@ The add-on offers several configuration options:
 - The **🗂️ Files** button in the header (or the rail on the right edge) opens a sidebar with a tree of `/config`. Hide it with » and drag its left edge to resize it. Click a file to preview it and **Insert path** to type its path at the prompt
 - **Recent changes** lists the files in `/config` changed in the last hour, day or week, so you can see what Claude edited
 - **✓ Check HA configuration** runs Home Assistant's configuration check (`ha core check`) before you restart
-- The sidebar is read-only and limited to `/config`
+- **± Changes** lists what changed in `/config` since the last checkpoint, with a coloured diff per file. **↩ Revert file** restores a file (two clicks) and **✓ Accept all changes** saves a new checkpoint. It uses git: if `/config` isn't a repository yet, the tab offers to create a local one (leaving out `secrets.yaml`, `.storage`, databases and logs). Nothing is pushed anywhere
+- Files and Recent are read-only. Changes only writes when you click Revert, Accept or Start tracking. Everything is limited to `/config`
 
 ### Copying Text Out of the Terminal
 
