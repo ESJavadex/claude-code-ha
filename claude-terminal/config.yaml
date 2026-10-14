@@ -1,7 +1,7 @@
 ---
 name: "Claude Terminal Pro"
 description: "Enhanced terminal interface for Anthropic's Claude Code CLI with persistent auth, package management, and image paste support. Fork of heytcass/home-assistant-addons"
-version: "2.1.13"
+version: "2.1.14"
 slug: "claude_terminal_pro"
 init: false
 
@@ -44,6 +44,7 @@ options:
   persistent_pip_packages: []
   use_persistent_claude: false
   auto_update_claude_on_start: false
+  init_commands: []
 
 schema:
   auto_launch_claude: bool?
@@ -59,6 +60,8 @@ schema:
     - str?
   use_persistent_claude: bool?
   auto_update_claude_on_start: bool?
+  init_commands:
+    - str?
 
 # Left out of HA backups: everything here is downloaded again when needed.
 # Supervisor matches each pattern against the path from the right (and `**`

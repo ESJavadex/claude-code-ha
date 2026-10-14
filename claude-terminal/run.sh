@@ -413,12 +413,51 @@ setup_persistent_packages() {
     auto_install_packages
 }
 
+# Run the user's init_commands once per start, after persistent packages and
+# before the terminal (#33). They come from the add-on options, which only HA
+# admins can change; nothing is read from /config, where other add-ons can
+# write. Each command gets INIT_COMMAND_TIMEOUT seconds so a mistake can't
+# keep the panel down: long-running services must put themselves in the
+# background (nohup ... &).
+run_init_commands() {
+    local commands command status output_file
+    local timeout_seconds="${INIT_COMMAND_TIMEOUT:-120}"
+
+    commands=$(normalize_config_list "$(bashio::config 'init_commands' '')")
+    [ -n "$commands" ] || return 0
+
+    bashio::log.info "Running init_commands from configuration..."
+    while IFS= read -r command; do
+        [ -n "$command" ] || continue
+        bashio::log.info "  Running: $command"
+        # Output goes to a file, not a pipe: a service started in the
+        # background keeps stdout open, and a pipe would wait for it
+        output_file=$(mktemp)
+        if (cd /config && timeout "$timeout_seconds" bash -c "$command") < /dev/null > "$output_file" 2>&1; then
+            status=0
+        else
+            status=$?
+        fi
+        while IFS= read -r line; do
+            bashio::log.info "  [init] $line"
+        done < "$output_file"
+        rm -f "$output_file"
+        # 124 from coreutils timeout, 143 (SIGTERM) from BusyBox's
+        if [ "$status" -eq 124 ] || [ "$status" -eq 143 ]; then
+            bashio::log.warning "  Stopped after ${timeout_seconds}s (use 'nohup ... &' for services): $command"
+        elif [ "$status" -ne 0 ]; then
+            bashio::log.warning "  Exited with status $status: $command"
+        fi
+    done <<< "$commands"
+}
+
 # Normalize both Bashio list formats seen across Supervisor generations:
 # newline-separated values and JSON arrays.
 normalize_config_list() {
     local raw="$1"
 
-    if [ -z "$raw" ] || [ "$raw" = "[]" ]; then
+    # bashio prints "null" for an option missing from the stored config
+    if [ -z "$raw" ] || [ "$raw" = "[]" ] || [ "$raw" = "null" ]; then
         return 0
     fi
 
@@ -753,6 +792,7 @@ main() {
     setup_persistent_claude
     setup_session_picker
     setup_persistent_packages
+    run_init_commands
     start_web_terminal
 }
 

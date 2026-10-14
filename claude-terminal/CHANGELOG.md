@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.14
+
+### ✨ New option - `init_commands` (#33)
+- Shell commands run once on every start, after persistent packages and
+  before the terminal, with their output in the add-on log. Thanks
+  @heizie78 for the idea and the clear use case.
+- Each command gets 120 seconds, so one that never ends can't keep the panel
+  down. Start services in the background (`nohup ... &`).
+- Only the add-on configuration is used. Nothing in `/config` is run
+  automatically, because other add-ons can write there.
+
+### 🐛 Bug Fix
+- A list option missing from the stored configuration is treated as empty
+  instead of the text `null`.
+
 ## 2.1.13
 
 This release brings the community work from

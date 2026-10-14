@@ -1,6 +1,6 @@
 # Claude Terminal Pro for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-2.1.13-1f6feb)](claude-terminal/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.1.14-1f6feb)](claude-terminal/CHANGELOG.md)
 [![Latest release](https://img.shields.io/github/v/release/ESJavadex/claude-code-ha?label=release&color=1f6feb)](https://github.com/ESJavadex/claude-code-ha/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3fb950)](LICENSE)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64%20%7C%20armv7-8957e5)](#architecture-support)
@@ -146,6 +146,26 @@ This drops a `CLAUDE.md` into your config directory with context tailored for Ho
 ## Support
 
 Found a bug or have a request? [Open an issue](https://github.com/ESJavadex/claude-code-ha/issues).
+
+## Contributors
+
+Thank you to everyone who has improved this add-on with code, reviews and detailed bug reports. 💙
+
+<a href="https://github.com/ESJavadex/claude-code-ha/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ESJavadex/claude-code-ha" alt="Contributors" />
+</a>
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/nsleigh"><img src="https://github.com/nsleigh.png?size=100" width="80" alt="nsleigh" /><br /><sub><b>nsleigh</b></sub></a></td>
+    <td align="center"><a href="https://github.com/PeterLinuxOSS"><img src="https://github.com/PeterLinuxOSS.png?size=100" width="80" alt="PeterLinuxOSS" /><br /><sub><b>PeterLinuxOSS</b></sub></a></td>
+    <td align="center"><a href="https://github.com/mmackenzie2026"><img src="https://github.com/mmackenzie2026.png?size=100" width="80" alt="mmackenzie2026" /><br /><sub><b>mmackenzie2026</b></sub></a></td>
+    <td align="center"><a href="https://github.com/miczu71"><img src="https://github.com/miczu71.png?size=100" width="80" alt="miczu71" /><br /><sub><b>miczu71</b></sub></a></td>
+    <td align="center"><a href="https://github.com/RobSlabaugh"><img src="https://github.com/RobSlabaugh.png?size=100" width="80" alt="RobSlabaugh" /><br /><sub><b>RobSlabaugh</b></sub></a></td>
+    <td align="center"><a href="https://github.com/owine"><img src="https://github.com/owine.png?size=100" width="80" alt="owine" /><br /><sub><b>owine</b></sub></a></td>
+    <td align="center"><a href="https://github.com/heytcass"><img src="https://github.com/heytcass.png?size=100" width="80" alt="heytcass" /><br /><sub><b>heytcass</b></sub></a></td>
+  </tr>
+</table>
 
 ## Credits
 

@@ -144,6 +144,20 @@ program in the terminal cannot exfiltrate your clipboard.
 - When enabled, the add-on will update Claude Code in `/data/npm/` on each startup
 - Safer default is to keep this off and update manually only when needed
 
+### Init Commands
+- **Default**: `init_commands: []`
+- Shell commands run once on every start, as root, after persistent packages are installed and before the terminal starts. Each runs in `/config`, and its output appears in the add-on log
+- Each command gets 120 seconds. A command that never ends is stopped so the panel can start, so start services in the background and send their output to your own log:
+
+```yaml
+init_commands:
+  - nohup /config/claude-bridge/start-bridge.sh > /config/claude-bridge/bridge.log 2>&1 &
+  - git config --global user.name "Home Assistant"
+```
+
+- A failing command is logged as a warning and the add-on carries on
+- Only the add-on configuration is used. Scripts in `/config` are never run automatically, because other add-ons can write there
+
 **Example Configuration**:
 ```yaml
 auto_launch_claude: false
