@@ -111,14 +111,20 @@ setup_persistent_claude
 # /data/npm is excluded from backups: after a restore it is empty, and the
 # install must come back rather than silently using the baked binary.
 rm -rf "$PERSISTENT_CLAUDE_ROOT"
-npm_calls="$tmp_dir/npm-calls"
-npm() {
-    printf '%s %s\n' "$NPM_CONFIG_PREFIX" "$*" >> "$npm_calls"
-    mkdir -p "$NPM_CONFIG_PREFIX/bin" "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code"
-    printf '#!/bin/sh\n' > "$NPM_CONFIG_PREFIX/bin/claude"
-    chmod +x "$NPM_CONFIG_PREFIX/bin/claude"
-    printf '{}\n' > "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code/package.json"
-}
+# A script on PATH, not a function: run.sh calls npm through timeout
+export npm_calls="$tmp_dir/npm-calls"
+mkdir -p "$tmp_dir/fake-npm"
+cat > "$tmp_dir/fake-npm/npm" << 'NPM_EOF'
+#!/bin/sh
+printf '%s %s\n' "$NPM_CONFIG_PREFIX" "$*" >> "$npm_calls"
+mkdir -p "$NPM_CONFIG_PREFIX/bin" "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code"
+printf '#!/bin/sh\n' > "$NPM_CONFIG_PREFIX/bin/claude"
+chmod +x "$NPM_CONFIG_PREFIX/bin/claude"
+printf '{}\n' > "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code/package.json"
+NPM_EOF
+chmod +x "$tmp_dir/fake-npm/npm"
+saved_path="$PATH"
+PATH="$tmp_dir/fake-npm:$PATH"
 setup_persistent_claude
 grep -q "^$PERSISTENT_CLAUDE_ROOT install -g @anthropic-ai/claude-code@" "$npm_calls" || \
     fail "missing persistent Claude was not reinstalled"
@@ -129,7 +135,7 @@ grep -q "^$PERSISTENT_CLAUDE_ROOT install -g @anthropic-ai/claude-code@" "$npm_c
 : > "$npm_calls"
 setup_persistent_claude
 [ ! -s "$npm_calls" ] || fail "existing persistent Claude should not be reinstalled"
-unset -f npm
+PATH="$saved_path"
 
 PERSIST_INSTALL_LOG="$tmp_dir/persist-install.log"
 PERSIST_INSTALL_BIN="$tmp_dir/persist-install"
