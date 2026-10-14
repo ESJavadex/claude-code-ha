@@ -117,7 +117,16 @@ More in [DOCS.md → Security](claude-terminal/DOCS.md#security).
 ## Architecture support
 
 | Architecture | Claude Code | Home Assistant CLI | GitHub CLI |
-|
+| --- | --- | --- | --- |
+| `amd64` | native, latest | latest | latest |
+| `aarch64` | native, latest | latest | latest |
+| `armv7` | portable JS `1.0.128` ¹ | `4.46.0` ² | `armv6` build ³ |
+
+¹ Current Claude Code native releases do not publish a 32-bit ARM binary, so armv7 uses the last portable JavaScript release.
+² `4.46.0` is the last HA CLI release that still ships the `ha_armv7` asset (later releases dropped it).
+³ GitHub CLI has no armv7 build; the armv6 binary runs on armv7 and is pinned to a version verified to publish it.
+
+The target architecture is resolved from Home Assistant's `BUILD_ARCH` build argument, so the image builds correctly on each device without relying on BuildKit-specific variables.
 
 ## Troubleshooting
 
