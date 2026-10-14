@@ -7,6 +7,15 @@ This release brings the community work from
 2.1.12 below) into the main repository. Thank you @nsleigh, @PeterLinuxOSS
 and @mmackenzie2026.
 
+### ⚠️ Upgrading from 2.0.x: direct ports are now closed by default
+- Ports 7680 and 7681 are no longer published. Both served a root shell with
+  no login, and the sidebar panel (ingress) needs neither. The panel works as
+  before.
+- If you opened the terminal at `http://<ha>:7681` or `:7680`, set the port
+  again under the add-on's **Network** settings. It then works as before (and
+  the log warns that it has no login of its own).
+- More in 2.1.6 below.
+
 ### 🐛 Bug Fix - Session picker ignores the keyboard (#32, #36)
 - When Claude Code exits without restoring the terminal (a crash, a kill, an
   out-of-memory restart), it leaves the terminal in raw mode with extended
@@ -25,6 +34,14 @@ and @mmackenzie2026.
   run at all when `claude_code_oauth_token` is set.
 - Uploaded images get their file extension from the MIME type instead of the
   browser's file name, because the path is typed at the prompt.
+
+### 🛠️ Robustness
+- The image build gives `claude --version` 60 seconds, so a binary that spins
+  on a CPU without AVX can't hang the build.
+- Reinstalling the `use_persistent_claude` copy at startup is capped at 5
+  minutes, so an offline boot can't keep the panel down.
+- The startup health check counts every failed check instead of stopping at
+  the first one.
 
 ## 2.1.12
 

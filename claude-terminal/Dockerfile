@@ -92,7 +92,7 @@ RUN set -o pipefail; \
         && curl -fsSL --max-time 600 "https://registry.npmjs.org/@anthropic-ai/claude-code-${CLAUDE_PKG}/-/claude-code-${CLAUDE_PKG}-${CLAUDE_VERSION}.tgz" \
             | tar -xz -C /tmp/claude-pkg package/claude \
         && install -m 0755 /tmp/claude-pkg/package/claude /usr/local/bin/claude \
-        && /usr/local/bin/claude --version; then \
+        && timeout 60 /usr/local/bin/claude --version; then \
         echo "Installed native Claude Code ${CLAUDE_VERSION} (${CLAUDE_PKG})"; \
     else \
         echo "Direct native download failed; falling back to npm install"; \

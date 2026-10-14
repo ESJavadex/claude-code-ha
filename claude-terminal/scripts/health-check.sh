@@ -165,12 +165,12 @@ run_diagnostics() {
 
     local errors=0
 
-    check_system_resources || ((errors++))
-    check_directory_permissions || ((errors++))
-    check_node_installation || ((errors++))
-    check_cpu_features || ((errors++))
-    check_claude_cli || ((errors++))
-    check_network_connectivity || ((errors++))
+    check_system_resources || errors=$((errors + 1))
+    check_directory_permissions || errors=$((errors + 1))
+    check_node_installation || errors=$((errors + 1))
+    check_cpu_features || errors=$((errors + 1))
+    check_claude_cli || errors=$((errors + 1))
+    check_network_connectivity || errors=$((errors + 1))
 
     bashio::log.info "========================================="
 
