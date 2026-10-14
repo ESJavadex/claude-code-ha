@@ -3,6 +3,9 @@
 ## 2.1.12
 
 ### 🛠️ Improvement - Smaller Home Assistant backups
+- Most of the backup size was already fixed in 2.1.7, which stopped the npm
+  cache piling up in `/data` (backups of 1-2 GB or more). This release trims
+  what is left.
 - **Downloadable files are left out of backups** (`backup_exclude`): the
   `use_persistent_claude` install in `/data/npm` (about 240 MB), old Claude
   binaries from `claude update`, and caches. Login, settings, sessions,
@@ -86,11 +89,14 @@
   image instead of being installed with `apk` on every boot. Before, a boot
   with no internet (or a slow Alpine mirror) stopped the add-on before the
   terminal started.
-- **Smaller backups**: npm and pip caches no longer go into `/data`, which is
-  included in every Home Assistant backup. The persistent Claude install
-  (`use_persistent_claude`) left its npm cache in `/data/home/.npm`, and
-  `persist-install --python` left pip's cache in `/data/.cache/pip`; both are
-  deleted on the next start.
+- **Much smaller backups**: npm and pip caches no longer go into `/data`,
+  which is included in every Home Assistant backup. Every Claude update
+  through npm (`auto_update_claude_on_start`, which runs on every start, or
+  the session picker's update option) added the downloaded package to
+  `/data/home/.npm`, and nothing ever removed it, so backups grew with every
+  update: 2.3 GB on a heavily updated 2.1.5 install. `persist-install
+  --python` likewise left pip's cache in `/data/.cache/pip`. Both are deleted
+  on the next start.
 - **Old Claude Code versions pruned**: each native `claude update` leaves a
   ~250 MB binary in `/data`. On startup, all but the active version and the
   newest one are removed.
