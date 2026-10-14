@@ -436,6 +436,231 @@
                 font-size: 13px;
             }
         }
+
+        /* Sidebar: file tree, recently changed files and the HA config check */
+        #main {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+            position: relative;
+        }
+
+        #sidebar {
+            width: 300px;
+            flex-shrink: 0;
+            background: #252526;
+            border-right: 1px solid #3d3d3d;
+            display: none;
+            flex-direction: column;
+            min-height: 0;
+            font-size: 13px;
+        }
+
+        #sidebar.open {
+            display: flex;
+        }
+
+        #sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid #3d3d3d;
+            flex-shrink: 0;
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #aaa;
+            padding: 8px 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .sidebar-tab.active {
+            color: #fff;
+            border-bottom-color: #007acc;
+        }
+
+        #sidebar-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-bottom: 1px solid #333;
+            color: #888;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+
+        #sidebar-toolbar label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        #sidebar-refresh {
+            margin-left: auto;
+            background: none;
+            border: 1px solid #444;
+            color: #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+            padding: 2px 8px;
+            font-size: 11px;
+        }
+
+        #sidebar-list {
+            flex: 1;
+            overflow: auto;
+            padding: 4px 0;
+        }
+
+        .tree-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            cursor: pointer;
+            white-space: nowrap;
+            color: #ddd;
+            user-select: none;
+        }
+
+        .tree-row:hover {
+            background: #2a2d2e;
+        }
+
+        .tree-row.selected {
+            background: #094771;
+        }
+
+        .tree-twisty {
+            width: 12px;
+            color: #888;
+            flex-shrink: 0;
+            text-align: center;
+        }
+
+        .tree-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tree-meta {
+            margin-left: auto;
+            padding-left: 8px;
+            color: #777;
+            font-size: 11px;
+        }
+
+        .tree-empty {
+            color: #777;
+            padding: 6px 12px;
+            font-style: italic;
+        }
+
+        #sidebar-footer {
+            border-top: 1px solid #3d3d3d;
+            padding: 8px;
+            flex-shrink: 0;
+        }
+
+        #check-config-btn {
+            width: 100%;
+            background: #1a7f37;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 7px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        #check-config-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        #check-config-result {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #aaa;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 120px;
+            overflow: auto;
+        }
+
+        #check-config-result.ok { color: #4ec9b0; }
+        #check-config-result.error { color: #f48771; }
+
+        #preview-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        #preview-modal.active {
+            display: flex;
+        }
+
+        #preview-modal-content {
+            background: #2d2d2d;
+            border: 1px solid #3d3d3d;
+            border-radius: 8px;
+            padding: 16px;
+            width: 94%;
+            max-width: 900px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #preview-title {
+            font-size: 14px;
+            color: #ddd;
+            word-break: break-all;
+            margin-bottom: 4px;
+        }
+
+        #preview-meta {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        #preview-body {
+            flex: 1;
+            overflow: auto;
+            background: #1e1e1e;
+            border: 1px solid #3d3d3d;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: Menlo, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.45;
+            white-space: pre;
+            color: #d4d4d4;
+            min-height: 120px;
+        }
+
+        /* Phones: the sidebar covers the terminal instead of squeezing it */
+        @media (max-width: 700px) {
+            #sidebar {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                z-index: 1500;
+            }
+        }
     </style>
 </head>
 <body>
@@ -444,6 +669,10 @@
             <div id="header-title">Claude Terminal Pro - Voice & image support</div>
             <div style="display: flex; align-items: center; gap: 12px;">
                 <span id="status"></span>
+                <button id="files-btn" class="header-btn" title="Browse /config, recent changes and check the HA configuration">
+                    <span>🗂️</span>
+                    <span class="btn-label">Files</span>
+                </button>
                 <button id="link-btn" class="header-btn" title="Copy the link shown in the terminal" style="display: none;">
                     <span>🔗</span>
                     <span class="btn-label">Copy link</span>
@@ -462,14 +691,50 @@
                 </button>
             </div>
         </div>
-        <div id="terminal-container">
-            <iframe id="terminal-frame" src="about:blank"></iframe>
-            <div id="drop-zone">
-                <div id="drop-zone-text">Drop image here to upload</div>
+        <div id="main">
+            <div id="sidebar">
+                <div id="sidebar-tabs">
+                    <button class="sidebar-tab active" data-tab="files">📁 Files</button>
+                    <button class="sidebar-tab" data-tab="recent">🕒 Recent changes</button>
+                </div>
+                <div id="sidebar-toolbar">
+                    <label id="hidden-toggle"><input type="checkbox" id="show-hidden"> Hidden files</label>
+                    <select id="recent-hours" style="display: none;">
+                        <option value="1">Last hour</option>
+                        <option value="24" selected>Last 24 hours</option>
+                        <option value="168">Last 7 days</option>
+                    </select>
+                    <button id="sidebar-refresh" title="Refresh">↻</button>
+                </div>
+                <div id="sidebar-list"></div>
+                <div id="sidebar-footer">
+                    <button id="check-config-btn" title="Run Home Assistant's configuration check (ha core check)">✓ Check HA configuration</button>
+                    <div id="check-config-result"></div>
+                </div>
+            </div>
+            <div id="terminal-container">
+                <iframe id="terminal-frame" src="about:blank"></iframe>
+                <div id="drop-zone">
+                    <div id="drop-zone-text">Drop image here to upload</div>
+                </div>
             </div>
         </div>
     </div>
     <input type="file" id="file-input" accept="image/*">
+
+    <!-- File preview (read-only) -->
+    <div id="preview-modal">
+        <div id="preview-modal-content">
+            <div id="preview-title"></div>
+            <div id="preview-meta"></div>
+            <div id="preview-body"></div>
+            <div class="modal-buttons">
+                <button id="preview-insert-btn" class="modal-btn modal-btn-primary" title="Type the path at the terminal prompt">Insert path</button>
+                <button id="preview-copy-btn" class="modal-btn modal-btn-secondary">Copy path</button>
+                <button id="preview-close-btn" class="modal-btn modal-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Copy Modal: touch devices cannot select terminal text at all -->
     <div id="copy-modal">
@@ -1365,6 +1630,239 @@
                 voiceRecordBtn.click();
             }
         });
+
+        // ---- Sidebar: file tree, recent changes, HA config check ----------
+        // Everything is built with textContent; file names never become HTML.
+        (function setupSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const list = document.getElementById('sidebar-list');
+            const tabs = document.querySelectorAll('.sidebar-tab');
+            const showHidden = document.getElementById('show-hidden');
+            const hiddenToggle = document.getElementById('hidden-toggle');
+            const recentHours = document.getElementById('recent-hours');
+            const refreshBtn = document.getElementById('sidebar-refresh');
+            const checkBtn = document.getElementById('check-config-btn');
+            const checkResult = document.getElementById('check-config-result');
+            const previewModal = document.getElementById('preview-modal');
+            const previewTitle = document.getElementById('preview-title');
+            const previewMeta = document.getElementById('preview-meta');
+            const previewBody = document.getElementById('preview-body');
+            let currentTab = 'files';
+            let previewPath = null;
+            let selectedRow = null;
+            let rootPath = '/config';
+
+            function formatSize(bytes) {
+                if (bytes == null) return '';
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+            }
+
+            function formatAgo(mtime) {
+                const seconds = Math.max(0, (Date.now() - mtime) / 1000);
+                if (seconds < 60) return 'just now';
+                if (seconds < 3600) return Math.floor(seconds / 60) + ' min ago';
+                if (seconds < 86400) return Math.floor(seconds / 3600) + ' h ago';
+                return Math.floor(seconds / 86400) + ' d ago';
+            }
+
+            async function getJson(url) {
+                const res = await fetch(url);
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || res.statusText);
+                return data;
+            }
+
+            function emptyRow(text, depth = 0) {
+                const row = document.createElement('div');
+                row.className = 'tree-empty';
+                row.style.paddingLeft = (12 + depth * 14) + 'px';
+                row.textContent = text;
+                return row;
+            }
+
+            function makeRow(entry, depth, meta) {
+                const row = document.createElement('div');
+                row.className = 'tree-row';
+                row.style.paddingLeft = (8 + depth * 14) + 'px';
+                row.title = entry.path;
+                const twisty = document.createElement('span');
+                twisty.className = 'tree-twisty';
+                twisty.textContent = entry.type === 'dir' ? '▸' : '';
+                const icon = document.createElement('span');
+                icon.textContent = entry.type === 'dir' ? '📁' : '📄';
+                const name = document.createElement('span');
+                name.className = 'tree-name';
+                name.textContent = entry.name;
+                row.append(twisty, icon, name);
+                if (meta) {
+                    const metaEl = document.createElement('span');
+                    metaEl.className = 'tree-meta';
+                    metaEl.textContent = meta;
+                    row.append(metaEl);
+                }
+                return row;
+            }
+
+            function select(row) {
+                if (selectedRow) selectedRow.classList.remove('selected');
+                selectedRow = row;
+                row.classList.add('selected');
+            }
+
+            // Render one folder level into `container`; folders expand lazily
+            async function renderFolder(folderPath, container, depth) {
+                container.replaceChildren(emptyRow('Loading…', depth));
+                let data;
+                try {
+                    data = await getJson('api/files?path=' + encodeURIComponent(folderPath));
+                } catch (err) {
+                    container.replaceChildren(emptyRow('⚠️ ' + err.message, depth));
+                    return;
+                }
+                const entries = data.entries.filter((e) => showHidden.checked || !e.name.startsWith('.'));
+                container.replaceChildren();
+                if (!entries.length) container.append(emptyRow('(empty)', depth));
+                for (const entry of entries) {
+                    const row = makeRow(entry, depth, entry.type === 'file' ? formatSize(entry.size) : '');
+                    container.append(row);
+                    if (entry.type === 'dir') {
+                        const children = document.createElement('div');
+                        children.style.display = 'none';
+                        container.append(children);
+                        let loaded = false;
+                        row.addEventListener('click', () => {
+                            select(row);
+                            const open = children.style.display === 'none';
+                            children.style.display = open ? 'block' : 'none';
+                            row.firstChild.textContent = open ? '▾' : '▸';
+                            if (open && !loaded) {
+                                loaded = true;
+                                renderFolder(entry.path, children, depth + 1);
+                            }
+                        });
+                    } else {
+                        row.addEventListener('click', () => { select(row); openPreview(entry.path); });
+                    }
+                }
+                if (data.truncated) container.append(emptyRow('… more entries not shown', depth));
+            }
+
+            async function renderRecent() {
+                list.replaceChildren(emptyRow('Loading…'));
+                let data;
+                try {
+                    data = await getJson('api/recent?hours=' + encodeURIComponent(recentHours.value));
+                } catch (err) {
+                    list.replaceChildren(emptyRow('⚠️ ' + err.message));
+                    return;
+                }
+                list.replaceChildren();
+                if (!data.entries.length) {
+                    list.append(emptyRow('Nothing changed in this period'));
+                    return;
+                }
+                for (const entry of data.entries) {
+                    // Show the path relative to the root so you can tell
+                    // packages/x.yaml from automations.yaml
+                    const shown = { ...entry, name: entry.path.startsWith(rootPath + '/') ? entry.path.slice(rootPath.length + 1) : entry.path };
+                    const row = makeRow(shown, 0, formatAgo(entry.mtime));
+                    row.addEventListener('click', () => { select(row); openPreview(entry.path); });
+                    list.append(row);
+                }
+            }
+
+            function refresh() {
+                hiddenToggle.style.display = currentTab === 'files' ? '' : 'none';
+                recentHours.style.display = currentTab === 'recent' ? '' : 'none';
+                if (currentTab === 'files') renderFolder(rootPath, list, 0);
+                else renderRecent();
+            }
+
+            async function openPreview(filePath) {
+                previewPath = filePath;
+                previewTitle.textContent = filePath;
+                previewMeta.textContent = '';
+                previewBody.textContent = 'Loading…';
+                previewModal.classList.add('active');
+                try {
+                    const data = await getJson('api/file?path=' + encodeURIComponent(filePath));
+                    previewMeta.textContent = formatSize(data.size) + ' · modified ' + new Date(data.mtime).toLocaleString() +
+                        (data.truncated ? ' · showing the first 256 KB' : '');
+                    previewBody.textContent = data.binary ? '(binary file, no preview)' : data.content;
+                } catch (err) {
+                    previewBody.textContent = '⚠️ ' + err.message;
+                }
+            }
+
+            function closePreview() {
+                previewModal.classList.remove('active');
+            }
+
+            function setOpen(open) {
+                sidebar.classList.toggle('open', open);
+                try { localStorage.setItem('sidebarOpen', open ? '1' : '0'); } catch { /* private mode */ }
+                if (open && !list.childElementCount) refresh();
+            }
+
+            document.getElementById('files-btn').addEventListener('click', () => {
+                setOpen(!sidebar.classList.contains('open'));
+            });
+
+            tabs.forEach((tab) => tab.addEventListener('click', () => {
+                tabs.forEach((t) => t.classList.toggle('active', t === tab));
+                currentTab = tab.dataset.tab;
+                refresh();
+            }));
+            showHidden.addEventListener('change', refresh);
+            recentHours.addEventListener('change', refresh);
+            refreshBtn.addEventListener('click', refresh);
+
+            document.getElementById('preview-insert-btn').addEventListener('click', () => {
+                if (!previewPath) return;
+                closePreview();
+                // On a phone the sidebar covers the terminal
+                if (window.matchMedia('(max-width: 700px)').matches) setOpen(false);
+                autoCopyAndPaste(previewPath);
+            });
+            document.getElementById('preview-copy-btn').addEventListener('click', async () => {
+                if (previewPath) {
+                    await copyToClipboard(previewPath);
+                    setStatus('📋 Path copied', 'success');
+                }
+            });
+            document.getElementById('preview-close-btn').addEventListener('click', closePreview);
+            previewModal.addEventListener('click', (e) => { if (e.target === previewModal) closePreview(); });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && previewModal.classList.contains('active')) closePreview();
+            });
+
+            checkBtn.addEventListener('click', async () => {
+                checkBtn.disabled = true;
+                checkResult.className = '';
+                checkResult.textContent = 'Checking… (this can take a minute)';
+                try {
+                    const res = await fetch('api/ha/check', { method: 'POST' });
+                    const data = await res.json();
+                    checkResult.className = data.ok ? 'ok' : 'error';
+                    checkResult.textContent = (data.ok ? '✅ ' : '❌ ') + data.message;
+                } catch (err) {
+                    checkResult.className = 'error';
+                    checkResult.textContent = '❌ ' + err.message;
+                } finally {
+                    checkBtn.disabled = false;
+                }
+            });
+
+            getJson('api/roots').then((data) => {
+                if (data.roots && data.roots[0]) rootPath = data.roots[0];
+            }).catch(() => {}).finally(() => {
+                let saved = '0';
+                try { saved = localStorage.getItem('sidebarOpen') || '0'; } catch { /* private mode */ }
+                if (saved === '1' && !window.matchMedia('(max-width: 700px)').matches) setOpen(true);
+            });
+        })();
 
         console.log('Voice input module loaded');
     </script>

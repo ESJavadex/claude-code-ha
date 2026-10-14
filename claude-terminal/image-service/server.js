@@ -91,6 +91,9 @@ app.get('/config', (req, res) => {
     });
 });
 
+// Read-only file browser for the sidebar, plus HA's config check
+require('./files-api').register(app);
+
 // Image upload endpoint
 app.post('/upload', upload.single('image'), (req, res) => {
     if (!req.file) {

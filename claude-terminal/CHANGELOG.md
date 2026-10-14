@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.2.0
+
+### ✨ New Feature - Files sidebar
+- **🗂️ Files button** in the header opens a sidebar next to the terminal (it
+  covers the terminal on phones). It remembers whether it was open.
+- **Files tab**: a tree of `/config`. Click a file to preview it, then
+  **Insert path** types its path at the prompt so you can hand it to Claude.
+  Hidden files are off by default.
+- **Recent changes tab**: files in `/config` changed in the last hour, day or
+  week, newest first, so you can see what Claude just edited. Folders HA
+  rewrites on its own (`.storage`, `deps`, `tts`, databases, logs) are left
+  out.
+- **✓ Check HA configuration**: runs `ha core check` and shows the result, so
+  you can validate Claude's edits before restarting Home Assistant.
+- Read-only: the sidebar never writes files. Paths are resolved with
+  `realpath` and must stay inside `/config`, so symlinks can't reach other
+  folders and `/data` (where your Claude login lives) is not browsable. Like
+  the terminal, it is only reachable through ingress.
+
 ## 2.1.14
 
 ### ✨ New option - `init_commands` (#33)
