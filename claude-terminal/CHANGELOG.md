@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.1
+
+### 🛠️ Improvement - Sidebar on the right, collapses to a rail
+- The Files sidebar now sits on the right of the terminal.
+- Hiding it (») leaves a thin rail with buttons to open it again on Files or
+  Recent changes, instead of making it disappear.
+- Drag its left edge to resize it; the width is remembered.
+
+### 🐛 Bug Fix - White band down the terminal's right edge
+- The browser drew xterm's scrollbar in light mode. The page and the terminal
+  now use a dark color scheme.
+
 ## 2.2.0
 
 ### ✨ New Feature - Files sidebar

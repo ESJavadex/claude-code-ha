@@ -15,6 +15,10 @@
             box-sizing: border-box;
         }
 
+        :root {
+            color-scheme: dark;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #1e1e1e;
@@ -445,19 +449,55 @@
             position: relative;
         }
 
+        /* On the right of the terminal. Collapsed, it shrinks to a thin rail
+           with buttons to open it again, so it never disappears entirely. */
         #sidebar {
             width: 300px;
             flex-shrink: 0;
             background: #252526;
-            border-right: 1px solid #3d3d3d;
-            display: none;
+            border-left: 1px solid #3d3d3d;
+            display: flex;
             flex-direction: column;
             min-height: 0;
             font-size: 13px;
+            position: relative;
         }
 
-        #sidebar.open {
+        #sidebar.collapsed {
+            width: 36px !important;
+        }
+
+        #sidebar.collapsed > :not(#sidebar-rail) {
+            display: none !important;
+        }
+
+        #sidebar-rail {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding-top: 6px;
+        }
+
+        #sidebar.collapsed #sidebar-rail {
             display: flex;
+        }
+
+        .rail-btn {
+            width: 28px;
+            height: 28px;
+            background: none;
+            border: none;
+            border-radius: 4px;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 15px;
+            line-height: 1;
+        }
+
+        .rail-btn:hover {
+            background: #37373d;
+            color: #fff;
         }
 
         #sidebar-tabs {
@@ -480,6 +520,43 @@
         .sidebar-tab.active {
             color: #fff;
             border-bottom-color: #007acc;
+        }
+
+        #sidebar-hide {
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #888;
+            padding: 8px 10px;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        #sidebar-hide:hover {
+            color: #fff;
+        }
+
+        /* Drag to resize. Sits on the sidebar's left edge. */
+        #sidebar-resizer {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: -3px;
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 5;
+        }
+
+        #sidebar-resizer:hover,
+        #sidebar-resizer.dragging {
+            background: #007acc;
+        }
+
+        /* While dragging, the iframe would swallow mouse events */
+        body.resizing #terminal-frame {
+            pointer-events: none;
         }
 
         #sidebar-toolbar {
@@ -652,12 +729,16 @@
 
         /* Phones: the sidebar covers the terminal instead of squeezing it */
         @media (max-width: 700px) {
-            #sidebar {
+            #sidebar-resizer {
+                display: none !important;
+            }
+
+            #sidebar:not(.collapsed) {
                 position: absolute;
                 top: 0;
                 bottom: 0;
-                left: 0;
-                width: 100%;
+                right: 0;
+                width: 100% !important;
                 z-index: 1500;
             }
         }
@@ -692,10 +773,23 @@
             </div>
         </div>
         <div id="main">
-            <div id="sidebar">
+            <div id="terminal-container">
+                <iframe id="terminal-frame" src="about:blank"></iframe>
+                <div id="drop-zone">
+                    <div id="drop-zone-text">Drop image here to upload</div>
+                </div>
+            </div>
+            <div id="sidebar" class="collapsed">
+                <div id="sidebar-resizer" title="Drag to resize"></div>
+                <div id="sidebar-rail">
+                    <button class="rail-btn" id="rail-expand" title="Show the sidebar">«</button>
+                    <button class="rail-btn" data-open-tab="files" title="Files">📁</button>
+                    <button class="rail-btn" data-open-tab="recent" title="Recent changes">🕒</button>
+                </div>
                 <div id="sidebar-tabs">
                     <button class="sidebar-tab active" data-tab="files">📁 Files</button>
                     <button class="sidebar-tab" data-tab="recent">🕒 Recent changes</button>
+                    <button id="sidebar-hide" title="Hide the sidebar">»</button>
                 </div>
                 <div id="sidebar-toolbar">
                     <label id="hidden-toggle"><input type="checkbox" id="show-hidden"> Hidden files</label>
@@ -710,12 +804,6 @@
                 <div id="sidebar-footer">
                     <button id="check-config-btn" title="Run Home Assistant's configuration check (ha core check)">✓ Check HA configuration</button>
                     <div id="check-config-result"></div>
-                </div>
-            </div>
-            <div id="terminal-container">
-                <iframe id="terminal-frame" src="about:blank"></iframe>
-                <div id="drop-zone">
-                    <div id="drop-zone-text">Drop image here to upload</div>
                 </div>
             </div>
         </div>
@@ -806,6 +894,14 @@
             // Paste events fire inside the (same-origin) iframe while the terminal
             // has focus, so the parent document's listener never sees them.
             iframe.addEventListener('load', () => installImagePaste(iframe));
+            // Without a dark color scheme the browser draws xterm's scrollbar
+            // light, a white band down the terminal's right edge
+            iframe.addEventListener('load', () => {
+                try {
+                    iframe.contentDocument.documentElement.style.colorScheme = 'dark';
+                    iframe.contentDocument.body.style.background = '#1e1e1e';
+                } catch { /* not same-origin */ }
+            });
         }
 
         // Async Clipboard API path (needs HTTPS or localhost; prompts for permission once).
@@ -1801,13 +1897,48 @@
             }
 
             function setOpen(open) {
-                sidebar.classList.toggle('open', open);
+                sidebar.classList.toggle('collapsed', !open);
                 try { localStorage.setItem('sidebarOpen', open ? '1' : '0'); } catch { /* private mode */ }
                 if (open && !list.childElementCount) refresh();
             }
 
             document.getElementById('files-btn').addEventListener('click', () => {
-                setOpen(!sidebar.classList.contains('open'));
+                setOpen(sidebar.classList.contains('collapsed'));
+            });
+            document.getElementById('sidebar-hide').addEventListener('click', () => setOpen(false));
+            document.getElementById('rail-expand').addEventListener('click', () => setOpen(true));
+            document.querySelectorAll('[data-open-tab]').forEach((btn) => btn.addEventListener('click', () => {
+                setOpen(true);
+                const tab = document.querySelector('.sidebar-tab[data-tab="' + btn.dataset.openTab + '"]');
+                if (tab && currentTab !== tab.dataset.tab) tab.click();
+            }));
+
+            // Drag the edge to resize; the width is remembered
+            const resizer = document.getElementById('sidebar-resizer');
+            try {
+                const savedWidth = parseInt(localStorage.getItem('sidebarWidth'), 10);
+                if (savedWidth >= 180 && savedWidth <= 800) sidebar.style.width = savedWidth + 'px';
+            } catch { /* private mode */ }
+            resizer.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                resizer.classList.add('dragging');
+                document.body.classList.add('resizing');
+                const right = sidebar.getBoundingClientRect().right;
+                const onMove = (ev) => {
+                    const width = Math.min(Math.max(right - ev.clientX, 180), Math.min(800, window.innerWidth - 200));
+                    sidebar.style.width = width + 'px';
+                };
+                const onUp = () => {
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                    resizer.classList.remove('dragging');
+                    document.body.classList.remove('resizing');
+                    try { localStorage.setItem('sidebarWidth', parseInt(sidebar.style.width, 10)); } catch { /* private mode */ }
+                };
+                // On window, not the handle: the pointer leaves the 5px
+                // handle as soon as it moves
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
             });
 
             tabs.forEach((tab) => tab.addEventListener('click', () => {

@@ -77,7 +77,7 @@ The add-on offers several configuration options:
 - Enable only if you prefer tmux mouse selection, scrolling, and pane controls
 
 ### Files Sidebar
-- The **🗂️ Files** button in the header opens a sidebar with a tree of `/config`. Click a file to preview it and **Insert path** to type its path at the prompt
+- The **🗂️ Files** button in the header (or the rail on the right edge) opens a sidebar with a tree of `/config`. Hide it with » and drag its left edge to resize it. Click a file to preview it and **Insert path** to type its path at the prompt
 - **Recent changes** lists the files in `/config` changed in the last hour, day or week, so you can see what Claude edited
 - **✓ Check HA configuration** runs Home Assistant's configuration check (`ha core check`) before you restart
 - The sidebar is read-only and limited to `/config`
