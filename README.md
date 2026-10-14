@@ -1,159 +1,146 @@
+<div align="center">
+
+<img src="claude-terminal/logo.png" alt="Claude Terminal Pro" width="120" />
+
 # Claude Terminal Pro for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-2.2.0-1f6feb)](claude-terminal/CHANGELOG.md)
+**Claude Code inside your Home Assistant sidebar.** A browser terminal with the tools you need for HA work, a session that survives restarts, and a file panel to see what Claude changed.
+
+[![Add-on version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FESJavadex%2Fclaude-code-ha%2Fmain%2Fclaude-terminal%2Fconfig.yaml&query=%24.version&label=add-on&color=1f6feb)](claude-terminal/CHANGELOG.md)
 [![Latest release](https://img.shields.io/github/v/release/ESJavadex/claude-code-ha?label=release&color=1f6feb)](https://github.com/ESJavadex/claude-code-ha/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3fb950)](LICENSE)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64%20%7C%20armv7-8957e5)](#architecture-support)
-[![Base image](https://img.shields.io/badge/base-Alpine%203.21-0db7ed)](claude-terminal/Dockerfile)
-
-A Home Assistant add-on that runs Anthropic's **Claude Code CLI** in a browser-based terminal, right inside your dashboard. It ships the tools you actually need for HA work — the `ha` and `gh` CLIs, git, Python — keeps your session alive across restarts with tmux, and lets you install extra packages that survive reboots.
-
-![Claude Terminal Screenshot](claude-terminal/screenshot.png)
-
-> **Fork of** [heytcass/home-assistant-addons](https://github.com/heytcass/home-assistant-addons) by Tom Cassady, maintained by Javier Santos ([@esjavadex](https://github.com/esjavadex)). Same MIT license as the original.
-
----
-
-## Install
+[![Stars](https://img.shields.io/github/stars/ESJavadex/claude-code-ha?style=flat&color=e3b341)](https://github.com/ESJavadex/claude-code-ha/stargazers)
 
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fesjavadex%2Fclaude-code-ha)
 
-Or add it manually:
+![Claude Terminal Pro with the Files sidebar](docs/images/files-sidebar.jpg)
 
-1. **Settings → Add-ons → Add-on Store**
-2. Top-right menu (⋮) → **Repositories**
-3. Add `https://github.com/esjavadex/claude-code-ha` and click **Add**
-4. Install **Claude Terminal Pro**, start it, and open the panel from the sidebar
+</div>
 
-Authentication uses OAuth — no API key or config needed for a normal setup. The terminal opens in your `/config` directory.
+## What's new
 
----
+- **2.2: Files sidebar.** A tree of `/config`, a *Recent changes* list showing what Claude just edited, and a button that runs Home Assistant's config check before you restart. It sits on the right and collapses to a thin rail.
+- **2.1: community release.** New installs build in seconds again. Copy and paste work properly, including on phones. The session picker no longer freezes after a crash. New options: `init_commands`, `working_directory`, `enable_remote_control`, `claude_code_oauth_token` and `claude_extra_args`. Security is tighter too: ingress only by default.
+
+Full history in the [changelog](claude-terminal/CHANGELOG.md).
+
+> [!IMPORTANT]
+> **Updating from 2.0.x?** Ports 7680 and 7681 are now closed by default, because both served a root shell with no login. The sidebar panel works exactly as before. If you opened the terminal at `http://<ha>:7681`, set the port again under the add-on's **Network** settings, and read [Security](#security) first.
+
+## Install
+
+1. Click the button above, or go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add `https://github.com/esjavadex/claude-code-ha`
+2. Install **Claude Terminal Pro** and start it
+3. Open **Claude Terminal Pro** from the sidebar and log in to Claude when asked
+
+Claude's login link also shows up as a Home Assistant notification (and in the Companion app), so you can open it with one tap. No API key is needed for a normal setup.
 
 ## Features
 
-### Terminal & session
-- **Web terminal** via ttyd, embedded in the HA sidebar (`code-braces-box` panel icon)
-- **Auto-launch** Claude on open, or an interactive **session picker** (`auto_launch_claude`)
-- **Persistent tmux session** — closing the browser tab or restarting Home Assistant Core does not kill your Claude session; reopening reattaches to the same one
-- **Reliable browser copy/paste** — tmux mouse capture is **off by default** so pasting works (including OAuth login codes); re-enable with `tmux_mouse` if you prefer tmux mouse selection
+**Terminal**
+- Claude Code in a web terminal embedded in the HA sidebar, starting in `/config`
+- A persistent tmux session: close the tab or restart HA Core and you reattach to the same conversation
+- An optional session picker: new, continue, resume, custom flags, auth helper, `gh` login, bash
+- Copy and paste that work: mouse selection, Claude's `/copy`, **Copy** and **Copy link** buttons, swipe to scroll on touch screens
+- Paste, drop or upload images for Claude to look at; voice input
 
-### Bundled tooling
-- **Claude Code CLI** — latest native release on amd64/aarch64
-- **Home Assistant CLI** (`ha`) — talk to Supervisor and Core from the terminal
-- **GitHub CLI** (`gh`) — with persistent auth
-- **git, Python 3 + pip, Node.js, jq, yq, vim, nano, tree** and more, out of the box
-- **Claude Code skills & commands** for Home Assistant pre-installed
+**Files sidebar**
+- A read-only tree of `/config` with previews. **Insert path** types a file's path at the prompt
+- **Recent changes**: files changed in the last hour, day or week
+- **✓ Check HA configuration** runs `ha core check`
 
-### Persistence & packages
-- **Everything in `/data`** survives reboots and add-on updates (auth, config, packages)
-- **`persist-install`** — install APK/pip packages that stick across restarts, into an isolated Python venv
-- **Auto-install** — declare packages in the config and they install on startup (`persistent_apk_packages`, `persistent_pip_packages`)
-- **Optional persistent Claude override** — advanced users can pin/manage a Claude Code install in `/data/npm` (`use_persistent_claude`, `auto_update_claude_on_start`), validated with a version check before it is activated
+**Home Assistant tooling**
+- The `ha` and `gh` CLIs, git, Python 3, Node.js, jq, yq, vim, nano and tree are included
+- Access to the Supervisor and Core APIs, plus Claude skills and commands for HA work
+- Remote Control: drive the same session from the Claude app or claude.ai/code
 
-### Extras
-- **Image paste** — paste (Ctrl+V), drag-drop, or upload images for Claude to analyze (JPEG/PNG/GIF/WebP/SVG, ~10 MB), stored in `/data/images/`. Lightweight service (~10 MB RAM), ARM-compatible
-- **Unrestricted mode** — optionally run Claude with `--dangerously-skip-permissions` for full file access (`dangerously_skip_permissions`)
-
----
+**Persistence**
+- Login, settings, history and packages live in the add-on's `/data` and survive restarts and updates
+- `persist-install` for APK and pip packages that survive reboots, plus auto-install lists in the config
+- `init_commands` to start your own scripts or services on every boot
+- Optional persistent Claude install with an **Update Claude Code** option in the session picker
+- Lean backups: caches and files that can be downloaded again are left out
 
 ## Configuration
 
-| Option | Default | Description |
+| Option | Default | What it does |
 | --- | --- | --- |
-| `auto_launch_claude` | `true` | Start Claude automatically, or show the session picker |
-| `tmux_mouse` | `false` | Enable tmux mouse mode. Keep off for native browser copy/paste |
-| `dangerously_skip_permissions` | `false` | Run Claude with unrestricted file access |
-| `persistent_apk_packages` | `[]` | Alpine (APK) packages to auto-install on startup |
-| `persistent_pip_packages` | `[]` | Python (pip) packages to auto-install on startup |
-| `use_persistent_claude` | `false` | Use a Claude Code install kept in `/data/npm` instead of the baked-in one |
-| `auto_update_claude_on_start` | `false` | When the override is enabled, update it on each start |
-
-**Example:**
+| `auto_launch_claude` | `true` | Start Claude straight away, or show the session picker |
+| `working_directory` | `/config` | Folder the terminal and Claude start in |
+| `claude_code_oauth_token` | empty | Long-lived token from `claude setup-token`, instead of the browser login |
+| `enable_remote_control` | `false` | Also expose the session in the Claude app and at claude.ai/code |
+| `claude_extra_args` | empty | Extra flags for every launch, e.g. `--model claude-sonnet-5-5` (quoting works) |
+| `dangerously_skip_permissions` | `false` | Let Claude run tools without asking. Read [Security](#security) first |
+| `tmux_mouse` | `false` | tmux mouse mode. Keep it off for native browser copy and paste |
+| `persistent_apk_packages` | `[]` | Alpine packages installed on every start |
+| `persistent_pip_packages` | `[]` | Python packages installed on every start |
+| `init_commands` | `[]` | Shell commands run on every start, after packages (120 s each) |
+| `use_persistent_claude` | `false` | Use a Claude Code install kept in `/data/npm` |
+| `auto_update_claude_on_start` | `false` | Update that persistent install on every start |
 
 ```yaml
 auto_launch_claude: true
-tmux_mouse: false
-dangerously_skip_permissions: false
+working_directory: /config
 persistent_apk_packages:
-  - htop
   - ripgrep
 persistent_pip_packages:
   - httpx
+init_commands:
+  - nohup /config/scripts/my-bridge.sh > /config/scripts/bridge.log 2>&1 &
 ```
 
-See [DOCS.md](claude-terminal/DOCS.md) for the full guide.
-
----
+Every option is explained in [DOCS.md](claude-terminal/DOCS.md).
 
 ## Quick start
 
 ```bash
-# Ask Claude directly
-claude "Write a Home Assistant automation that turns on the porch light at sunset"
-
-# Interactive session
-claude
-
-# Install a package that survives restarts
-persist-install ripgrep
+claude                                 # interactive session
+claude "Write an automation that turns on the porch light at sunset"
+persist-install ripgrep                # survives restarts
 persist-install --python httpx
-
-# Use the bundled CLIs
-ha core info
-gh repo list
+ha core check                          # or the button in the sidebar
 ```
 
----
+## Security
+
+This add-on gives Claude a lot of power by design. It runs as root in its container, can write anywhere in `/config`, and can call the Supervisor and Home Assistant APIs.
+
+- **Any signed-in Home Assistant user can reach it**, not only admins. That's how ingress works in HA. Treat every account on your instance as trusted while it's installed.
+- **Ports 7680 and 7681 are closed by default.** Opening one gives anyone on your network a root shell with no login.
+- **The web UI only accepts Home Assistant's ingress proxy**, and ttyd listens only inside the container.
+- **The Files sidebar is read-only and limited to `/config`.** Your Claude login in `/data` can't be browsed.
+- **`dangerously_skip_permissions` removes the last human check.** A prompt injection in any file or page Claude reads could change your config without asking.
+
+More in [DOCS.md → Security](claude-terminal/DOCS.md#security).
 
 ## Architecture support
 
 | Architecture | Claude Code | Home Assistant CLI | GitHub CLI |
-| --- | --- | --- | --- |
-| `amd64` | native, latest | latest | latest |
-| `aarch64` | native, latest | latest | latest |
-| `armv7` | portable JS `1.0.128` ¹ | `4.46.0` ² | `armv6` build ³ |
+|
 
-¹ Current Claude Code native releases do not publish a 32-bit ARM binary, so armv7 uses the last portable JavaScript release.
-² `4.46.0` is the last HA CLI release that still ships the `ha_armv7` asset (later releases dropped it).
-³ GitHub CLI has no armv7 build; the armv6 binary runs on armv7 and is pinned to a version verified to publish it.
+## Troubleshooting
 
-The target architecture is resolved from Home Assistant's `BUILD_ARCH` build argument, so the image builds correctly on each device without relying on BuildKit-specific variables.
-
----
+- **The session picker doesn't react to the keyboard.** Update to 2.1.13 or later.
+- **Typing lags, then catches up.** That comes from Home Assistant's ingress proxy, not the add-on. See [DOCS.md](claude-terminal/DOCS.md#typing-lags-or-pauses-for-a-few-seconds-then-catches-up).
+- **`persist-install` packages vanish after a restart.** Fixed in 2.1.13. Install them again once.
+- **Anything else:** check the add-on log and [open an issue](https://github.com/ESJavadex/claude-code-ha/issues).
 
 ## Recommended: Home Assistant plugins for Claude
 
-Pair the add-on with the **[Claude Home Assistant Plugins](https://github.com/ESJavadex/claude-homeassistant-plugins)** for HA-specific tools and context (entity management, automation helpers, and more):
+Pair the add-on with the **[Claude Home Assistant Plugins](https://github.com/ESJavadex/claude-homeassistant-plugins)** for HA-specific context and tools:
 
 ```bash
 npx claude-plugins install @ESJavadex/claude-homeassistant-plugins/homeassistant-config
 ```
 
-This drops a `CLAUDE.md` into your config directory with context tailored for Home Assistant development.
-
----
-
-## Documentation
-
-- [Add-on documentation](claude-terminal/DOCS.md) — options, usage, persistent packages
-- [Development guide](DEVELOPMENT.md) — build and test the add-on locally
-- [Changelog](claude-terminal/CHANGELOG.md) — release history
-
 ## Community tools
 
 - **[ha-ws-client-go](https://github.com/schoolboyqueue/home-assistant-blueprints/tree/main/scripts/ha-ws-client-go)** by [@schoolboyqueue](https://github.com/schoolboyqueue) — lightweight Go CLI for the Home Assistant WebSocket API. Gives Claude direct access to entity states, service calls, automation traces, and real-time monitoring. Single binary, no dependencies.
 
-## Support
-
-Found a bug or have a request? [Open an issue](https://github.com/ESJavadex/claude-code-ha/issues).
-
 ## Contributors
 
-Thank you to everyone who has improved this add-on with code, reviews and detailed bug reports. 💙
-
-<a href="https://github.com/ESJavadex/claude-code-ha/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ESJavadex/claude-code-ha" alt="Contributors" />
-</a>
+This add-on keeps getting better thanks to people who send fixes, test releases and write detailed bug reports. Thank you all. 💙
 
 <table>
   <tr>
@@ -167,21 +154,21 @@ Thank you to everyone who has improved this add-on with code, reviews and detail
   </tr>
 </table>
 
-## Credits
+<a href="https://github.com/ESJavadex/claude-code-ha/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ESJavadex/claude-code-ha" alt="Contributors" />
+</a>
 
-- **Original creator:** Tom Cassady ([@heytcass](https://github.com/heytcass)) — the initial Claude Terminal add-on
-- **Fork maintainer:** Javier Santos ([@esjavadex](https://github.com/esjavadex)) — persistent packages, tmux persistence, multi-arch, and ongoing enhancements
-- **Contributors:** thank you to everyone who has sent fixes and features:
-  - [@nsleigh](https://github.com/nsleigh): the 2.1.x series. Session picker update option, image and text paste in the iframe, security hardening (closed ports, ingress-only web UI), offline startup, smaller backups, login link as an HA notification, `working_directory`, `claude_code_oauth_token`, `enable_remote_control`, `claude_extra_args`, and a build that can't hang
-  - [@PeterLinuxOSS](https://github.com/PeterLinuxOSS): copying out of the terminal, touch-device copy and swipe scrolling (#37)
-  - [@mmackenzie2026](https://github.com/mmackenzie2026): `persist-install` actually persisting packages (#38)
-  - [@miczu71](https://github.com/miczu71), [@RobSlabaugh](https://github.com/RobSlabaugh), [@owine](https://github.com/owine) and [@martinboksa](https://github.com/martinboksa) for earlier fixes and ideas
+- [@nsleigh](https://github.com/nsleigh) carried the project through the 2.1.x series: the session picker update option, paste in the terminal, security hardening, offline startup, smaller backups, the login notification, the new launch options and a build that can't hang.
+- [@PeterLinuxOSS](https://github.com/PeterLinuxOSS) made copying out of the terminal work, with touch-device copy and swipe scrolling.
+- [@mmackenzie2026](https://github.com/mmackenzie2026) fixed `persist-install` so packages really persist.
+- [@miczu71](https://github.com/miczu71), [@RobSlabaugh](https://github.com/RobSlabaugh), [@owine](https://github.com/owine) and [@martinboksa](https://github.com/martinboksa) sent earlier fixes and ideas.
+- [@heytcass](https://github.com/heytcass) (Tom Cassady) created the original [Claude Terminal add-on](https://github.com/heytcass/home-assistant-addons) this project is forked from.
 
-Built and maintained with the help of Claude Code itself.
+Want to help? PRs are welcome. Smaller, focused ones get reviewed fastest. See the [development guide](DEVELOPMENT.md) to build and test locally.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, the same as the original. See [LICENSE](LICENSE).
 
 ## About the author
 
