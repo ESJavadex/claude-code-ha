@@ -31,16 +31,18 @@ init_environment() {
     chmod 755 "$data_home" "$config_dir" "$cache_dir" "$state_dir" "$claude_config_dir" "$gh_config_dir" \
               "$persist_root" "$persist_bin" "$persist_lib" "$persist_python"
 
-    # Ensure Claude native binary is available at $HOME/.local/bin/claude
-    # The native installer places it at /root/.local/bin/claude during Docker build,
-    # but at runtime HOME=/data/home, so Claude's self-check looks in /data/home/.local/bin/
+    # Ensure Claude is available at $HOME/.local/bin/claude, where Claude's
+    # native self-check looks (HOME=/data/home at runtime). The image installs
+    # it at /usr/local/bin/claude. Up to 2.1.9 this link pointed at
+    # /root/.local/bin/claude, which no longer exists, so replace a dangling
+    # link too; a working one (e.g. from `claude update`) is left alone.
     local native_bin_dir="$data_home/.local/bin"
     if [ ! -d "$native_bin_dir" ]; then
         mkdir -p "$native_bin_dir"
     fi
-    if [ -f /root/.local/bin/claude ] && [ ! -f "$native_bin_dir/claude" ]; then
-        ln -sf /root/.local/bin/claude "$native_bin_dir/claude"
-        bashio::log.info "  - Claude native binary linked: $native_bin_dir/claude"
+    if [ ! -e "$native_bin_dir/claude" ] && [ -x /usr/local/bin/claude ]; then
+        ln -sf /usr/local/bin/claude "$native_bin_dir/claude"
+        bashio::log.info "  - Claude binary linked: $native_bin_dir/claude"
     fi
 
     # Set XDG and application environment variables
@@ -184,14 +186,60 @@ migrate_legacy_auth_files() {
     fi
 }
 
-# Install required tools
-install_tools() {
-    bashio::log.info "Installing additional tools..."
-    if ! apk add --no-cache ttyd jq curl tmux; then
-        bashio::log.error "Failed to install required tools"
-        exit 1
+# Older versions let npm and pip caches pile up in /data, inflating HA backups
+# (HOME is /data/home, so npm's ~/.npm persisted). The Dockerfile now points
+# both caches at /tmp or disables them; this removes what is left behind.
+clean_persistent_storage() {
+    rm -rf "$HOME/.npm" "$XDG_CACHE_HOME/pip"
+    prune_claude_versions
+}
+
+# A native Claude Code update (`claude update`, or `claude install`) leaves
+# a ~250 MB binary in versions/ every time, carried into every HA backup from
+# then on. Keep the version the active symlink resolves to plus the newest
+# entry (rollback), prune the rest. A pruned binary that is mid-execution keeps
+# running (the inode stays alive until the process exits).
+# Adapted from heytcass/home-assistant-addons 2.5.4.
+prune_claude_versions() {
+    local versions_dir="$XDG_DATA_HOME/claude/versions"
+    [ -d "$versions_dir" ] || return 0
+
+    local active newest="" entry pruned=0
+    active=$(readlink -f "$HOME/.local/bin/claude" 2>/dev/null || true)
+    # Find the newest entry without a pipe: under pipefail, `ls -t | head -1`
+    # can die of SIGPIPE when head exits first, and set -e then kills startup
+    for entry in "$versions_dir"/*; do
+        [ -e "$entry" ] || continue
+        if [ -z "$newest" ] || [ "$entry" -nt "$newest" ]; then
+            newest="$entry"
+        fi
+    done
+
+    for entry in "$versions_dir"/*; do
+        [ -e "$entry" ] || continue
+        [ "$entry" = "$active" ] && continue
+        [ "$entry" = "$newest" ] && continue
+        rm -rf "$entry"
+        pruned=$((pruned + 1))
+    done
+
+    if [ "$pruned" -gt 0 ]; then
+        bashio::log.info "Pruned $pruned old Claude Code version(s) from persistent storage"
     fi
-    bashio::log.info "Tools installed successfully"
+}
+
+# Claude Code's runtime (Bun) requires AVX on x86-64. Hypervisor default CPU
+# types (Proxmox/QEMU kvm64, qemu64) mask it even when the host CPU has it,
+# and every claude invocation then crashes or spins at 100% CPU. Warn in the
+# add-on log, since the terminal itself is unusable in that state.
+check_cpu_features() {
+    if [ "$(uname -m)" = "x86_64" ] && ! grep -q avx /proc/cpuinfo; then
+        bashio::log.warning "This CPU does not expose AVX - Claude Code will likely hang or crash on every invocation"
+        bashio::log.warning "On a Proxmox/QEMU VM, set the VM's CPU type to 'host', then fully shut the VM down and start it again (a reboot is not enough)"
+    fi
+    # The test above is false on a healthy CPU; don't let that become the
+    # function's status under set -e
+    return 0
 }
 
 # Setup tmux configuration and session wrapper
@@ -210,6 +258,14 @@ setup_tmux() {
     cat > "$tmux_conf" << TMUX_EOF
 # Mouse mode is disabled by default so ttyd/browser copy and paste keeps working.
 set -g mouse ${tmux_mouse}
+
+# Let applications in the pane (Claude Code's /copy) set the clipboard through
+# OSC 52 and forward it out to ttyd. The default 'external' drops what they send.
+set -g set-clipboard on
+
+# tmux only emits OSC 52 when the outer terminal advertises the 'Ms' capability.
+# ttyd's frontend always accepts it, so declare it instead of trusting terminfo.
+set -as terminal-features ',*:clipboard'
 
 # Large scrollback buffer
 set -g history-limit 50000
@@ -235,7 +291,7 @@ TMUX_EOF
 if tmux has-session -t claude 2>/dev/null; then
     exec tmux attach-session -t claude
 else
-    exec tmux new-session -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
+    exec tmux new-session -s claude -c "${CLAUDE_WORKDIR:-/config}" bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
 fi
 WRAPPER_EOF
     chmod +x "$tmux_wrapper"
@@ -256,6 +312,10 @@ setup_persistent_claude() {
     use_persistent_claude=$(bashio::config 'use_persistent_claude' 'false')
     auto_update_claude_on_start=$(bashio::config 'auto_update_claude_on_start' 'false')
 
+    # Exported so the session picker knows whether to offer a manual
+    # "Update Claude Code" menu option.
+    export USE_PERSISTENT_CLAUDE="$use_persistent_claude"
+
     if [ "$use_persistent_claude" != "true" ]; then
         bashio::log.info "Persistent Claude override: disabled"
         return 0
@@ -270,7 +330,23 @@ setup_persistent_claude() {
             ;;
     esac
 
-    if [ "$auto_update_claude_on_start" = "true" ]; then
+    # Exported so the session picker's manual update option can reuse the
+    # same install path/spec instead of duplicating the arch resolution.
+    export PERSISTENT_CLAUDE_ROOT="$persistent_root"
+    export CLAUDE_BIN_LINK="$claude_link"
+    export CLAUDE_NPM_SPEC="$claude_npm_spec"
+
+    # /data/npm is left out of HA backups (backup_exclude), so after a restore
+    # it is missing: install it again rather than silently falling back to
+    # the image's copy. A broken install is left alone (see the check below).
+    if [ ! -e "$persistent_package" ]; then
+        bashio::log.info "Persistent Claude override: installing Claude Code into $persistent_root..."
+        if NPM_CONFIG_PREFIX="$persistent_root" npm install -g "$claude_npm_spec" --prefer-online; then
+            bashio::log.info "Persistent Claude override: install completed"
+        else
+            bashio::log.warning "Persistent Claude override: install failed"
+        fi
+    elif [ "$auto_update_claude_on_start" = "true" ]; then
         bashio::log.info "Persistent Claude override: updating Claude Code in /data/npm..."
         if NPM_CONFIG_PREFIX="$persistent_root" npm install -g "$claude_npm_spec" --prefer-online; then
             bashio::log.info "Persistent Claude override: update completed"
@@ -388,29 +464,97 @@ auto_install_packages() {
 
 # Legacy monitoring functions removed - using simplified /data approach
 
+# Flags added to every Claude launch, as shell text. The launch command (and
+# the session picker) evals it exactly once, so ordinary quoting in
+# claude_extra_args works: --append-system-prompt 'be terse' arrives as one
+# argument.
+build_claude_flags() {
+    local flags=""
+    local extra
+
+    if [ "$(bashio::config 'dangerously_skip_permissions' 'false')" = "true" ]; then
+        flags="--dangerously-skip-permissions"
+    fi
+
+    # The interactive flag, not `claude remote-control` server mode: the
+    # session stays typeable in the browser and also appears in the Claude app
+    # and at claude.ai/code. The default name is the container hostname, an
+    # opaque hex slug, so give it a readable one.
+    if [ "$(bashio::config 'enable_remote_control' 'false')" = "true" ]; then
+        flags="${flags:+$flags }--remote-control 'Home Assistant'"
+    fi
+
+    extra=$(bashio::config 'claude_extra_args' '')
+    if [ -n "$extra" ] && [ "$extra" != "null" ]; then
+        flags="${flags:+$flags }$extra"
+    fi
+
+    echo "$flags"
+}
+
+# Directory the tmux session starts in. Defaults to /config; a path that
+# doesn't exist logs a warning and falls back, so a typo can't leave a dead
+# terminal. Claude asks its one-time folder-trust question per new directory.
+get_working_directory() {
+    local dir
+    dir=$(bashio::config 'working_directory' '')
+    if [ -z "$dir" ] || [ "$dir" = "null" ]; then
+        echo "/config"
+    elif [ -d "$dir" ]; then
+        echo "$dir"
+    else
+        bashio::log.warning "working_directory '$dir' does not exist; starting in /config instead"
+        echo "/config"
+    fi
+}
+
+# A token from `claude setup-token` reaches every claude in the session
+# through the environment (tmux inherits it from this script). The value
+# itself is never logged.
+export_oauth_token() {
+    local token
+    token=$(bashio::config 'claude_code_oauth_token' '')
+    if [ -n "$token" ] && [ "$token" != "null" ]; then
+        export CLAUDE_CODE_OAUTH_TOKEN="$token"
+        bashio::log.info "CLAUDE_CODE_OAUTH_TOKEN set from add-on configuration"
+    fi
+}
+
+# Say at boot what the launch flags mean, rather than leaving the user to
+# find out in the terminal. Nothing here is fatal.
+log_claude_flags() {
+    local flags="$1"
+
+    if [[ "$flags" == *"--dangerously-skip-permissions"* ]]; then
+        bashio::log.warning "Claude will run with --dangerously-skip-permissions (unrestricted file access)"
+    fi
+
+    [[ "$flags" == *"--remote-control"* ]] || return 0
+    bashio::log.info "Remote Control enabled: the session appears as 'Home Assistant' in the Claude app and at claude.ai/code"
+    if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+        bashio::log.warning "Remote Control needs a full claude.ai login; a claude_code_oauth_token from 'claude setup-token' cannot establish it"
+    fi
+    if [[ "$flags" == *"--dangerously-skip-permissions"* ]]; then
+        bashio::log.warning "dangerously_skip_permissions + Remote Control: any device signed in to this Claude account can drive an unprompted root shell with write access to /config"
+    fi
+}
+
 # Determine Claude launch command based on configuration
 # Session picker handles its own loop, so Claude exiting returns to the menu (#6)
 get_claude_launch_command() {
     local auto_launch_claude
-    local dangerously_skip_permissions
-    local claude_flags=""
+    local claude_flags
 
     # Get configuration values
     auto_launch_claude=$(bashio::config 'auto_launch_claude' 'true')
-    dangerously_skip_permissions=$(bashio::config 'dangerously_skip_permissions' 'false')
-
-    # Build Claude flags
-    if [ "$dangerously_skip_permissions" = "true" ]; then
-        claude_flags="--dangerously-skip-permissions"
-        bashio::log.warning "Claude will run with --dangerously-skip-permissions (unrestricted file access)"
-    fi
+    claude_flags=$(build_claude_flags)
 
     if [ "$auto_launch_claude" = "true" ]; then
         # Auto-launch Claude first, then fall back to session picker on exit
         if [ -f /usr/local/bin/claude-session-picker ]; then
-            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && claude ${claude_flags}; /usr/local/bin/claude-session-picker"
+            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && /usr/local/bin/claude ${claude_flags}; /usr/local/bin/claude-session-picker"
         else
-            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && claude ${claude_flags}"
+            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && /usr/local/bin/claude ${claude_flags}"
         fi
     else
         # Show interactive session picker (has its own while-true loop)
@@ -418,11 +562,21 @@ get_claude_launch_command() {
             echo "clear && /usr/local/bin/claude-session-picker"
         else
             bashio::log.warning "Session picker not found, falling back to auto-launch"
-            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && claude"
+            echo "clear && echo 'Welcome to Claude Terminal!' && echo '' && echo 'Starting Claude...' && sleep 1 && /usr/local/bin/claude ${claude_flags}"
         fi
     fi
 }
 
+
+# True if the user has mapped this container port to a host port.
+# DEV_DIRECT_ACCESS=1 (docker/podman -e, for local testing without a
+# Supervisor) forces it; add-on users have no way to set it.
+port_is_published() {
+    [ "${DEV_DIRECT_ACCESS:-0}" = "1" ] && return 0
+    local host_port
+    host_port=$(bashio::addon.port "${1}" 2>/dev/null || true)
+    [ -n "${host_port}" ] && [ "${host_port}" != "null" ]
+}
 
 # Start image upload service
 start_image_service() {
@@ -442,6 +596,15 @@ start_image_service() {
     export IMAGE_SERVICE_PORT="${image_port}"
     export TTYD_PORT="${ttyd_port}"
     export UPLOAD_DIR="${upload_dir}"
+
+    # Without a published port, only ingress (and the container itself) may
+    # connect; other add-ons on the hassio network are refused.
+    if port_is_published "${image_port}"; then
+        export ALLOW_DIRECT_ACCESS=1
+        bashio::log.warning "Port ${image_port} is published: the web UI is reachable without a Home Assistant login"
+    else
+        export ALLOW_DIRECT_ACCESS=0
+    fi
 
     # Check if server.js exists
     if [ ! -f "${server_file}" ]; then
@@ -480,6 +643,20 @@ start_image_service() {
     fi
 }
 
+# Post Claude's OAuth login URL as a clickable HA notification when it
+# appears, and dismiss it after login (see scripts/login-url-watcher.sh)
+start_login_url_watcher() {
+    local watcher="/opt/scripts/login-url-watcher.sh"
+    if [ ! -f "$watcher" ]; then
+        bashio::log.warning "Login URL watcher not found: $watcher"
+        return 0
+    fi
+    bashio::log.info "Starting login URL watcher in background"
+    bash "$watcher" 2>&1 | while IFS= read -r line; do
+        bashio::log.info "[Login watcher] $line"
+    done &
+}
+
 # Start main web terminal
 start_web_terminal() {
     local port=7681
@@ -489,6 +666,15 @@ start_web_terminal() {
     bashio::log.info "Environment variables:"
     bashio::log.info "ANTHROPIC_CONFIG_DIR=${ANTHROPIC_CONFIG_DIR}"
     bashio::log.info "HOME=${HOME}"
+
+    # Shared with the session picker, which launches Claude itself
+    export_oauth_token
+    export CLAUDE_FLAGS
+    CLAUDE_FLAGS=$(build_claude_flags)
+    log_claude_flags "$CLAUDE_FLAGS"
+    export CLAUDE_WORKDIR
+    CLAUDE_WORKDIR=$(get_working_directory)
+    bashio::log.info "Working directory: ${CLAUDE_WORKDIR}"
 
     # Get the appropriate launch command based on configuration
     local launch_command
@@ -508,9 +694,20 @@ start_web_terminal() {
     # Pre-create the persistent tmux session so the first browser connection is instant
     if ! tmux has-session -t claude 2>/dev/null; then
         bashio::log.info "Creating persistent tmux session 'claude'..."
-        tmux new-session -d -s claude bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
+        tmux new-session -d -s claude -c "$CLAUDE_WORKDIR" bash -c 'eval "$CLAUDE_LAUNCH_CMD"'
     else
         bashio::log.info "Reusing existing tmux session 'claude'..."
+    fi
+
+    start_login_url_watcher
+
+    # ttyd has no login of its own. Unless 7681 is published for direct access,
+    # bind it to loopback so only the image service proxy can reach it, not
+    # other add-ons on the internal hassio network.
+    local interface=127.0.0.1
+    if port_is_published 7681; then
+        interface=0.0.0.0
+        bashio::log.warning "Port 7681 is published: ttyd is reachable without a Home Assistant login"
     fi
 
     # ttyd attaches every browser connection to the persistent tmux session.
@@ -518,7 +715,7 @@ start_web_terminal() {
     # Reopening the tab re-attaches to the same session.
     exec ttyd \
         --port "${port}" \
-        --interface 0.0.0.0 \
+        --interface "${interface}" \
         --writable \
         --ping-interval 30 \
         --client-option reconnect=5 \
@@ -542,7 +739,8 @@ main() {
     run_health_check
 
     init_environment
-    install_tools
+    check_cpu_features
+    clean_persistent_storage
     setup_tmux
     setup_persistent_claude
     setup_session_picker

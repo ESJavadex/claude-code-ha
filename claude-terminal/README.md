@@ -75,10 +75,11 @@ claude-logout
 
 The add-on works out of the box, but also supports a few optional advanced settings:
 
-- **Port**: Web interface runs on port 7681
+- **Ports**: Opened through Home Assistant ingress (the sidebar panel). Direct ports 7680/7681 are closed by default and have no login; see [DOCS.md](DOCS.md#security) before publishing them
 - **Authentication**: OAuth with Anthropic (credentials stored securely in `/config/claude-config/`)
 - **Terminal**: Full bash environment with Claude Code CLI pre-installed
 - **Persistent Claude override**: Optional `use_persistent_claude` / `auto_update_claude_on_start`
+- **Launch options**: `working_directory`, `claude_code_oauth_token`, `enable_remote_control` and `claude_extra_args` (see [DOCS.md](DOCS.md#configuration))
 - **Volumes**: Access to both `/config` (Home Assistant) and `/addons` (for development)
 
 ## Troubleshooting
@@ -120,7 +121,11 @@ test-endpoint
 
 ## Security
 
-Version 1.0.2 includes important security improvements:
+- 🔒 **No published ports by default**: ports 7680 and 7681 have no login of their own, so they stay closed unless you map them, and other add-ons can't reach them either
+- 🔒 **Minimal API permissions**: `auth_api` (Home Assistant username/password checks) is not requested
+- ⚠️ **Any signed-in Home Assistant user can open the terminal** through its ingress URL, not just admins; see [DOCS.md](DOCS.md#security)
+
+Version 1.0.2 included earlier security improvements:
 - ✅ **Secure Credential Management**: Limited filesystem access to safe directories only
 - ✅ **Safe Cleanup Operations**: No more dangerous system-wide file deletions
 - ✅ **Proper Permission Handling**: Consistent file permissions (600) for credentials

@@ -19,8 +19,18 @@ config_use_persistent_claude=true
 config_auto_update_claude_on_start=false
 config_apk_packages=''
 config_pip_packages=''
+config_dangerous=false
+config_remote_control=false
+config_extra_args=''
+config_working_directory=''
+config_auto_launch=true
 bashio::config() {
     case "$1" in
+        dangerously_skip_permissions) printf '%s\n' "$config_dangerous" ;;
+        enable_remote_control) printf '%s\n' "$config_remote_control" ;;
+        claude_extra_args) printf '%s\n' "$config_extra_args" ;;
+        working_directory) printf '%s\n' "$config_working_directory" ;;
+        auto_launch_claude) printf '%s\n' "$config_auto_launch" ;;
         tmux_mouse) printf '%s\n' "$config_tmux_mouse" ;;
         use_persistent_claude) printf '%s\n' "$config_use_persistent_claude" ;;
         auto_update_claude_on_start) printf '%s\n' "$config_auto_update_claude_on_start" ;;
@@ -48,6 +58,30 @@ config_tmux_mouse=''
 setup_tmux
 grep -qx 'set -g mouse off' "$HOME/.tmux.conf" || fail "empty optional bool should safely disable mouse mode"
 
+# Claude Code's /copy emits OSC 52. tmux defaults to set-clipboard=external, which
+# drops what applications in the pane send, and only emits OSC 52 outwards when the
+# outer terminal advertises the Ms capability.
+grep -qx 'set -g set-clipboard on' "$HOME/.tmux.conf" || \
+    fail "tmux must accept and forward OSC 52 from applications"
+grep -qx "set -as terminal-features ',\*:clipboard'" "$HOME/.tmux.conf" || \
+    fail "tmux must advertise the clipboard capability so OSC 52 reaches ttyd"
+
+# The frontend fix has to be reachable from the page that embeds ttyd.
+clipboard_bridge="$repo_root/claude-terminal/image-service/public/terminal-clipboard.js"
+terminal_page="$repo_root/claude-terminal/image-service/public/index.html"
+[ -f "$clipboard_bridge" ] || fail "clipboard bridge is missing"
+grep -q 'src="terminal-clipboard.js"' "$terminal_page" || \
+    fail "terminal page must load the clipboard bridge"
+grep -q 'installTerminalClipboard(iframe)' "$terminal_page" || \
+    fail "terminal page must attach the clipboard bridge to the ttyd iframe"
+
+# The on-screen keyboard shrinks the visual viewport but not 100vh, so without
+# this the prompt ends up behind the keyboard.
+grep -q 'window.visualViewport' "$terminal_page" || \
+    fail "terminal page must follow the visual viewport so the keyboard cannot cover the prompt"
+grep -q 'interactive-widget=resizes-content' "$terminal_page" || \
+    fail "the viewport must shrink with the on-screen keyboard, not sit behind it"
+
 PERSISTENT_CLAUDE_ROOT="$tmp_dir/npm"
 CLAUDE_BIN_LINK="$tmp_dir/claude"
 mkdir -p "$PERSISTENT_CLAUDE_ROOT/bin" \
@@ -73,6 +107,29 @@ printf '#!/bin/sh\nexit 1\n' > "$PERSISTENT_CLAUDE_ROOT/bin/claude"
 chmod +x "$PERSISTENT_CLAUDE_ROOT/bin/claude"
 setup_persistent_claude
 [ ! -e "$CLAUDE_BIN_LINK" ] || fail "non-working persistent Claude should not replace the baked binary"
+
+# /data/npm is excluded from backups: after a restore it is empty, and the
+# install must come back rather than silently using the baked binary.
+rm -rf "$PERSISTENT_CLAUDE_ROOT"
+npm_calls="$tmp_dir/npm-calls"
+npm() {
+    printf '%s %s\n' "$NPM_CONFIG_PREFIX" "$*" >> "$npm_calls"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin" "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code"
+    printf '#!/bin/sh\n' > "$NPM_CONFIG_PREFIX/bin/claude"
+    chmod +x "$NPM_CONFIG_PREFIX/bin/claude"
+    printf '{}\n' > "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code/package.json"
+}
+setup_persistent_claude
+grep -q "^$PERSISTENT_CLAUDE_ROOT install -g @anthropic-ai/claude-code@" "$npm_calls" || \
+    fail "missing persistent Claude was not reinstalled"
+[ "$(readlink "$CLAUDE_BIN_LINK")" = "$PERSISTENT_CLAUDE_ROOT/bin/claude" ] || \
+    fail "reinstalled persistent Claude was not activated"
+
+# An existing install is not reinstalled on every start
+: > "$npm_calls"
+setup_persistent_claude
+[ ! -s "$npm_calls" ] || fail "existing persistent Claude should not be reinstalled"
+unset -f npm
 
 PERSIST_INSTALL_LOG="$tmp_dir/persist-install.log"
 PERSIST_INSTALL_BIN="$tmp_dir/persist-install"
@@ -117,5 +174,39 @@ export PERSIST_INSTALL_FAIL_ON
 setup_persistent_packages
 printf '%s\n' '---' 'missing-package' '---' 'git' > "$tmp_dir/expected.log"
 cmp -s "$tmp_dir/expected.log" "$PERSIST_INSTALL_LOG" || fail "package failure did not continue safely"
+
+
+# Launch flags: built once as shell text, then parsed exactly once by eval,
+# so quoting in claude_extra_args survives into separate argv entries.
+[ -z "$(build_claude_flags)" ] || fail "no options should mean no flags"
+config_dangerous=true
+config_remote_control=true
+config_extra_args="--model x --append-system-prompt 'be terse'"
+flags=$(build_claude_flags)
+argv_dump() { for a in "$@"; do printf '[%s]' "$a"; done; }
+got=$(eval "argv_dump $flags")
+[ "$got" = "[--dangerously-skip-permissions][--remote-control][Home Assistant][--model][x][--append-system-prompt][be terse]" ] || \
+    fail "flags must parse into the expected argv, got: $got"
+launch=$(get_claude_launch_command)
+[[ "$launch" == *"/usr/local/bin/claude $flags"* ]] || fail "auto-launch command must carry the flags"
+if [ ! -f /usr/local/bin/claude-session-picker ]; then
+    # Without the picker, picker mode falls back to launching Claude directly
+    config_auto_launch=false
+    [[ "$(get_claude_launch_command)" == *"/usr/local/bin/claude $flags"* ]] || \
+        fail "picker-mode fallback must carry the flags too"
+    config_auto_launch=true
+fi
+config_dangerous=false; config_remote_control=false; config_extra_args=''
+
+# Working directory: default, existing path, and a typo falls back
+[ "$(get_working_directory)" = "/config" ] || fail "working_directory should default to /config"
+config_working_directory="$tmp_dir"
+[ "$(get_working_directory)" = "$tmp_dir" ] || fail "an existing working_directory should be used"
+config_working_directory="$tmp_dir/does-not-exist"
+[ "$(get_working_directory)" = "/config" ] || fail "a missing working_directory should fall back to /config"
+config_working_directory=''
+
+grep -q 'new-session -s claude -c "${CLAUDE_WORKDIR:-/config}"' "$TMUX_WRAPPER_PATH" || \
+    fail "tmux wrapper must start new sessions in CLAUDE_WORKDIR"
 
 echo "Production run.sh regression suite passed"

@@ -1,5 +1,282 @@
 # Changelog
 
+## 2.1.12
+
+### 🛠️ Improvement - Smaller Home Assistant backups
+- Most of the backup size was already fixed in 2.1.7, which stopped the npm
+  cache piling up in `/data` (backups of 1-2 GB or more). This release trims
+  what is left.
+- **Downloadable files are left out of backups** (`backup_exclude`): the
+  `use_persistent_claude` install in `/data/npm` (about 240 MB), old Claude
+  binaries from `claude update`, and caches. Login, settings, sessions,
+  skills, plugins and `persist-install` packages are still backed up.
+- **The persistent Claude install comes back by itself**: with
+  `use_persistent_claude` on and nothing in `/data/npm` (after a restore, or
+  when first enabled), startup now installs it instead of only logging a
+  warning and using the image's copy. An install that exists but fails its
+  check is still left alone.
+- The image itself (about 240 MB compressed) is still in every backup,
+  because Home Assistant builds the add-on locally and saves locally built
+  images with it.
+
+## 2.1.11
+
+### 🐛 Bug Fix - Session picker alignment
+- **Header box**: the "Interactive Session Picker" line was one space short,
+  so its right border sat one column left of the rest of the box.
+- **Menu option 4**: removed the extra space after the ⚙️ icon so "Custom
+  Claude command" lines up with the other options.
+
+## 2.1.10
+
+### 🐛 Bug Fix - Add-on build can no longer hang forever installing Claude Code
+- **The image no longer runs `https://claude.ai/install.sh`**: its final
+  `claude install` step is an interactive screen, and in a build with no
+  terminal it could wait forever with no error anywhere. The `npm` fallback
+  never ran, because nothing failed (ESJavadex/claude-code-ha#44, thanks
+  @faignartvercouter-web and @Solidus756).
+- **Claude Code is now downloaded directly**: the native musl binary for the
+  latest version comes straight from the npm registry, the same binary the
+  installer would have fetched. If that fails the build falls back to
+  `npm install`, and if both fail the build now stops with an error instead
+  of producing an image without Claude. Approach adapted from
+  heytcass/home-assistant-addons 2.5.1.
+- **`/data/home/.local/bin/claude` now links to `/usr/local/bin/claude`**: the
+  old link pointed at the installer's `/root/.local/bin/claude`, so on
+  existing installs it is replaced on the next start. A link made by
+  `claude update` is left alone. armv7 is unchanged (npm, 1.0.128).
+
+## 2.1.9
+
+### ✨ New Feature - Login link as a Home Assistant notification
+- **Claude's OAuth login link is posted as a clickable notification** the
+  moment it appears in the terminal, so you can open it from the Home
+  Assistant UI or the Companion app instead of copying a long wrapped URL. The
+  notification is dismissed automatically once login succeeds, and any left
+  over from before a restart (whose link can no longer work) is cleared on
+  startup. You still paste the authorization code into the terminal.
+- **A used link is never posted again**: unlike the original, the watcher
+  remembers which links it has posted, so when the access token later expires
+  it doesn't re-post the dead link still in the terminal's scrollback.
+  Adapted from heytcass/home-assistant-addons 2.5.2 and 2.5.3 (contributed
+  there by @heman22union).
+
+## 2.1.8
+
+### ✨ New Feature - Four new options from the original add-on
+- **`working_directory`**: start the terminal and Claude somewhere other than
+  `/config`, e.g. `/config/my_repo`. A path that doesn't exist logs a warning
+  and falls back to `/config`.
+- **`claude_code_oauth_token`**: log in non-interactively with a token from
+  `claude setup-token`. It reaches every Claude in the session through the
+  environment, is masked in the UI and never logged, but is stored in the
+  add-on configuration and so in backups.
+- **`enable_remote_control`**: launch Claude with `--remote-control`, so the
+  session also appears as "Home Assistant" in the Claude app and at
+  claude.ai/code. Needs a normal claude.ai login; the log warns if it is
+  combined with a token or with `dangerously_skip_permissions`.
+- **`claude_extra_args`**: extra flags for every Claude launch, e.g.
+  `--model ...`. Quoting works: `--append-system-prompt 'be terse'` arrives as
+  one argument.
+- All launch flags now apply to the session picker's New / Continue / Resume /
+  custom options too, not only to auto-launch.
+  Adapted from heytcass/home-assistant-addons 2.3.0, 2.5.4, 2.5.5 and 2.6.0.
+
+## 2.1.7
+
+### 🐛 Bug Fix - Startup and backup fixes from the original add-on
+- **Startup no longer needs the network**: ttyd and tmux are now part of the
+  image instead of being installed with `apk` on every boot. Before, a boot
+  with no internet (or a slow Alpine mirror) stopped the add-on before the
+  terminal started.
+- **Much smaller backups**: npm and pip caches no longer go into `/data`,
+  which is included in every Home Assistant backup. Every Claude update
+  through npm (`auto_update_claude_on_start`, which runs on every start, or
+  the session picker's update option) added the downloaded package to
+  `/data/home/.npm`, and nothing ever removed it, so backups grew with every
+  update: 2.3 GB on a heavily updated 2.1.5 install. `persist-install
+  --python` likewise left pip's cache in `/data/.cache/pip`. Both are deleted
+  on the next start.
+- **Old Claude Code versions pruned**: each native `claude update` leaves a
+  ~250 MB binary in `/data`. On startup, all but the active version and the
+  newest one are removed.
+- **Missing AVX is reported**: Claude Code needs AVX on x86-64, and VMs using
+  a generic CPU type (Proxmox/QEMU `kvm64` or `qemu64`) hide it, so every
+  `claude` command hangs at 100% CPU with nothing in the log. The add-on log
+  and health check now say so and name the fix: set the VM's CPU type to
+  `host`, then fully shut the VM down and start it again.
+- **Health check runs Claude instead of only finding it**: it now runs
+  `claude --version` (with a 10 second timeout) and shows the error, so a
+  binary that exists but can't run is no longer reported as fine.
+  Adapted from heytcass/home-assistant-addons 2.3.0, 2.5.3 and 2.5.4.
+
+## 2.1.6
+
+### 🔒 Security - Close the unauthenticated ports and drop an unused permission
+- **Ports 7680 and 7681 are no longer published by default**: both serve a
+  root shell with no login of their own, so anyone on the local network could
+  open one without a Home Assistant account. Ingress (the sidebar panel) does
+  not need either. If you used them to work around ingress typing lag, map them
+  again under Configuration → Network; the log warns while they are published.
+  Installs that changed the port mapping keep their setting.
+- **Unpublished ports are now closed to other add-ons too**: the web UI
+  accepts only Home Assistant's ingress proxy unless 7680 is published, and
+  ttyd binds to loopback unless 7681 is published. Before, any add-on on the
+  internal hassio network could reach the shell.
+- **`auth_api` permission dropped**: it only allows checking Home Assistant
+  usernames and passwords, and nothing in the add-on uses it.
+- **Security section in DOCS.md**: explains that any signed-in Home Assistant
+  user, not only admins, can open the terminal through its ingress URL.
+  Adapted from heytcass/home-assistant-addons 2.2.1 and 2.5.4.
+
+## 2.1.5
+
+### 🐛 Bug Fix - Image and text paste in the web terminal
+- **Pasting an image while the terminal has focus now uploads it**: the paste
+  listener is now attached inside the terminal iframe (re-attached on every
+  ttyd reconnect). Before, paste events fired inside the iframe and the page
+  never saw them.
+- **Ctrl+V no longer shows "No image found in clipboard"**: Ctrl+V is kept
+  away from xterm.js, so Claude Code no longer receives `^V` and tries to read
+  the container's empty clipboard. On Windows/Linux the browser's normal paste
+  runs, so Shift+Ctrl+V is no longer needed for text. On macOS, Ctrl+V reads
+  the clipboard through the async Clipboard API (needs HTTPS and a one-time
+  permission).
+- **Text paste is reliable after an image upload**: the uploaded path is
+  inserted at the prompt with xterm's own `term.paste()`. The user's clipboard
+  is no longer overwritten, and the synthetic keypress/input events that could
+  repeat or garble terminal input have been removed.
+
+## 2.1.4
+
+### 🛠️ Improvement - Update menu option shows whether an update is available
+- **The "Update Claude Code" line now includes versions**: `(2.1.226 → 2.1.277
+  available)`, `(2.1.277, up to date)`, or `(latest version unknown)` when the
+  registry cannot be reached.
+- The latest version comes from the npm registry, cached for an hour in
+  `/data/.cache/claude-latest-version` so the menu redraw does not hit the
+  network each time (3 second timeout on a cold lookup). On ARMv7, where the
+  install is pinned to `1.0.128`, it compares against the pin instead.
+- Running the update clears the cache so the menu reflects the new version
+  straight away.
+
+## 2.1.3
+
+### 🐛 Bug Fix - Version shown in the session picker looked stuck/hardcoded
+- **The banner's version check now resolves `/usr/local/bin/claude` directly**
+  instead of a bare `claude` lookup through `PATH`. `PATH` puts the image's
+  baked-in default binary (`/data/home/.local/bin/claude`) ahead of
+  `/usr/local/bin/claude` — the binary the persistent-Claude update actually
+  changes — so the version line never reflected an update and looked hardcoded.
+
+## 2.1.2
+
+### ✨ New Feature - Manual "Update Claude Code" menu option
+- **New session picker option** to update Claude Code on demand, without waiting
+  for a container restart. It only appears when `use_persistent_claude` is
+  enabled — otherwise there's no persistent install for it to update, so the
+  menu is unchanged.
+- Runs the same `npm install -g <spec> --prefer-online` into `/data/npm` that
+  `setup_persistent_claude()` uses on startup, then re-links `/usr/local/bin/claude`
+  and prints the resulting version. `run.sh` now exports `USE_PERSISTENT_CLAUDE`,
+  `PERSISTENT_CLAUDE_ROOT`, `CLAUDE_BIN_LINK`, and `CLAUDE_NPM_SPEC` so the picker
+  reuses the exact same install path and architecture-resolved package spec
+  instead of duplicating that logic.
+
+## 2.1.1
+
+### 🐛 Bug Fix - Persistent Claude update ignored until you exited the session once
+- **Auto-launch now calls `/usr/local/bin/claude` directly.** The startup command
+  built by `get_claude_launch_command()` ran a bare `claude`, which `PATH`
+  resolved to `/data/home/.local/bin/claude` — the image's baked-in default —
+  ahead of `/usr/local/bin/claude`, the binary `setup_persistent_claude()` keeps
+  up to date when `use_persistent_claude`/`auto_update_claude_on_start` are
+  enabled. The session picker already used the absolute path, which is why
+  exiting back to the menu and relaunching showed the updated version while the
+  very first launch after a restart did not.
+
+## 2.1.0
+
+### 🐛 Bug Fix - Copying out of the terminal did nothing (#30)
+- **Mouse selection now really reaches the clipboard.** ttyd 1.7.7 — the newest
+  release, and the one Alpine 3.21 ships — copies a selection with
+  `document.execCommand('copy')`. xterm.js keeps its selection internally and
+  paints it on a canvas, so there is no DOM selection to copy: the call was a
+  no-op, yet ttyd showed its `✂` overlay every time. Selections are now read with
+  `terminal.getSelection()` and written with `navigator.clipboard.writeText()`,
+  falling back to a hidden textarea where that API does not exist.
+- **`/copy` works.** ttyd 1.7.7 loads no clipboard addon, so the OSC 52 sequence
+  Claude Code emits was silently discarded. The add-on now registers its own
+  OSC 52 handler on ttyd's terminal, sharing the same clipboard writer.
+- **tmux forwards OSC 52.** `set -g set-clipboard on` replaces tmux's default
+  `external`, which drops what applications in the pane send, and
+  `set -as terminal-features ',*:clipboard'` makes tmux emit the sequence outwards
+  without depending on `$TERM`'s terminfo carrying `Ms`.
+- **The `✂` overlay is now honest** — it appears only after the clipboard write
+  actually succeeded, instead of on every selection.
+- **No ttyd fork and no frontend rebuild.** ttyd exports its xterm.js instance as
+  `window.term` and is already proxied same-origin at `/terminal/`, so the fix is
+  one vanilla-JS file, `image-service/public/terminal-clipboard.js`. Upgrading ttyd
+  would not have helped: 1.7.7 is the latest release and still has both bugs.
+
+### ✨ New Feature - Copying on a phone
+- **`📋 Copy` button and dialog.** xterm.js registers no touch handlers in its
+  selection service and paints to a canvas, so a finger can select nothing in the
+  terminal at all — on a phone there was no way to copy anything. The button reads
+  the text out of the xterm.js buffer into a textarea, where a long-press gives
+  the native selection handles, with a one-tap "Copy all" and a
+  visible-screen/full-scrollback switch.
+- **`🔗 Copy link` appears by itself when a link is on screen.** Copying an OAuth
+  login URL is one tap, no selecting. It names the host it copied, since a phone
+  has no hover to check with.
+- **Split links are put back together.** A link that the terminal broke across
+  rows used to be copied as whatever fitted on one row. Rebuilding it needs the
+  row geometry, and three different splits were measured live in this add-on's
+  own terminal, each leaving a different trace:
+  - a hard wrap fills the row and re-indents the remainder, so joining rows
+    verbatim drops the indent into the middle of the URL;
+  - Claude Code's renderer breaks a long URL at a `/` when the next segment would
+    not fit, leaving a row that is *not* full;
+  - and it lays its output out one column short of the pane, so any rule keyed on
+    the pane width never fires. The wrap column is now measured from the rows
+    themselves rather than assumed.
+- **A cut-off link is refused, not copied.** Trailing `…`, a cut percent-escape,
+  a dangling `?`/`&`/`=`, or a link still running at the edge of the rows read all
+  mean "widen the search, then say it is cut off" — pasting half a URL fails with
+  nothing on screen explaining why.
+- **Swiping scrolls the terminal.** xterm.js 5.5 drops `touchstart`/`touchmove`
+  outright while the application has mouse reporting on, and never turns touch
+  into a mouse report — so on a phone or a touch PC the history could not be
+  scrolled at all. The wheel has its own code path, which is why a mouse always
+  worked. Swipes are now translated into wheel events, so xterm.js encodes them
+  exactly as it would a real wheel. Vertical is claimed only once a full row of
+  movement has built up; pinch-zoom and horizontal panning stay with the browser.
+  A swipe is ignored when the buffer has no scrollback: xterm.js turns a wheel
+  event into arrow keys there and sends them as *input*, so under tmux every
+  swipe walked Claude Code's message history into the prompt. Scrolling a
+  full-screen app needs real mouse reporting — turn on the `tmux_mouse` option.
+- **The on-screen keyboard no longer covers the prompt.** It shrinks the visual
+  viewport but leaves `100vh` alone, so the terminal kept its full height and its
+  bottom rows — where you type — sat behind the keyboard. The page follows
+  `visualViewport` instead, which makes ttyd refit to what is actually visible.
+
+
+### 🔧 Technical
+- Header buttons have a fixed height and a separately sized icon. Emoji sit on a
+  larger em box than the label text, so each button was taking its height and
+  width from its own glyph and the row came out ragged.
+- Plain-HTTP limitation documented in `DOCS.md`: `navigator.clipboard` is a
+  secure-context API, so over `http://homeassistant.local:8123` the fallback needs
+  a user gesture. Every button tap is one; an OSC 52 sequence arriving from the
+  terminal is not, so `/copy` is refused there and the page says so in words and
+  points at `📋`. Serving Home Assistant over HTTPS enables it.
+- OSC 52 *read* requests are swallowed instead of answered, so a program running
+  in the terminal cannot read the host clipboard.
+- New regression coverage: 72 Node tests for the clipboard bridge
+  (`tests/test-terminal-clipboard.js`, wired into `tests/run-tests.sh`) plus tmux
+  clipboard assertions in `tests/test-production-run.sh`. The link-rebuilding
+  fixtures are the literal rows captured from a running terminal.
+
 ## 2.0.13
 
 ### Bug fixes

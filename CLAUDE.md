@@ -31,7 +31,7 @@ direnv allow
 podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal-pro ./claude-terminal
 
 # Run locally
-podman run -p 7681:7681 -v $(pwd)/config:/config local/claude-terminal-pro
+podman run -p 7680:7680 -p 7681:7681 -e DEV_DIRECT_ACCESS=1 -v $(pwd)/config:/config local/claude-terminal-pro
 
 # Lint
 hadolint ./claude-terminal/Dockerfile
@@ -46,28 +46,35 @@ curl -X GET http://localhost:7681/
 - **config.yaml** - Home Assistant add-on configuration (multi-arch, ingress, ports)
 - **Dockerfile** - Alpine-based container with Node.js and Claude Code CLI
 - **build.yaml** - Multi-architecture build configuration (amd64, aarch64, armv7)
-- **run.sh** - Main startup script with credential management and ttyd terminal
-- **scripts/** - Modular credential management scripts
+- **run.sh** - Main startup script: sets up `/data`, tmux, persistent Claude/packages, then starts the image service and ttyd
+- **scripts/** - Session picker, auth helper, `persist-install`, health check, HA CLI installer and API examples
+- **image-service/** - Node.js web page on port 7680 (the ingress panel) that embeds ttyd and handles image upload/paste
 
 ### Key Components
-1. **Web Terminal**: Uses ttyd to provide browser-based terminal access
-2. **Credential Management**: Persistent authentication storage in `/config/claude-config/`
+1. **Web Terminal**: ttyd on port 7681, attached to a persistent tmux session, embedded in the image-service page on 7680
+2. **Persistent State**: All Claude state (login, settings, history) and installed packages live in the add-on's private `/data`
 3. **Service Integration**: Home Assistant ingress support with panel icon
 4. **Multi-Architecture**: Supports amd64, aarch64, armv7 platforms
 
-### Credential System
-The add-on implements a sophisticated credential management system:
-- **Persistent Storage**: Credentials saved to `/config/claude-config/` (survives restarts)
-- **Multiple Locations**: Handles various Claude credential file locations
-- **Background Service**: Continuous credential monitoring and saving
-- **Security**: Proper file permissions (600) and safe directory operations
+### Persistent State (`/data`)
+`/data` is private to each installed add-on and survives restarts and updates. `run.sh` (`init_environment`) points everything there:
+- `HOME=/data/home` - Claude's `~/.claude*` files, including OAuth credentials
+- `/data/.config/claude` - `ANTHROPIC_CONFIG_DIR`; XDG config/cache/state dirs are also under `/data`
+- `/data/packages` - `persist-install` packages; `/data/npm` - the optional persistent Claude install (`use_persistent_claude`)
+- `/data/options.json` - add-on options, written by the Supervisor on each start (bashio reads them from the Supervisor API, not this file)
+- `/config/claude-config` is only a **legacy** location: if it exists, its files are copied into `/data/.config/claude` on startup (`migrate_legacy_auth_files`). Nothing is saved there any more.
 
-### Container Execution Flow
-1. Initialize environment and create credential directories
-2. Install ttyd and tools via apk
-3. Setup modular credential management scripts
-4. Start background credential monitoring service
-5. Launch ttyd web terminal with Claude auto-start
+Because `/data` is per add-on, installing the add-on from a different repository (or branch) starts with a fresh `/data`: the user must log in again and only options can be copied across (Configuration → Edit in YAML).
+
+### Container Execution Flow (`main` in run.sh)
+1. Run the health check
+2. Initialize `/data` directories and environment variables, migrating any legacy auth files
+3. Warn if the CPU lacks AVX; remove leftover npm/pip caches and old Claude versions from `/data` (ttyd, tmux, jq and curl are baked into the image)
+4. Configure tmux and the `tmux-claude` wrapper
+5. Set up persistent Claude (if `use_persistent_claude`)
+6. Install the session picker and auth helper
+7. Set up `persist-install` and auto-install packages listed in the options
+8. Start the image service (7680), the login URL watcher (posts Claude's login link as an HA notification) and ttyd (7681)
 
 ## Development Notes
 
@@ -79,19 +86,30 @@ For rapid development and debugging without pushing new versions:
 # Build test version
 podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal:test ./claude-terminal
 
-# Create test config directory
-mkdir -p /tmp/test-config/claude-config
+# Create test directories (/data holds all add-on state, /config is HA's config dir)
+mkdir -p /tmp/test-config /tmp/test-data /tmp/test-tmp/.bashio
 
-# Configure session picker (optional)
-echo '{"auto_launch_claude": false}' > /tmp/test-config/options.json
+# Options (optional). bashio::config asks the Supervisor API, not
+# /data/options.json, and caches the answer; with no Supervisor, seed that
+# cache. List every option: a missing key comes back as the string "null".
+cat > /tmp/test-tmp/.bashio/addons.self.options.config.cache << 'OPTIONS'
+{"auto_launch_claude": false, "tmux_mouse": false, "working_directory": "",
+ "claude_code_oauth_token": "", "dangerously_skip_permissions": false,
+ "enable_remote_control": false, "claude_extra_args": "",
+ "persistent_apk_packages": [], "persistent_pip_packages": [],
+ "use_persistent_claude": false, "auto_update_claude_on_start": false}
+OPTIONS
 
 # Run test container
-podman run -d --name test-claude-dev -p 7681:7681 -v /tmp/test-config:/config local/claude-terminal:test
+# DEV_DIRECT_ACCESS=1: there is no Supervisor to report published ports, so
+# without it the web UI refuses non-ingress clients and ttyd binds to loopback
+podman run -d --name test-claude-dev -p 7680:7680 -p 7681:7681 -e DEV_DIRECT_ACCESS=1 \
+  -v /tmp/test-config:/config -v /tmp/test-data:/data -v /tmp/test-tmp:/tmp local/claude-terminal:test
 
 # Check logs
 podman logs test-claude-dev
 
-# Test web interface at http://localhost:7681
+# Test web interface at http://localhost:7680 (raw ttyd at http://localhost:7681)
 
 # Stop and cleanup
 podman stop test-claude-dev && podman rm test-claude-dev
@@ -122,12 +140,12 @@ podman exec test-claude-dev chmod +x /opt/scripts/claude-session-picker.sh
 - **Check container logs**: `podman logs -f test-claude-dev` (follow mode)
 - **Inspect running processes**: `podman exec test-claude-dev ps aux`
 - **Test individual scripts**: `podman exec test-claude-dev /opt/scripts/script-name.sh`
-- **Volume contents**: `ls -la /tmp/test-config/` to verify persistence
+- **Volume contents**: `ls -la /tmp/test-data/` to verify persistence
 
 ### Production Testing
 - **Local Testing**: Use `run-addon` to test on localhost:7681
 - **Container Health**: Check logs with `podman logs <container-id>`
-- **Authentication**: Use `claude-auth debug` within terminal for credential troubleshooting
+- **Authentication**: If pasting the login code fails, use the session picker's auth helper (`/opt/scripts/claude-auth-helper.sh`); check `ls -la /data/home/.claude* /data/.config/claude` for credential files
 
 ### File Conventions
 - **Shell Scripts**: Use `#!/usr/bin/with-contenv bashio` for add-on scripts
@@ -136,14 +154,15 @@ podman exec test-claude-dev chmod +x /opt/scripts/claude-session-picker.sh
 - **Permissions**: Credential files must have 600 permissions
 
 ### Key Environment Variables
-- `CLAUDE_CREDENTIALS_DIRECTORY=/config/claude-config`
-- `ANTHROPIC_CONFIG_DIR=/config/claude-config`
-- `HOME=/root`
+- `HOME=/data/home`
+- `ANTHROPIC_CONFIG_DIR=/data/.config/claude`
+- `XDG_CONFIG_HOME=/data/.config`, `XDG_CACHE_HOME=/data/.cache`, `XDG_STATE_HOME=/data/.local/state`
+- `DISABLE_AUTOUPDATER=1` (updates come from add-on releases or the persistent install)
 
 ### Important Constraints
 - No sudo privileges available in development environment
 - Add-on targets Home Assistant OS (Alpine Linux base)
-- Must handle credential persistence across container restarts
+- Anything that must survive a restart has to live in `/data` (container filesystem is ephemeral)
 - Requires multi-architecture compatibility
 
 ## Release Management
