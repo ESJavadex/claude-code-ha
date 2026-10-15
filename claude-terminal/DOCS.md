@@ -235,6 +235,18 @@ your terminal. No link is posted when you use `claude_code_oauth_token`.
 
 The terminal starts directly in your `/config` directory, giving you immediate access to all your Home Assistant configuration files. This makes it easy to get help with your configuration, create automations, and troubleshoot issues.
 
+These folders are also mounted, read/write:
+
+- `/addons`: local add-ons, for developing your own
+- `/share`: the folder shared between add-ons and Home Assistant
+- `/media`: the media folder
+
+`/backup`, `/ssl` and `/addon_configs` are not mounted. Anyone who can open
+this terminal can read and change everything it mounts (see
+[Security](#security)). Those folders hold every backup, your TLS private keys
+and other add-ons' state, such as Z-Wave network keys and Matter credentials.
+Use Studio Code Server or the Samba share if you need them.
+
 ## Features
 
 ### Core Features
@@ -277,8 +289,8 @@ add-on. **Read [Security](#security) first**: neither port has a login.
 ## Security
 
 **This add-on gives Claude a lot of power by design**: it runs as root in its
-container, has read/write access to `/config`, and can call the Supervisor and
-Home Assistant APIs.
+container, has read/write access to `/config`, `/addons`, `/share` and
+`/media`, and can call the Supervisor and Home Assistant APIs.
 
 **Any Home Assistant user can reach the terminal, not just administrators.**
 `panel_admin: true` hides the sidebar entry from non-admins, but it does not
@@ -287,7 +299,7 @@ generally, not something this add-on can switch off: any signed-in user can get
 an ingress session and the add-on's ingress URL (see
 [core#60120](https://github.com/home-assistant/core/pull/60120)). Here that
 means a non-admin account is one URL away from a root shell that can write
-anywhere in `/config` and drive the Supervisor API. Treat every account on
+anywhere in those folders and drive the Supervisor API. Treat every account on
 your instance as trusted while this add-on is installed.
 
 **Publishing port 7680 or 7681 exposes an unauthenticated root shell.** Both

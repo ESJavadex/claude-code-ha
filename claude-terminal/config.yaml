@@ -1,7 +1,7 @@
 ---
 name: "Claude Terminal Pro"
 description: "Enhanced terminal interface for Anthropic's Claude Code CLI with persistent auth, package management, and image paste support. Fork of heytcass/home-assistant-addons"
-version: "2.3.1"
+version: "2.3.2"
 slug: "claude_terminal_pro"
 init: false
 
@@ -76,9 +76,19 @@ backup_exclude:
   - "*_claude_terminal_pro/.cache"
   - "*_claude_terminal_pro/home/.claude/cache"
 
-# Volume mappings for file access
+# Volume mappings for file access. Studio Code Server's folders, minus three:
+# any signed-in HA user can reach this root shell through ingress.
+#   /backup, /ssl: every backup and the TLS private keys
+#   /addon_configs: other add-ons' state, e.g. Z-Wave network keys and Matter
+#     fabric credentials, which a bad edit could cost a re-pair of every device
+# "addons" is the pre-2026.07 name (now local_apps). Supervisor only logs a
+# warning for it, while an older Supervisor would reject the new one. When
+# switching, use the long form with path: /addons to keep the folder in place.
 map:
-  - config:rw    # Access to Home Assistant configuration files
+  - config:rw   # Home Assistant configuration files (/config)
+  - addons:rw   # Local add-ons (/addons), for add-on development
+  - share:rw    # Folder shared between add-ons and HA (/share)
+  - media:rw    # Media folder (/media)
 
 # API access for Home Assistant integration
 # No auth_api: it grants only http://supervisor/auth, which validates a Home

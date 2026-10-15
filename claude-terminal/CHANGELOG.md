@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.2
+
+### ✨ New Feature - More Home Assistant folders mounted
+- **`/addons`, `/share` and `/media` are now mounted read/write**, so
+  Claude can work on local add-ons, shared files and media, not only
+  `/config`. `/addons` is where local add-ons are developed on the box.
+- **`/backup`, `/ssl` and `/addon_configs` are deliberately not mounted**:
+  any signed-in Home Assistant user can reach this root shell through
+  ingress. Those folders hold every backup, the TLS private keys and other
+  add-ons' state, such as Z-Wave network keys and Matter fabric credentials.
+  Adapted from heytcass/home-assistant-addons#145, which mounts all of them
+  (the Studio Code Server set).
+- The README listed `/addons` as mounted before it was; it now matches.
+
 ## 2.3.1
 
 ### 🔒 Security - Secrets never go into a checkpoint
