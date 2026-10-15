@@ -274,6 +274,10 @@ HA builds the image on the box, which takes a few minutes.
 - `--copy-only` skips the `ha` step (then use Add-on Store → ⋮ → Check for
   updates). With no target, the script only builds `dist/claude-terminal-dev/`,
   which you can copy through the Samba `addons` share instead.
+- HA may briefly show an update for the dev add-on that then says none is
+  available. The script reloads the store just before updating, and HA's
+  update entity can catch the new version in between. It clears the next
+  time HA polls the Supervisor, within a few minutes.
 - Both add-ons post their login link under the same notification ID, so
   starting one clears a login notification the other is still showing.
 
