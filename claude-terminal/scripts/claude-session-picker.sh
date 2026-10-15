@@ -158,7 +158,8 @@ get_user_choice() {
 }
 
 launch_claude_new() {
-    local flags=$(get_claude_flags)
+    local flags
+    flags=$(get_claude_flags)
     echo "🚀 Starting new Claude session..."
     sleep 1
     eval "/usr/local/bin/claude $flags"
@@ -166,21 +167,24 @@ launch_claude_new() {
 }
 
 launch_claude_continue() {
-    local flags=$(get_claude_flags)
+    local flags
+    flags=$(get_claude_flags)
     echo "⏩ Continuing most recent conversation..."
     sleep 1
     eval "/usr/local/bin/claude -c $flags"
 }
 
 launch_claude_resume() {
-    local flags=$(get_claude_flags)
+    local flags
+    flags=$(get_claude_flags)
     echo "📋 Opening conversation list for selection..."
     sleep 1
     eval "/usr/local/bin/claude -r $flags"
 }
 
 launch_claude_custom() {
-    local base_flags=$(get_claude_flags)
+    local base_flags
+    base_flags=$(get_claude_flags)
     echo ""
     echo "Enter your Claude command (e.g., 'claude --help' or 'claude -p \"hello\"'):"
     echo "Available flags: -c (continue), -r (resume), -p (print), --model,"

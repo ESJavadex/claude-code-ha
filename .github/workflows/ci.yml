@@ -1,0 +1,44 @@
+name: CI
+
+# Small quality gate for the add-on: shell lint, metadata consistency,
+# JS syntax and the existing regression suites. No image build here — the
+# Home Assistant Supervisor builds the add-on itself from this repository.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ShellCheck (errors and warnings)
+        run: shellcheck --severity=warning $(git ls-files '*.sh')
+
+      - name: Add-on metadata checks (YAML, versions, archs)
+        run: python3 scripts/check-addon-metadata.py
+
+      - name: JavaScript syntax check
+        run: git ls-files '*.js' | xargs -n1 node --check
+
+      - name: Regression suites
+        run: bash tests/run-tests.sh
+
+      # Informational for now: http-proxy-middleware 2.x pulls a known
+      # braces/micromatch ReDoS (GHSA-vfj7-8cjw-p6xm). Moving to 3.x changes
+      # the ws-proxy API used for the terminal, so it needs a tested
+      # migration, not a drive-by bump. This keeps the finding visible
+      # without failing every build until then.
+      - name: npm audit (informational)
+        working-directory: claude-terminal/image-service
+        continue-on-error: true
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm audit --omit=dev

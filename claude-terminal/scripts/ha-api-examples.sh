@@ -1,4 +1,5 @@
 #!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
 
 # Home Assistant API Examples for Claude Terminal
 # This script demonstrates how to interact with Home Assistant APIs

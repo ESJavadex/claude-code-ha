@@ -1,4 +1,5 @@
 #!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
 
 # Persistent Package Manager for Claude Terminal
 # Installs packages to /data (persistent storage) instead of ephemeral container
