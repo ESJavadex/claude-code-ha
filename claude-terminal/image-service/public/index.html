@@ -804,7 +804,7 @@
 <body>
     <div id="container">
         <div id="header">
-            <div id="header-title">Claude Terminal Pro - Voice & image support</div>
+            <div id="header-title">Claude Terminal Pro<span id="addon-version"></span> - Voice & image support</div>
             <div style="display: flex; align-items: center; gap: 12px;">
                 <span id="status"></span>
                 <button id="files-btn" class="header-btn" title="Browse /config, recent changes and check the HA configuration">
@@ -936,6 +936,9 @@
             .then(config => {
                 ttydPort = config.ttydPort;
                 uploadDir = config.uploadDir;
+                if (config.version) {
+                    document.getElementById('addon-version').textContent = ' v' + config.version;
+                }
                 console.log('Config loaded:', config);
                 // Load ttyd via proxy endpoint
                 loadTerminal();
