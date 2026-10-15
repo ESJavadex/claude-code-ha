@@ -80,7 +80,7 @@ The add-on works out of the box, but also supports a few optional advanced setti
 - **Terminal**: Full bash environment with Claude Code CLI pre-installed
 - **Persistent Claude override**: Optional `use_persistent_claude` / `auto_update_claude_on_start`
 - **Launch options**: `working_directory`, `claude_code_oauth_token`, `enable_remote_control` and `claude_extra_args` (see [DOCS.md](DOCS.md#configuration))
-- **Volumes**: Access to both `/config` (Home Assistant) and `/addons` (for development)
+- **Folders**: `/config` (Home Assistant), `/addons` (local add-on development), `/share` and `/media`, all read/write
 
 ## Troubleshooting
 
