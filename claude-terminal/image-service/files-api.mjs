@@ -8,9 +8,9 @@
  * ingress-only socket check as the terminal itself.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execFile } = require('child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
 
 const ROOTS = (process.env.FILE_ROOTS || '/config')
     .split(':')
@@ -173,4 +173,4 @@ function register(app) {
     });
 }
 
-module.exports = { register, resolveInsideRoots, recentFiles };
+export { register, resolveInsideRoots, recentFiles };

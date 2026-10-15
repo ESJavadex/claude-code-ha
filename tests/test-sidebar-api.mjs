@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Path confinement and git status parsing for the sidebar APIs
-const assert = require('assert');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sidebar-'));
 fs.mkdirSync(path.join(root, 'packages'));
@@ -11,8 +11,12 @@ fs.writeFileSync(path.join(root, 'packages', 'a.yaml'), 'x: 1\n');
 fs.symlinkSync('/etc', path.join(root, 'escape'));
 process.env.FILE_ROOTS = root;
 
-const files = require('../claude-terminal/image-service/files-api');
-const gitApi = require('../claude-terminal/image-service/git-api');
+// Dynamic import: files-api.mjs reads FILE_ROOTS at module load, so the env
+// must be set before the modules are evaluated (static imports hoist).
+const files = await import('../claude-terminal/image-service/files-api.mjs');
+const gitApi = await import('../claude-terminal/image-service/git-api.mjs');
+
+
 const realRoot = fs.realpathSync(root);
 let passed = 0;
 const ok = (name, fn) => { fn(); passed++; console.log('ok   ' + name); };

@@ -14,12 +14,15 @@
  * - ARM-compatible (no native dependencies)
  */
 
-const express = require('express');
-const http = require('http');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+import express from 'express';
+import http from 'node:http';
+import multer from 'multer';
+import path from 'node:path';
+import fs from 'node:fs';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+
+import { register as registerFilesApi } from './files-api.mjs';
+import { register as registerGitApi } from './git-api.mjs';
 
 const app = express();
 const PORT = process.env.IMAGE_SERVICE_PORT || 7680;
@@ -92,9 +95,9 @@ app.get('/config', (req, res) => {
 });
 
 // Read-only file browser for the sidebar, plus HA's config check
-require('./files-api').register(app);
+registerFilesApi(app);
 // Changes tab: git status/diff of /config, revert and checkpoints
-require('./git-api').register(app);
+registerGitApi(app);
 
 // Image upload endpoint
 app.post('/upload', upload.single('image'), (req, res) => {
@@ -116,27 +119,35 @@ app.post('/upload', upload.single('image'), (req, res) => {
 // Proxy endpoint for ttyd terminal
 // This allows ttyd to work through Home Assistant ingress
 // Handles both HTTP and WebSocket connections
+// http-proxy-middleware v4: Express strips the mount path (/terminal) from
+// req.url before the middleware sees it, so the stripped path is forwarded
+// as-is and no pathRewrite is needed (v2 repatched req.url, which is why it
+// needed the rewrite). ws: true subscribes to the server's upgrade event on
+// the first HTTP request through /terminal, same as v2.
 app.use('/terminal', createProxyMiddleware({
     target: `http://127.0.0.1:${TTYD_PORT}`,
     changeOrigin: true,
     ws: true, // Enable WebSocket proxying
-    pathRewrite: {
-        '^/terminal': '' // Remove /terminal prefix when forwarding
-    },
-    onError: (err, req, res) => {
-        console.error('Proxy error:', err.message);
-        // res may be a raw socket (WebSocket) instead of an Express response
-        if (typeof res.status === 'function') {
-            res.status(502).send('Failed to connect to terminal');
-        } else if (typeof res.end === 'function') {
-            res.end();
+    // WS upgrades arrive with the full browser path (/terminal/ws) because
+    // Express only strips the mount for HTTP; ttyd expects its socket at
+    // /ws, so strip the prefix on upgrades. HTTP paths after the mount
+    // don't start with /terminal, so they pass through untouched.
+    pathRewrite: (p, req) => (req.headers.upgrade ? p.replace(/^\/terminal/, '') : p),
+    on: {
+        error: (err, req, res) => {
+            console.error('Proxy error:', err.message);
+            // res may be a raw socket (WebSocket) instead of an Express response
+            if (typeof res.status === 'function') {
+                res.status(502).send('Failed to connect to terminal');
+            } else if (typeof res.end === 'function') {
+                res.end();
+            }
         }
-    },
-    logLevel: 'warn'
+    }
 }));
 
 // Serve static files (HTML interface) - MUST be after API routes
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(import.meta.dirname, 'public')));
 
 // Multer error handling middleware
 app.use((err, req, res, next) => {

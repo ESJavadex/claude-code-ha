@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.3.3
+
+### 🔒 Security - Maintained dependencies in the image service
+- **`http-proxy-middleware` 2.x → 4.x**: 2.x no longer receives updates;
+  the proxy core was rewritten (`httpxy`) and pulls many fixes. The
+  `/terminal` proxy behaves exactly as before: HTTP paths with the mount
+  prefix stripped and WebSocket upgrades forwarded as `/ws`, verified with
+  real HTTP and WebSocket round-trip tests against a stand-in terminal.
+- **`multer` 1.x → 2.x**: the maintained line; upload behaviour unchanged
+  (same limits, MIME filter and error handling, covered by the tests).
+- The image service now runs as an ES module (`server.mjs`), required by
+  `http-proxy-middleware` 4.x. No other behavior change.
+- `npm audit` is now a blocking CI check. Its single tolerated finding is
+  the unfixable `braces` advisory (GHSA-vfj7-8cjw-p6xm, CVE-2026-93687),
+  waived with rationale in `scripts/npm-audit-gate.py`: no fixed release
+  exists upstream and the add-on never feeds attacker-controlled globs to
+  `braces`. Any other vulnerability fails the build.
+
 ## 2.3.2
 
 ### ✨ New Feature - More Home Assistant folders mounted

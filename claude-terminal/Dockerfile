@@ -161,7 +161,7 @@ COPY image-service/ /opt/image-service/
 RUN cd /opt/image-service \
     && npm install --production --no-optional \
     && npm cache clean --force \
-    && chmod +x server.js
+    && chmod +x server.mjs
 
 # Copy startup script and modular scripts
 COPY run.sh /run.sh

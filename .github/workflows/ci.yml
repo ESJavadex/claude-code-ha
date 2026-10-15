@@ -26,19 +26,12 @@ jobs:
         run: python3 scripts/check-addon-metadata.py
 
       - name: JavaScript syntax check
-        run: git ls-files '*.js' | xargs -n1 node --check
+        run: git ls-files '*.js' '*.mjs' | xargs -n1 node --check
 
       - name: Regression suites
         run: bash tests/run-tests.sh
 
-      # Informational for now: http-proxy-middleware 2.x pulls a known
-      # braces/micromatch ReDoS (GHSA-vfj7-8cjw-p6xm). Moving to 3.x changes
-      # the ws-proxy API used for the terminal, so it needs a tested
-      # migration, not a drive-by bump. This keeps the finding visible
-      # without failing every build until then.
-      - name: npm audit (informational)
-        working-directory: claude-terminal/image-service
-        continue-on-error: true
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          npm audit --omit=dev
+      # Blocking audit. The only tolerated finding is the unfixable braces
+      # advisory; the waiver and its rationale live in the script's header.
+      - name: npm audit gate
+        run: python3 scripts/npm-audit-gate.py

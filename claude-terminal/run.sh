@@ -626,7 +626,7 @@ start_image_service() {
     local ttyd_port=7681
     local upload_dir="/data/images"
     local service_dir="/opt/image-service"
-    local server_file="${service_dir}/server.js"
+    local server_file="${service_dir}/server.mjs"
 
     bashio::log.info "Starting image upload service on port ${image_port}..."
 
@@ -648,9 +648,9 @@ start_image_service() {
         export ALLOW_DIRECT_ACCESS=0
     fi
 
-    # Check if server.js exists
+    # Check if server.mjs exists
     if [ ! -f "${server_file}" ]; then
-        bashio::log.error "server.js not found at ${server_file}"
+        bashio::log.error "server.mjs not found at ${server_file}"
         ls -la "${service_dir}"
         return 1
     fi
