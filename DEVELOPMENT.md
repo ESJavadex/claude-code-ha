@@ -238,6 +238,48 @@ podman image prune
 podman volume prune
 ```
 
+## Testing on a Real Home Assistant (`scripts/dev-deploy.sh`)
+
+Some things only happen on real Home Assistant: ingress, the login
+notification, Remote Control, options from the UI, backups. To test them
+without a version bump, a push or a release, install the working tree as a
+separate local add-on, **Claude Terminal (dev)**:
+
+```bash
+scripts/dev-deploy.sh root@homeassistant.local
+```
+
+The script copies `claude-terminal/` to `/addons/claude-terminal-dev` over
+SSH, then runs `ha store reload` and installs it (first time) or updates it.
+HA builds the image on the box, which takes a few minutes.
+
+- **It needs an SSH add-on**: Advanced SSH & Web Terminal or the official
+  Terminal & SSH. Both mount `/addons` and have the `ha` CLI. Log in as a
+  user that can write to `/addons` (in Advanced SSH, set `username: root`).
+  If the add-on doesn't listen on port 22, use the URI form, e.g.
+  `scripts/dev-deploy.sh ssh://root@homeassistant.local:2222`, or a Host
+  entry in `~/.ssh/config`. You can set `DEV_DEPLOY_TARGET` instead of
+  passing the target every time.
+- **It can't touch the real add-on**: the copy's slug is `claude_terminal_dev`,
+  so it has its own `/data` and its own sidebar panel. Log in to Claude once
+  in it, and set its options in Settings → Add-ons → Claude Terminal (dev).
+- **Every deploy is an update**: the version becomes
+  `<version>-dev.<commit>.<timestamp>`, so uncommitted edits are picked up
+  too. No version bump or changelog entry is needed until the change is
+  ready to release.
+- **It only runs when you start it**: the first install doesn't start it, and
+  it is set not to start with Home Assistant (`boot: manual`). Open it in
+  Settings → Add-ons, set options, and start it. Later deploys restart it if
+  it is running.
+- `--copy-only` skips the `ha` step (then use Add-on Store → ⋮ → Check for
+  updates). With no target, the script only builds `dist/claude-terminal-dev/`,
+  which you can copy through the Samba `addons` share instead.
+- Both add-ons post their login link under the same notification ID, so
+  starting one clears a login notification the other is still showing.
+
+Remove it when done: uninstall it in HA, then
+`ssh root@homeassistant.local rm -rf /addons/claude-terminal-dev`.
+
 ## Production Deployment
 
 Once testing is complete:

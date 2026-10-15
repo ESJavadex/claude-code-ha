@@ -144,6 +144,7 @@ podman exec test-claude-dev chmod +x /opt/scripts/claude-session-picker.sh
 
 ### Production Testing
 - **Local Testing**: Use `run-addon` to test on localhost:7681
+- **On real Home Assistant**: `scripts/dev-deploy.sh root@homeassistant.local` installs the working tree as a separate local add-on, "Claude Terminal (dev)" (own slug and `/data`; no version bump needed). See DEVELOPMENT.md
 - **Container Health**: Check logs with `podman logs <container-id>`
 - **Authentication**: If pasting the login code fails, use the session picker's auth helper (`/opt/scripts/claude-auth-helper.sh`); check `ls -la /data/home/.claude* /data/.config/claude` for credential files
 
