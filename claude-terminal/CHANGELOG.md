@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.4
+
+### 🛠 Fixes
+- `image-service/package.json` still pointed `main` and `npm start` at the
+  removed `server.js`; now `server.mjs`. The add-on itself was unaffected
+  (`run.sh` starts `server.mjs` directly).
+- CI now builds the real amd64 image and checks that the image service
+  starts, and the metadata check verifies `main`/`start` files exist.
+
 ## 2.3.3
 
 ### 🔒 Security - Maintained dependencies in the image service

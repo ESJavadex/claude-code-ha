@@ -75,6 +75,10 @@ pkg_path = ROOT / "claude-terminal" / "image-service" / "package.json"
 try:
     pkg = json.loads(pkg_path.read_text())
     check("start" in pkg.get("scripts", {}), "image-service/package.json has a start script")
+    main_file = pkg.get("main", "")
+    check((pkg_path.parent / main_file).is_file(), f"package.json main '{main_file}' exists")
+    start_cmd = pkg.get("scripts", {}).get("start", "")
+    check(any((pkg_path.parent / t).is_file() for t in start_cmd.split()), f"package.json start '{start_cmd}' points at an existing file")
 except (json.JSONDecodeError, OSError) as exc:
     check(False, f"image-service/package.json is valid JSON ({exc})")
 

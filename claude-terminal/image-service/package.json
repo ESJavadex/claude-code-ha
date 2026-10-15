@@ -2,9 +2,9 @@
   "name": "claude-terminal-image-service",
   "version": "1.0.0",
   "description": "Lightweight image upload service for Claude Terminal Pro",
-  "main": "server.js",
+  "main": "server.mjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.mjs"
   },
   "keywords": [
     "claude",
