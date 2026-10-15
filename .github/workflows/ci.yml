@@ -1,8 +1,8 @@
 name: CI
 
 # Small quality gate for the add-on: shell lint, metadata consistency,
-# JS syntax and the existing regression suites. No image build here — the
-# Home Assistant Supervisor builds the add-on itself from this repository.
+# JS syntax and the existing regression suites, plus a real amd64 image build
+# (the Supervisor builds the add-on itself from this repository).
 
 on:
   push:
@@ -35,3 +35,27 @@ jobs:
       # advisory; the waiver and its rationale live in the script's header.
       - name: npm audit gate
         run: python3 scripts/npm-audit-gate.py
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Catches Dockerfile / npm install breakage before users hit it.
+      - name: Build the add-on image (amd64)
+        run: |
+          docker build \
+            --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 \
+            --build-arg BUILD_ARCH=amd64 \
+            -t claude-terminal-test claude-terminal
+
+      - name: Image service starts and answers /health
+        run: |
+          docker run -d --name cch -e UPLOAD_DIR=/tmp/up --entrypoint sh claude-terminal-test \
+            -c 'cd /opt/image-service && node server.mjs'
+          for i in $(seq 1 15); do
+            docker exec cch wget -qO- http://127.0.0.1:7680/health && exit 0
+            sleep 1
+          done
+          docker logs cch; exit 1
