@@ -28,6 +28,8 @@ const app = express();
 const PORT = process.env.IMAGE_SERVICE_PORT || 7680;
 const TTYD_PORT = process.env.TTYD_PORT || 7681;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/images';
+// Set by run.sh from the add-on metadata; shown in the panel header
+const ADDON_VERSION = process.env.ADDON_VERSION || '';
 // Set by run.sh when port 7680 is published to the host
 const ALLOW_DIRECT_ACCESS = process.env.ALLOW_DIRECT_ACCESS === '1';
 // The Supervisor's ingress proxy, plus loopback for in-container checks
@@ -83,14 +85,15 @@ const upload = multer({
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', uploadDir: UPLOAD_DIR });
+    res.json({ status: 'ok', uploadDir: UPLOAD_DIR, version: ADDON_VERSION });
 });
 
 // Provide ttyd port to frontend
 app.get('/config', (req, res) => {
     res.json({
         ttydPort: TTYD_PORT,
-        uploadDir: UPLOAD_DIR
+        uploadDir: UPLOAD_DIR,
+        version: ADDON_VERSION
     });
 });
 

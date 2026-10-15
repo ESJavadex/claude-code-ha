@@ -638,6 +638,8 @@ start_image_service() {
     export IMAGE_SERVICE_PORT="${image_port}"
     export TTYD_PORT="${ttyd_port}"
     export UPLOAD_DIR="${upload_dir}"
+    ADDON_VERSION="$(bashio::addon.version)"
+    export ADDON_VERSION
 
     # Without a published port, only ingress (and the container itself) may
     # connect; other add-ons on the hassio network are refused.

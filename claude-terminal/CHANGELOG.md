@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.5
+
+### ✨ Added
+- The installed add-on version is shown in the panel header and in `/health`.
+
 ## 2.3.4
 
 ### 🛠 Fixes
