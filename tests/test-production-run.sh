@@ -123,6 +123,12 @@ chmod +x "$NPM_CONFIG_PREFIX/bin/claude"
 printf '{}\n' > "$NPM_CONFIG_PREFIX/lib/node_modules/@anthropic-ai/claude-code/package.json"
 NPM_EOF
 chmod +x "$tmp_dir/fake-npm/npm"
+# macOS has no timeout(1); the add-on's Alpine image does. Stand in with one
+# that just runs the command.
+if ! command -v timeout >/dev/null 2>&1; then
+    printf '#!/bin/sh\nshift\nexec "$@"\n' > "$tmp_dir/fake-npm/timeout"
+    chmod +x "$tmp_dir/fake-npm/timeout"
+fi
 saved_path="$PATH"
 PATH="$tmp_dir/fake-npm:$PATH"
 setup_persistent_claude
