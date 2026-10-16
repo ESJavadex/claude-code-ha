@@ -1459,6 +1459,31 @@
         // interactive-widget in the viewport meta does this on Chrome. Safari
         // ignores it, so follow the visual viewport as well; shrinking the
         // container makes the iframe fire resize and ttyd refits.
+        //
+        // Inside Home Assistant this page is the ingress iframe, and on iOS the
+        // keyboard shrinks only the top window's visual viewport; the iframe's
+        // own stays full height, so nothing moved until a keystroke made iOS
+        // scroll. Ingress is same-origin, so follow the top window's viewport
+        // too and keep to the part of this frame above the keyboard.
+
+        // The top window and where this frame starts in it, or null when this
+        // page is the top window or a parent is cross-origin.
+        function outerViewport() {
+            try {
+                let win = window;
+                let frameTop = 0;
+                while (win.parent !== win) {
+                    const frame = win.frameElement;
+                    if (!frame) return null;
+                    frameTop += frame.getBoundingClientRect().top;
+                    win = win.parent;
+                }
+                if (win === window || !win.visualViewport) return null;
+                return { win, viewport: win.visualViewport, frameTop };
+            } catch (e) {
+                return null;
+            }
+        }
 
         function trackOnScreenKeyboard() {
             const viewport = window.visualViewport;
@@ -1467,10 +1492,25 @@
 
             let settle;
 
+            const visibleHeight = () => {
+                let height = viewport.height;
+                const outer = outerViewport();
+                // Only while the keyboard (or a pinch-zoom) has made the top
+                // viewport shorter than the top window. Otherwise this frame may
+                // just be a dashboard card scrolled partly off screen, and
+                // clamping would cut it to what was visible at load.
+                if (outer && outer.viewport.height < outer.win.innerHeight - 1) {
+                    const bottom = outer.viewport.offsetTop + outer.viewport.height;
+                    height = Math.min(height, bottom - outer.frameTop);
+                }
+                return height;
+            };
+
             const apply = () => {
+                const height = visibleHeight();
                 // A bogus height would collapse the terminal entirely.
-                if (viewport.height < 120) return;
-                container.style.height = viewport.height + 'px';
+                if (height < 120) return;
+                container.style.height = height + 'px';
                 // iOS pans the layout viewport when an input takes focus.
                 window.scrollTo(0, 0);
 
@@ -1487,6 +1527,11 @@
 
             viewport.addEventListener('resize', apply);
             viewport.addEventListener('scroll', apply);
+            const outer = outerViewport();
+            if (outer) {
+                outer.viewport.addEventListener('resize', apply);
+                outer.viewport.addEventListener('scroll', apply);
+            }
             apply();
         }
 

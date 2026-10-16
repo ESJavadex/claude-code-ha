@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.6
+
+### 🛠 Fixes
+- **Phones and tablets: the terminal shrinks as soon as the keyboard opens.** In
+  Home Assistant the panel runs in the ingress iframe, and iOS (and Chromium by
+  default) shrinks only the top window's visual viewport for the keyboard, so
+  the prompt stayed behind it until a keystroke made the browser scroll. The
+  panel now also follows the top window's viewport (ingress is same-origin)
+  and fits the terminal to the part of the frame above the keyboard. It only
+  does so while the keyboard (or a pinch-zoom) makes that viewport shorter than
+  the window, so a panel embedded lower down a dashboard keeps its full size.
+
 ## 2.3.5
 
 ### ✨ Added
