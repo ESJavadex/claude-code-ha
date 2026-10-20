@@ -83,6 +83,13 @@ The add-on offers several configuration options:
 - **± Changes** lists what changed in `/config` since the last checkpoint, with a coloured diff per file. **↩ Revert file** restores a file (two clicks) and **✓ Accept all changes** saves a new checkpoint. It uses git: if `/config` isn't a repository yet, the tab offers to create a local one (leaving out `secrets.yaml`, `.storage`, databases and logs). Nothing is pushed anywhere
 - Files and Recent are read-only. Changes only writes when you click Revert, Accept or Start tracking. Everything is limited to `/config`
 
+### Giving Claude Files
+- Paste (Cmd/Ctrl+V), drag-and-drop onto the terminal, or **📎 Upload** to send images, PDFs, text, YAML, CSV, logs, code or any other file. Several at once work too. Each file is saved to `/data/uploads` and its path is typed at the prompt, ready for your question
+- Names are kept, cleaned up for the prompt and given a time stamp, e.g. `/data/uploads/20261020-141233-automations.yaml`. Up to 50 MB per file
+- Pasting a file copied in Finder or Explorer works in Safari and recent Chrome/Edge; drag-and-drop works in every browser. On an iPhone or iPad, use 📎 to pick from Photos or the Files app
+- Claude is started with `--add-dir /data/uploads`, so it can read uploads without asking. If you start `claude` yourself from a shell, add that flag, or Claude asks before reading each one
+- Uploads are left out of Home Assistant backups and removed after 30 days. Files you want to keep belong in `/config` or `/share`
+
 ### Copying Text Out of the Terminal
 
 There are four ways, and which ones you need depends on the device:

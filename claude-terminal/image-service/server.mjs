@@ -3,13 +3,14 @@
 /**
  * Claude Terminal Pro - Image Upload Service
  *
- * Lightweight Express server that handles image uploads from browser paste/drag-drop.
+ * Lightweight Express server that handles file uploads (images, PDFs, text,
+ * anything Claude can read) from browser paste/drag-drop.
  * Designed for resource-constrained environments (Raspberry Pi).
  *
  * Features:
  * - Serves custom HTML interface with embedded ttyd terminal
- * - Handles image uploads via POST /upload
- * - Saves images to /data/images (persistent storage)
+ * - Handles file uploads via POST /upload
+ * - Saves them to /data/uploads (left out of backups, pruned after 30 days)
  * - Returns file paths for use with Claude CLI
  * - ARM-compatible (no native dependencies)
  */
@@ -23,11 +24,13 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { register as registerFilesApi } from './files-api.mjs';
 import { register as registerGitApi } from './git-api.mjs';
+import { uploadFileName, uniqueName } from './uploads.mjs';
 
 const app = express();
 const PORT = process.env.IMAGE_SERVICE_PORT || 7680;
 const TTYD_PORT = process.env.TTYD_PORT || 7681;
-const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/images';
+const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/uploads';
+const MAX_UPLOAD_MB = 50;
 // Set by run.sh from the add-on metadata; shown in the panel header
 const ADDON_VERSION = process.env.ADDON_VERSION || '';
 // Set by run.sh when port 7680 is published to the host
@@ -41,42 +44,24 @@ if (!fs.existsSync(UPLOAD_DIR)) {
     console.log(`Created upload directory: ${UPLOAD_DIR}`);
 }
 
-const MIME_EXTENSIONS = {
-    'image/jpeg': '.jpg',
-    'image/png': '.png',
-    'image/gif': '.gif',
-    'image/webp': '.webp',
-    'image/svg+xml': '.svg'
-};
-
-// Configure multer for image uploads
+// Any file type: Claude reads PDFs, text, code and data as well as images.
+// Files are only stored, never run, and whoever can reach this page already
+// has a root shell in the add-on.
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
-        const timestamp = Date.now();
-        // The extension comes from the MIME type, never the browser's file
-        // name: the path is typed at the prompt after upload
-        const ext = MIME_EXTENSIONS[file.mimetype] || '.png';
-        const filename = `pasted-${timestamp}${ext}`;
-        cb(null, filename);
+        // The path is typed at the prompt after upload, so the browser's
+        // name is reduced to characters that need no quoting
+        cb(null, uniqueName(UPLOAD_DIR, uploadFileName(file.originalname, file.mimetype)));
     }
 });
 
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB max file size
-    },
-    fileFilter: (req, file, cb) => {
-        // Accept images only
-        const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-        if (allowedMimes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Only image files are allowed'));
-        }
+        fileSize: MAX_UPLOAD_MB * 1024 * 1024
     }
 });
 
@@ -102,14 +87,14 @@ registerFilesApi(app);
 // Changes tab: git status/diff of /config, revert and checkpoints
 registerGitApi(app);
 
-// Image upload endpoint
-app.post('/upload', upload.single('image'), (req, res) => {
+// File upload endpoint
+app.post('/upload', upload.single('file'), (req, res) => {
     if (!req.file) {
-        return res.status(400).json({ error: 'No image file provided' });
+        return res.status(400).json({ error: 'No file provided' });
     }
 
     const filePath = path.join(UPLOAD_DIR, req.file.filename);
-    console.log(`Image uploaded: ${filePath} (${(req.file.size / 1024).toFixed(2)} KB)`);
+    console.log(`File uploaded: ${filePath} (${(req.file.size / 1024).toFixed(2)} KB)`);
 
     res.json({
         success: true,
@@ -156,9 +141,12 @@ app.use(express.static(path.join(import.meta.dirname, 'public')));
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         console.error('Multer error:', err.message);
+        const message = err.code === 'LIMIT_FILE_SIZE'
+            ? `File too large (the limit is ${MAX_UPLOAD_MB} MB)`
+            : `Upload error: ${err.message}`;
         return res.status(400).json({
             success: false,
-            error: `Upload error: ${err.message}`
+            error: message
         });
     }
 

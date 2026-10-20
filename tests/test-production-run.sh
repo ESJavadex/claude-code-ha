@@ -190,14 +190,14 @@ cmp -s "$tmp_dir/expected.log" "$PERSIST_INSTALL_LOG" || fail "package failure d
 
 # Launch flags: built once as shell text, then parsed exactly once by eval,
 # so quoting in claude_extra_args survives into separate argv entries.
-[ -z "$(build_claude_flags)" ] || fail "no options should mean no flags"
+[ "$(build_claude_flags)" = "--add-dir /data/uploads" ] || fail "no options should mean only the uploads folder"
 config_dangerous=true
 config_remote_control=true
 config_extra_args="--model x --append-system-prompt 'be terse'"
 flags=$(build_claude_flags)
 argv_dump() { for a in "$@"; do printf '[%s]' "$a"; done; }
 got=$(eval "argv_dump $flags")
-[ "$got" = "[--dangerously-skip-permissions][--remote-control][Home Assistant][--model][x][--append-system-prompt][be terse]" ] || \
+[ "$got" = "[--add-dir][/data/uploads][--dangerously-skip-permissions][--remote-control][Home Assistant][--model][x][--append-system-prompt][be terse]" ] || \
     fail "flags must parse into the expected argv, got: $got"
 launch=$(get_claude_launch_command)
 [[ "$launch" == *"/usr/local/bin/claude $flags"* ]] || fail "auto-launch command must carry the flags"
@@ -220,5 +220,16 @@ config_working_directory=''
 
 grep -q 'new-session -s claude -c "${CLAUDE_WORKDIR:-/config}"' "$TMUX_WRAPPER_PATH" || \
     fail "tmux wrapper must start new sessions in CLAUDE_WORKDIR"
+
+# Uploads older than 30 days go; newer ones and missing folders are fine
+UPLOAD_PRUNE_DIRS="$tmp_dir/uploads $tmp_dir/images $tmp_dir/missing"
+mkdir -p "$tmp_dir/uploads" "$tmp_dir/images"
+touch "$tmp_dir/uploads/new.pdf"
+touch -t 202001010000 "$tmp_dir/uploads/old.pdf" "$tmp_dir/images/pasted-1.png"
+prune_uploads
+[ -f "$tmp_dir/uploads/new.pdf" ] || fail "prune_uploads must keep recent uploads"
+[ ! -e "$tmp_dir/uploads/old.pdf" ] || fail "prune_uploads must remove uploads older than 30 days"
+[ ! -e "$tmp_dir/images/pasted-1.png" ] || fail "prune_uploads must also clear the pre-2.3.7 images folder"
+unset UPLOAD_PRUNE_DIRS
 
 echo "Production run.sh regression suite passed"
