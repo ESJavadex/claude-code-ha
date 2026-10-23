@@ -1,13 +1,20 @@
 name: CI
 
-# Small quality gate for the add-on: shell lint, metadata consistency,
-# JS syntax and the existing regression suites, plus a real amd64 image build
-# (the Supervisor builds the add-on itself from this repository).
+# Validate every PR and build every architecture the add-on advertises.
+# Images are only tested here; the Supervisor builds installed releases.
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+  schedule:
+    # Catch upstream package/base-image changes even when the repo is quiet.
+    - cron: '23 7 * * 1'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -15,15 +22,35 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+
+      - name: Install metadata checker dependency
+        run: python3 -m pip install 'PyYAML==6.0.3'
 
       - name: ShellCheck (errors and warnings)
-        run: shellcheck --severity=warning $(git ls-files '*.sh')
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck --severity=warning
 
       - name: Add-on metadata checks (YAML, versions, archs)
         run: python3 scripts/check-addon-metadata.py
+
+      - name: Generate build matrix from add-on metadata
+        id: matrix
+        run: python3 scripts/ci-build-matrix.py >> "$GITHUB_OUTPUT"
 
       - name: JavaScript syntax check
         run: git ls-files '*.js' '*.mjs' | xargs -n1 node --check
@@ -36,26 +63,112 @@ jobs:
       - name: npm audit gate
         run: python3 scripts/npm-audit-gate.py
 
-  docker-build:
+  workflow-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      # Catches Dockerfile / npm install breakage before users hit it.
-      - name: Build the add-on image (amd64)
+      - name: Validate GitHub Actions workflows
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color
+
+  docker-images:
+    name: docker-build (${{ matrix.arch }})
+    needs: checks
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.checks.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up ARMv7 emulation
+        if: matrix.arch == 'armv7'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          platforms: arm
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build the add-on image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: claude-terminal
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            BUILD_FROM=${{ matrix.base }}
+            BUILD_ARCH=${{ matrix.arch }}
+          tags: claude-terminal-test
+          load: true
+          pull: true
+          no-cache: ${{ github.event_name == 'schedule' }}
+          cache-from: type=gha,scope=addon-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=addon-${{ matrix.arch }}
+
+      # Running the binaries catches wrong-architecture downloads and missing
+      # shared libraries that a successful docker build alone can miss.
+      - name: Verify packaged tools run
         run: |
-          docker build \
-            --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 \
-            --build-arg BUILD_ARCH=amd64 \
-            -t claude-terminal-test claude-terminal
+          docker run --rm --platform "$TEST_PLATFORM" --entrypoint sh claude-terminal-test -ec '
+            node --version
+            claude --version
+            ha --help
+            gh --version
+            ttyd --version
+            tmux -V
+            bash -n /run.sh /opt/scripts/*.sh
+          '
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
 
       - name: Image service starts and answers /health
         run: |
           docker run -d --name cch -e UPLOAD_DIR=/tmp/up --entrypoint sh claude-terminal-test \
             -c 'cd /opt/image-service && node server.mjs'
-          for i in $(seq 1 15); do
+          for _ in $(seq 1 30); do
             docker exec cch wget -qO- http://127.0.0.1:7680/health && exit 0
             sleep 1
           done
           docker logs cch; exit 1
+
+      - name: Collect failure diagnostics
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          docker ps -a > ci-logs/containers.txt
+          docker logs cch > ci-logs/service.log 2>&1 || true
+          docker inspect cch > ci-logs/container.json 2>&1 || true
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-logs-${{ matrix.arch }}
+          path: ci-logs/
+          retention-days: 7
+
+      - name: Remove test container
+        if: always()
+        run: docker rm -f cch 2>/dev/null || true
+
+  # Keep the existing required check name so branch protection continues to
+  # work. A failed or skipped matrix/lint job must never produce a green gate.
+  docker-build:
+    if: always()
+    needs: [checks, workflow-lint, docker-images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require all validation and architecture jobs to pass
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          LINT_RESULT: ${{ needs.workflow-lint.result }}
+          BUILD_RESULT: ${{ needs.docker-images.result }}
+        run: |
+          test "$CHECKS_RESULT" = success
+          test "$LINT_RESULT" = success
+          test "$BUILD_RESULT" = success
