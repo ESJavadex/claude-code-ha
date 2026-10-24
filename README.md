@@ -44,7 +44,7 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 - A persistent tmux session: close the tab or restart HA Core and you reattach to the same conversation
 - An optional session picker: new, continue, resume, custom flags, auth helper, `gh` login, bash
 - Copy and paste that work: mouse selection, Claude's `/copy`, **Copy** and **Copy link** buttons, swipe to scroll on touch screens
-- Paste, drop or upload images for Claude to look at; voice input
+- Paste, drop or upload images and other files (PDFs, text, YAML, logs…) for Claude to read; voice input
 
 **Files sidebar**
 - A read-only tree of `/config` with previews. **Insert path** types a file's path at the prompt
