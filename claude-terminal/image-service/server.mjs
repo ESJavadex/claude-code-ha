@@ -24,7 +24,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { register as registerFilesApi } from './files-api.mjs';
 import { register as registerGitApi } from './git-api.mjs';
-import { uploadFileName, uniqueName } from './uploads.mjs';
+import { uploadFileName, reserveName } from './uploads.mjs';
 
 const app = express();
 const PORT = process.env.IMAGE_SERVICE_PORT || 7680;
@@ -53,8 +53,10 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         // The path is typed at the prompt after upload, so the browser's
-        // name is reduced to characters that need no quoting
-        cb(null, uniqueName(UPLOAD_DIR, uploadFileName(file.originalname, file.mimetype)));
+        // name is reduced to characters that need no quoting. reserveName
+        // creates the file, so concurrent uploads never share a name.
+        reserveName(UPLOAD_DIR, uploadFileName(file.originalname, file.mimetype))
+            .then((name) => cb(null, name), cb);
     }
 });
 

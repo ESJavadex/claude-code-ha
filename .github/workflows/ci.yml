@@ -59,3 +59,8 @@ jobs:
             sleep 1
           done
           docker logs cch; exit 1
+
+      - name: Concurrent same-name uploads keep their own files
+        run: |
+          docker run --rm -v "$PWD/tests:/tests:ro" --entrypoint node claude-terminal-test \
+            /tests/test-upload-concurrency.mjs /opt/image-service/server.mjs

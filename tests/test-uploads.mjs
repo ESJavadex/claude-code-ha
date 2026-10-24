@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { uploadFileName, uniqueName } from '../claude-terminal/image-service/uploads.mjs';
+import { uploadFileName, reserveName } from '../claude-terminal/image-service/uploads.mjs';
 
 const now = new Date(2026, 9, 20, 14, 12, 33);
 let passed = 0;
@@ -33,17 +33,21 @@ ok('a name of only symbols falls back', () =>
     assert.strictEqual(named('???.pdf', 'application/pdf'), '20261020-141233-upload.pdf'));
 ok('long names are cut', () =>
     assert.ok(named('x'.repeat(300) + '.txt').length <= '20261020-141233-'.length + 60 + 4));
-ok('a clash gets -2, then -3', () => {
+const okAsync = async (name, fn) => { await fn(); passed++; console.log('ok   ' + name); };
+const withDir = async (fn) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uploads-'));
-    try {
-        assert.strictEqual(uniqueName(dir, 'a.txt'), 'a.txt');
-        fs.writeFileSync(path.join(dir, 'a.txt'), '');
-        assert.strictEqual(uniqueName(dir, 'a.txt'), 'a-2.txt');
-        fs.writeFileSync(path.join(dir, 'a-2.txt'), '');
-        assert.strictEqual(uniqueName(dir, 'a.txt'), 'a-3.txt');
-    } finally {
-        fs.rmSync(dir, { recursive: true, force: true });
-    }
-});
+    try { await fn(dir); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+};
+
+await okAsync('a clash gets -2, then -3, and the name is claimed', () => withDir(async (dir) => {
+    assert.strictEqual(await reserveName(dir, 'a.txt'), 'a.txt');
+    assert.ok(fs.existsSync(path.join(dir, 'a.txt')));
+    assert.strictEqual(await reserveName(dir, 'a.txt'), 'a-2.txt');
+    assert.strictEqual(await reserveName(dir, 'a.txt'), 'a-3.txt');
+}));
+await okAsync('concurrent reservations of one name never share it', () => withDir(async (dir) => {
+    const names = await Promise.all(Array.from({ length: 50 }, () => reserveName(dir, 'same.txt')));
+    assert.strictEqual(new Set(names).size, 50);
+}));
 
 console.log(`\nAll ${passed} upload naming tests passed`);

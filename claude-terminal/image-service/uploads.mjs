@@ -41,12 +41,21 @@ export function uploadFileName(originalName, mimetype, now = new Date()) {
 }
 
 // Two uploads of the same name in the same second get -2, -3, ...
-export function uniqueName(dir, name) {
-    if (!fs.existsSync(path.join(dir, name))) return name;
+// The name is claimed by creating the file with O_EXCL ('wx'), so two
+// requests racing for the same name can never both get it; checking first
+// and creating later would let both pick the name and overwrite each other.
+// The caller then writes into the (empty) file it now owns.
+export async function reserveName(dir, name) {
     const ext = path.extname(name);
     const stem = name.slice(0, name.length - ext.length);
-    for (let n = 2; ; n++) {
-        const candidate = `${stem}-${n}${ext}`;
-        if (!fs.existsSync(path.join(dir, candidate))) return candidate;
+    for (let n = 1; ; n++) {
+        const candidate = n === 1 ? name : `${stem}-${n}${ext}`;
+        try {
+            const handle = await fs.promises.open(path.join(dir, candidate), 'wx', 0o644);
+            await handle.close();
+            return candidate;
+        } catch (err) {
+            if (err.code !== 'EEXIST') throw err;
+        }
     }
 }
