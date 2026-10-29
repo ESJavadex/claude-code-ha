@@ -2,6 +2,23 @@
 
 This guide covers local development and testing workflows for the Claude Terminal add-on.
 
+## GitHub Actions checks
+
+Every pull request and push to `main` runs shell lint, metadata validation,
+JavaScript syntax checks, regression suites, npm audit and workflow validation
+with actionlint. CI then builds all architectures listed in the add-on manifest:
+amd64 and aarch64 on native runners, and armv7 with QEMU. Each image must run its
+packaged tools and start the image service successfully. Failed container checks
+upload diagnostics for seven days. CI does not publish or deploy images.
+
+The same workflow can be started from **Actions → CI → Run workflow** and runs
+weekly to detect breakage from upstream packages and base images. Superseded runs
+on the same branch/PR are cancelled. Dependabot opens weekly updates for Actions
+and the image service's npm dependencies; updates still go through these checks.
+
+To add another supported architecture, update the add-on metadata and the
+platform/runner mapping in `scripts/ci-build-matrix.py`.
+
 ## Local Container Testing
 
 ### Prerequisites
