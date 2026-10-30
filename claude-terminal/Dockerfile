@@ -4,7 +4,10 @@ FROM ${BUILD_FROM}
 # Install packages in a single layer to minimize image size
 # Node.js and npm kept for image-service dependency. ttyd and tmux are baked in
 # (they used to be apk-installed on every boot) so startup never needs the network.
-RUN apk add --no-cache \
+# apk upgrade first: the base image is only as fresh as its last publish, and
+# Alpine ships security fixes as package revisions in between.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache \
     nodejs \
     npm \
     bash \

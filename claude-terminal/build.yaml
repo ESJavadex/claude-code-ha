@@ -1,6 +1,9 @@
+# Alpine 3.21 reaches end of life on 2026-11-01. Home Assistant stopped
+# publishing armv7 base images after 3.22 (November 2025), so armv7 stays on
+# the last 3.21 image until it is dropped.
 build_from:
-  aarch64: ghcr.io/home-assistant/aarch64-base:3.21
-  amd64: ghcr.io/home-assistant/amd64-base:3.21
+  aarch64: ghcr.io/home-assistant/aarch64-base:3.24
+  amd64: ghcr.io/home-assistant/amd64-base:3.24
   armv7: ghcr.io/home-assistant/armv7-base:3.21
 
 labels:
@@ -9,4 +12,4 @@ labels:
   org.opencontainers.image.source: "https://github.com/anthropics/claude-code"
   org.opencontainers.image.licenses: "MIT"
 
-  org.opencontainers.image.version: "2.3.6"
+  org.opencontainers.image.version: "2.3.8"
