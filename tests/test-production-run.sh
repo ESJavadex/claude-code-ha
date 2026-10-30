@@ -260,12 +260,18 @@ printf 'Metadata-Version: 2.1\nName: Requests\nVersion: 2.32.3\n\nName: not-this
 printf 'Name: pip\n' > "$venv/lib/python3.12/site-packages/pip-24.3.1.dist-info/METADATA"
 printf 'Name: six\n' > "$venv/lib/python3.12/site-packages/six-1.17.0.dist-info/METADATA"
 printf 'Name: broken\n' > "$venv/lib/python3.12/site-packages/broken-1.0.dist-info/METADATA"
+mkdir -p "$venv/lib/python3.12/site-packages/mytool-0.1.dist-info"
+printf 'Name: mytool\n' > "$venv/lib/python3.12/site-packages/mytool-0.1.dist-info/METADATA"
+printf '{"url": "git+https://example.com/mytool.git", "vcs_info": {"vcs": "git"}}\n' \
+    > "$venv/lib/python3.12/site-packages/mytool-0.1.dist-info/direct_url.json"
 fake_pip="$tmp_dir/fake-pip"
 cat > "$fake_pip" << 'FAKE'
 #!/usr/bin/env bash
-# pip install -q NAME
-[ "$3" = broken ] && exit 1
-echo "$3" >> "$PIP_LOG"
+# pip install -q ... NAME: the name is the last argument
+name="${!#}"
+[ "$name" = broken ] && exit 1
+echo "$*" >> "$PIP_ARGS_LOG"
+echo "$name" >> "$PIP_LOG"
 FAKE
 fake_python="$tmp_dir/fake-python"
 cat > "$fake_python" << 'FAKE'
@@ -277,7 +283,7 @@ printf 'version = 3.14.10\n' > "$3/pyvenv.cfg"
 cp "$FAKE_PIP" "$3/bin/pip"
 FAKE
 chmod +x "$fake_python" "$fake_pip"
-export FAKE_PIP="$fake_pip" PIP_LOG="$tmp_dir/pip.log"
+export FAKE_PIP="$fake_pip" PIP_LOG="$tmp_dir/pip.log" PIP_ARGS_LOG="$tmp_dir/pip-args.log"
 warnings="$tmp_dir/warnings"
 bashio::log.warning() { echo "$*" >> "$warnings"; }
 PERSIST_VENV="$venv" PYTHON_BIN="$fake_python" migrate_python_venv
@@ -285,7 +291,14 @@ PERSIST_VENV="$venv" PYTHON_BIN="$fake_python" migrate_python_venv
     fail "the rebuilt venv must reinstall the old packages (not pip), got: $(cat "$tmp_dir/pip.log")"
 grep -q 'version = 3.14' "$venv/pyvenv.cfg" || fail "the venv must be recreated for the new Python"
 [ ! -e "$venv/lib/python3.12" ] || fail "the old venv must be removed"
-grep -q 'Could not reinstall: broken' "$warnings" || fail "a failed reinstall must be named in the log"
+todo="$tmp_dir/reinstall-needed.txt"
+grep -qx 'broken' "$todo" || fail "a failed reinstall must be kept in reinstall-needed.txt"
+grep -qx 'mytool (from git+https://example.com/mytool.git)' "$todo" || \
+    fail "a package installed from a URL must be listed with its source, not reinstalled by name"
+! grep -q mytool "$tmp_dir/pip.log" || fail "a package installed from a URL must not be reinstalled from PyPI"
+grep -q 'broken.*mytool\|mytool.*broken' "$warnings" || fail "packages to reinstall by hand must be named in the log"
+grep -q -- '--timeout 10 --retries 1' "$tmp_dir/pip-args.log" || \
+    fail "reinstalls must use a short timeout so an offline boot doesn't stall"
 rm -f "$tmp_dir/pip.log"
 PERSIST_VENV="$venv" PYTHON_BIN="$fake_python" migrate_python_venv
 [ ! -e "$tmp_dir/pip.log" ] || fail "a venv for the current Python must be left alone"

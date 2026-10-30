@@ -21,8 +21,12 @@
   upgrade.** Their venv in `/data` belongs to the Python that created it, so
   after 3.12 → 3.14 its packages no longer imported and its `pip` broke. At
   startup the add-on now notices the version change, rebuilds the venv and
-  reinstalls what it held (this needs the network). Anything it can't
-  reinstall is named in the log.
+  reinstalls what it held from PyPI (this needs the network; each package
+  gives up after a short timeout, so an offline boot isn't held up).
+  Packages installed from a URL, a path or a wheel aren't reinstalled by
+  name, which could fetch an unrelated package. Those, and anything that
+  fails, are named in the log and kept in
+  `/data/packages/python/reinstall-needed.txt`.
 - **A warning for system packages installed by hand with `persist-install`.**
   They are copies from the Alpine release they were installed on. After the
   base image moves to a new release, the log lists them so they can be

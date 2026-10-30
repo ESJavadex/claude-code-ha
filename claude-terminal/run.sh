@@ -251,10 +251,15 @@ prune_claude_versions() {
 # When an update brings a new Python (Alpine 3.21's 3.12 -> 3.24's 3.14), its
 # packages stop importing and its own pip breaks, and nothing repairs it:
 # venv/bin/python still resolves, to the new interpreter. Recreate the venv
-# and reinstall what it held, one package at a time (needs the network).
+# and reinstall what it held from PyPI, one package at a time (needs the
+# network). A package installed from a URL, a path or a wheel (PEP 610
+# direct_url.json) is not reinstalled by name, which could fetch an unrelated
+# PyPI package. What needs a manual reinstall is kept in a file, because the
+# old venv, and with it the list, is gone after this boot.
 migrate_python_venv() {
     local venv="${PERSIST_VENV:-/data/packages/python/venv}"
     local python="${PYTHON_BIN:-python3}"
+    local todo="${venv%/*}/reinstall-needed.txt"
     [ -f "$venv/pyvenv.cfg" ] || return 0
 
     local old new
@@ -264,15 +269,20 @@ migrate_python_venv() {
         return 0
     fi
 
-    local -a packages=() failed=()
-    local meta name
-    for meta in "$venv/lib/python$old/site-packages"/*.dist-info/METADATA; do
-        [ -f "$meta" ] || continue
-        name=$(sed -n '/^Name:/{s/^Name: *//;p;q;}' "$meta")
+    local -a packages=() manual=()
+    local info name url
+    for info in "$venv/lib/python$old/site-packages"/*.dist-info; do
+        [ -f "$info/METADATA" ] || continue
+        name=$(sed -n '/^Name:/{s/^Name: *//;p;q;}' "$info/METADATA")
         case "$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')" in
             ''|pip|setuptools|wheel) continue ;;
         esac
-        packages+=("$name")
+        if [ -f "$info/direct_url.json" ]; then
+            url=$(jq -r '.url // empty' "$info/direct_url.json" 2>/dev/null) || url=""
+            manual+=("$name${url:+ (from $url)}")
+        else
+            packages+=("$name")
+        fi
     done
 
     bashio::log.warning "Python changed from $old to $new: rebuilding the persist-install venv"
@@ -282,12 +292,18 @@ migrate_python_venv() {
         return 0
     fi
 
+    # Short timeout and one retry: this runs before the terminal starts, so
+    # an offline boot must not wait out pip's defaults for every package
     for name in "${packages[@]}"; do
         bashio::log.info "  Reinstalling: $name"
-        "$venv/bin/pip" install -q "$name" || failed+=("$name")
+        "$venv/bin/pip" install -q --disable-pip-version-check --timeout 10 --retries 1 "$name" || \
+            manual+=("$name")
     done
-    if [ "${#failed[@]}" -gt 0 ]; then
-        bashio::log.warning "Could not reinstall: ${failed[*]}. Try again with: persist-install --python ${failed[*]}"
+    if [ "${#manual[@]}" -gt 0 ]; then
+        printf '%s\n' "${manual[@]}" > "$todo"
+        bashio::log.warning "Reinstall these with persist-install --python (list kept in $todo): ${manual[*]}"
+    else
+        rm -f "$todo"
     fi
 }
 
