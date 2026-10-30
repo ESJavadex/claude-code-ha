@@ -135,6 +135,13 @@ jobs:
           done
           docker logs cch; exit 1
 
+      - name: Concurrent same-name uploads keep their own files
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
+            claude-terminal-test /tests/test-upload-concurrency.mjs /opt/image-service/server.mjs
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
+
       - name: Collect failure diagnostics
         if: failure()
         run: |
