@@ -28,7 +28,7 @@ direnv allow
 ### Manual Commands (without aliases)
 ```bash
 # Build
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal-pro ./claude-terminal
+podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 -t local/claude-terminal-pro ./claude-terminal
 
 # Run locally
 podman run -p 7680:7680 -p 7681:7681 -e DEV_DIRECT_ACCESS=1 -v $(pwd)/config:/config local/claude-terminal-pro
@@ -84,7 +84,7 @@ For rapid development and debugging without pushing new versions:
 #### Quick Build & Test
 ```bash
 # Build test version
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal:test ./claude-terminal
+podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 -t local/claude-terminal:test ./claude-terminal
 
 # Create test directories (/data holds all add-on state, /config is HA's config dir)
 mkdir -p /tmp/test-config /tmp/test-data /tmp/test-tmp/.bashio
@@ -153,6 +153,7 @@ podman exec test-claude-dev chmod +x /opt/scripts/claude-session-picker.sh
 - **Indentation**: 2 spaces for YAML, 4 spaces for shell scripts
 - **Error Handling**: Use `bashio::log.error` for error reporting
 - **Permissions**: Credential files must have 600 permissions
+- **Option reads**: `run.sh` runs under `set -e`, and on the Alpine 3.24 base `bashio::config` fails (instead of returning empty) when the Supervisor API can't be reached. Give every read assigned to a variable its default as a fallback: `x=$(bashio::config 'key' 'false') || x='false'`
 
 ### Key Environment Variables
 - `HOME=/data/home`

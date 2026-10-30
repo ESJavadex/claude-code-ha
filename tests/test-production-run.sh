@@ -221,6 +221,117 @@ config_working_directory=''
 grep -q 'new-session -s claude -c "${CLAUDE_WORKDIR:-/config}"' "$TMUX_WRAPPER_PATH" || \
     fail "tmux wrapper must start new sessions in CLAUDE_WORKDIR"
 
+# On the Alpine 3.24 base, bashio::config fails when the Supervisor API can't be
+# reached. Under set -e an unguarded `x=$(bashio::config ...)` ends startup, so
+# every option read must fall back to its default. The subshell runs in the
+# background because bash ignores set -e in a subshell tested with || or if.
+(
+    set -e
+    bashio::config() { return 1; }
+    setup_tmux
+    grep -qx 'set -g mouse off' "$HOME/.tmux.conf"
+    [ "$(get_working_directory)" = "/config" ]
+    [ "$(build_claude_flags)" = "--add-dir /data/uploads" ]
+    [[ "$(get_claude_launch_command)" == *"/usr/local/bin/claude"* ]]
+    unset CLAUDE_CODE_OAUTH_TOKEN
+    export_oauth_token
+    [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]
+    echo survived > "$tmp_dir/option-reads"
+) &
+wait $! || true
+[ "$(cat "$tmp_dir/option-reads" 2>/dev/null)" = "survived" ] || \
+    fail "a failed option read must fall back to the default, not end startup"
+bad_reads=$(grep -nE '^\s*(local )?\w+=\$\(bashio::config [^)]*\)\s*$' "$repo_root/claude-terminal/run.sh" || true)
+[ -z "$bad_reads" ] || fail "option reads without a fallback: $bad_reads"
+
+# bashio_self prefers bashio::app.* (3.24) and falls back to bashio::addon.* (3.21)
+bashio::addon.version() { echo old-name; }
+[ "$(bashio_self version)" = "old-name" ] || fail "bashio_self must fall back to bashio::addon.*"
+bashio::app.version() { echo new-name; }
+[ "$(bashio_self version)" = "new-name" ] || fail "bashio_self must prefer bashio::app.*"
+unset -f bashio::addon.version bashio::app.version
+
+# A venv from an older Python is rebuilt and its packages reinstalled
+venv="$tmp_dir/venv"
+mkdir -p "$venv/lib/python3.12/site-packages/"{Requests-2.32.3,pip-24.3.1,six-1.17.0,broken-1.0}.dist-info
+printf 'version = 3.12.16\n' > "$venv/pyvenv.cfg"
+printf 'Metadata-Version: 2.1\nName: Requests\nVersion: 2.32.3\n\nName: not-this\n' \
+    > "$venv/lib/python3.12/site-packages/Requests-2.32.3.dist-info/METADATA"
+printf 'Name: pip\n' > "$venv/lib/python3.12/site-packages/pip-24.3.1.dist-info/METADATA"
+printf 'Name: six\n' > "$venv/lib/python3.12/site-packages/six-1.17.0.dist-info/METADATA"
+printf 'Name: broken\n' > "$venv/lib/python3.12/site-packages/broken-1.0.dist-info/METADATA"
+mkdir -p "$venv/lib/python3.12/site-packages/mytool-0.1.dist-info"
+printf 'Name: mytool\n' > "$venv/lib/python3.12/site-packages/mytool-0.1.dist-info/METADATA"
+printf '{"url": "git+https://example.com/mytool.git", "vcs_info": {"vcs": "git"}}\n' \
+    > "$venv/lib/python3.12/site-packages/mytool-0.1.dist-info/direct_url.json"
+fake_pip="$tmp_dir/fake-pip"
+cat > "$fake_pip" << 'FAKE'
+#!/usr/bin/env bash
+# pip install -q ... NAME: the name is the last argument
+name="${!#}"
+[ "$name" = broken ] && exit 1
+echo "$*" >> "$PIP_ARGS_LOG"
+echo "$name" >> "$PIP_LOG"
+FAKE
+fake_python="$tmp_dir/fake-python"
+cat > "$fake_python" << 'FAKE'
+#!/usr/bin/env bash
+[ "$1" = "-c" ] && { echo 3.14; exit 0; }
+[ "$1 $2" = "-m venv" ] || exit 1
+mkdir -p "$3/bin"
+printf 'version = 3.14.10\n' > "$3/pyvenv.cfg"
+cp "$FAKE_PIP" "$3/bin/pip"
+FAKE
+chmod +x "$fake_python" "$fake_pip"
+export FAKE_PIP="$fake_pip" PIP_LOG="$tmp_dir/pip.log" PIP_ARGS_LOG="$tmp_dir/pip-args.log"
+warnings="$tmp_dir/warnings"
+bashio::log.warning() { echo "$*" >> "$warnings"; }
+PERSIST_VENV="$venv" PYTHON_BIN="$fake_python" migrate_python_venv
+[ "$(sort "$tmp_dir/pip.log" | tr '\n' ' ')" = "Requests six " ] || \
+    fail "the rebuilt venv must reinstall the old packages (not pip), got: $(cat "$tmp_dir/pip.log")"
+grep -q 'version = 3.14' "$venv/pyvenv.cfg" || fail "the venv must be recreated for the new Python"
+[ ! -e "$venv/lib/python3.12" ] || fail "the old venv must be removed"
+todo="$tmp_dir/reinstall-needed.txt"
+grep -qx 'broken' "$todo" || fail "a failed reinstall must be kept in reinstall-needed.txt"
+grep -qx 'mytool (from git+https://example.com/mytool.git)' "$todo" || \
+    fail "a package installed from a URL must be listed with its source, not reinstalled by name"
+! grep -q mytool "$tmp_dir/pip.log" || fail "a package installed from a URL must not be reinstalled from PyPI"
+grep -q 'broken.*mytool\|mytool.*broken' "$warnings" || fail "packages to reinstall by hand must be named in the log"
+grep -q -- '--timeout 10 --retries 1' "$tmp_dir/pip-args.log" || \
+    fail "reinstalls must use a short timeout so an offline boot doesn't stall"
+rm -f "$tmp_dir/pip.log"
+PERSIST_VENV="$venv" PYTHON_BIN="$fake_python" migrate_python_venv
+[ ! -e "$tmp_dir/pip.log" ] || fail "a venv for the current Python must be left alone"
+
+# Files persist-install copied on an older Alpine release are named once.
+# A file with an identical system copy was just reinstalled from the options.
+persist="$tmp_dir/packages"
+system="$tmp_dir/system"
+mkdir -p "$persist/bin" "$persist/lib" "$system/usr/bin"
+printf 'old htop\n' > "$persist/bin/htop"
+printf 'old lib\n' > "$persist/lib/libfoo.so.1"
+printf 'new ssh\n' > "$persist/bin/ssh"
+printf 'new ssh\n' > "$system/usr/bin/ssh"
+printf '3.24.1\n' > "$tmp_dir/alpine-release"
+check_release() {
+    PERSIST_ROOT="$persist" SYSTEM_ROOT="$system" ALPINE_RELEASE_FILE="$tmp_dir/alpine-release" \
+        check_persisted_alpine_release
+}
+: > "$warnings"
+check_release
+grep -q 'from Alpine 3.21 to 3.24.*htop.*libfoo.so.1' "$warnings" || \
+    fail "files from before the marker existed must be reported after the move to 3.24"
+! grep -q 'ssh' "$warnings" || fail "a file just reinstalled from the options must not be reported"
+[ "$(cat "$persist/.alpine-release")" = "3.24" ] || fail "the current release must be recorded"
+: > "$warnings"
+check_release
+[ ! -s "$warnings" ] || fail "an unchanged release must not warn again"
+printf '3.21.4\n' > "$tmp_dir/alpine-release"
+rm -f "$persist/.alpine-release"
+check_release
+[ ! -s "$warnings" ] || fail "armv7, still on 3.21, must not warn"
+bashio::log.warning() { :; }
+
 # Uploads older than 30 days go; newer ones and missing folders are fine
 UPLOAD_PRUNE_DIRS="$tmp_dir/uploads $tmp_dir/images $tmp_dir/missing"
 mkdir -p "$tmp_dir/uploads" "$tmp_dir/images"

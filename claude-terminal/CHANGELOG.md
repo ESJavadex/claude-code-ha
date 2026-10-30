@@ -1,5 +1,41 @@
 # Changelog
 
+## 2.3.8
+
+### 🔧 Technical
+- **Alpine 3.24 base image on amd64 and aarch64.** Alpine 3.21 reaches end of
+  life on 1 November 2026. This brings Node.js 24, Python 3.14 and tmux 3.7c;
+  ttyd stays at 1.7.7. armv7 stays on 3.21: Home Assistant stopped publishing
+  armv7 base images after November 2025.
+- **Security fixes between base image releases.** The image runs
+  `apk upgrade` before installing packages.
+- **Startup survives an unreachable Supervisor API.** On 3.24, bashio makes an
+  option read fail instead of returning empty, and `run.sh` runs under
+  `set -e`, so the first option read would have ended startup. Every option
+  read now falls back to its default. bashio's renamed `bashio::app.*`
+  functions are used where the image has them, so the log shows no
+  deprecation warnings.
+
+### 🛠 Fixes
+- **Python packages installed with `persist-install` survive the Python
+  upgrade.** Their venv in `/data` belongs to the Python that created it, so
+  after 3.12 → 3.14 its packages no longer imported and its `pip` broke. At
+  startup the add-on now notices the version change, rebuilds the venv and
+  reinstalls what it held from PyPI (this needs the network; each package
+  gives up after a short timeout, so an offline boot isn't held up).
+  Packages installed from a URL, a path or a wheel aren't reinstalled by
+  name, which could fetch an unrelated package. Those, and anything that
+  fails, are named in the log and kept in
+  `/data/packages/python/reinstall-needed.txt`.
+- **A warning for system packages installed by hand with `persist-install`.**
+  They are copies from the Alpine release they were installed on. After the
+  base image moves to a new release, the log lists them so they can be
+  reinstalled. Packages listed in the add-on options are reinstalled at every
+  start anyway.
+
+Adapted from heytcass/home-assistant-addons (2ec549c, 78d7b12 and 6641bfe),
+which took the base image move from @owine's fork.
+
 ## 2.3.7
 
 ### ✨ Added
