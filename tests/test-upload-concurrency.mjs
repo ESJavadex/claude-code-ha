@@ -38,7 +38,7 @@ try {
         try {
             if ((await fetch(`${base}/health`)).ok) break;
         } catch {}
-        // Up to 30 s, like CI's /health check: armv7 runs under emulation
+        // Up to 30 s, like CI's /health check
         if (i > 300) throw new Error('image service did not start');
         await new Promise((r) => setTimeout(r, 100));
     }

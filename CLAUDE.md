@@ -28,7 +28,7 @@ direnv allow
 ### Manual Commands (without aliases)
 ```bash
 # Build
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal-pro ./claude-terminal
+podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 -t local/claude-terminal-pro ./claude-terminal
 
 # Run locally
 podman run -p 7680:7680 -p 7681:7681 -e DEV_DIRECT_ACCESS=1 -v $(pwd)/config:/config local/claude-terminal-pro
@@ -45,7 +45,7 @@ curl -X GET http://localhost:7681/
 ### Add-on Structure (claude-terminal/)
 - **config.yaml** - Home Assistant add-on configuration (multi-arch, ingress, ports)
 - **Dockerfile** - Alpine-based container with Node.js and Claude Code CLI
-- **build.yaml** - Multi-architecture build configuration (amd64, aarch64, armv7)
+- **build.yaml** - Multi-architecture build configuration (amd64, aarch64)
 - **run.sh** - Main startup script: sets up `/data`, tmux, persistent Claude/packages, then starts the image service and ttyd
 - **scripts/** - Session picker, auth helper, `persist-install`, health check, HA CLI installer and API examples
 - **image-service/** - Node.js web page on port 7680 (the ingress panel) that embeds ttyd and handles image upload/paste
@@ -54,7 +54,7 @@ curl -X GET http://localhost:7681/
 1. **Web Terminal**: ttyd on port 7681, attached to a persistent tmux session, embedded in the image-service page on 7680
 2. **Persistent State**: All Claude state (login, settings, history) and installed packages live in the add-on's private `/data`
 3. **Service Integration**: Home Assistant ingress support with panel icon
-4. **Multi-Architecture**: Supports amd64, aarch64, armv7 platforms
+4. **Multi-Architecture**: Supports amd64 and aarch64 (armv7 was dropped in 2.3.9)
 
 ### Persistent State (`/data`)
 `/data` is private to each installed add-on and survives restarts and updates. `run.sh` (`init_environment`) points everything there:
@@ -84,7 +84,7 @@ For rapid development and debugging without pushing new versions:
 #### Quick Build & Test
 ```bash
 # Build test version
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21 -t local/claude-terminal:test ./claude-terminal
+podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 -t local/claude-terminal:test ./claude-terminal
 
 # Create test directories (/data holds all add-on state, /config is HA's config dir)
 mkdir -p /tmp/test-config /tmp/test-data /tmp/test-tmp/.bashio
@@ -153,6 +153,7 @@ podman exec test-claude-dev chmod +x /opt/scripts/claude-session-picker.sh
 - **Indentation**: 2 spaces for YAML, 4 spaces for shell scripts
 - **Error Handling**: Use `bashio::log.error` for error reporting
 - **Permissions**: Credential files must have 600 permissions
+- **Option reads**: `run.sh` runs under `set -e`, and on the Alpine 3.24 base `bashio::config` fails (instead of returning empty) when the Supervisor API can't be reached. Give every read assigned to a variable its default as a fallback: `x=$(bashio::config 'key' 'false') || x='false'`
 
 ### Key Environment Variables
 - `HOME=/data/home`

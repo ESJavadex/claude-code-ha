@@ -22,15 +22,6 @@ detect_arch() {
         aarch64)
             echo "aarch64"
             ;;
-        armv7l)
-            echo "armv7"
-            ;;
-        armv6l)
-            echo "armhf"
-            ;;
-        i386|i686)
-            echo "i386"
-            ;;
         *)
             bashio::log.error "Unsupported architecture: $machine"
             return 1

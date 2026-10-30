@@ -69,7 +69,7 @@ get_installed_version() {
     /usr/local/bin/claude --version 2>/dev/null | awk 'NR==1 {print $1}'
 }
 
-# The version the Update option would install. A pinned spec (ARMv7) is its
+# The version the Update option would install. A pinned spec is its
 # own answer; otherwise ask the npm registry, cached so the menu redraw loop
 # does not hit the network every time. Prints nothing when it cannot tell.
 get_latest_version() {

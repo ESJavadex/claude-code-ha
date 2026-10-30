@@ -9,7 +9,7 @@
 [![Add-on version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FESJavadex%2Fclaude-code-ha%2Fmain%2Fclaude-terminal%2Fconfig.yaml&query=%24.version&label=add-on&color=1f6feb)](claude-terminal/CHANGELOG.md)
 [![Latest release](https://img.shields.io/github/v/release/ESJavadex/claude-code-ha?label=release&color=1f6feb)](https://github.com/ESJavadex/claude-code-ha/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3fb950)](LICENSE)
-[![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64%20%7C%20armv7-8957e5)](#architecture-support)
+[![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-8957e5)](#architecture-support)
 [![Stars](https://img.shields.io/github/stars/ESJavadex/claude-code-ha?style=flat&color=e3b341)](https://github.com/ESJavadex/claude-code-ha/stargazers)
 
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fesjavadex%2Fclaude-code-ha)
@@ -124,11 +124,8 @@ More in [DOCS.md → Security](claude-terminal/DOCS.md#security).
 | --- | --- | --- | --- |
 | `amd64` | native, latest | latest | latest |
 | `aarch64` | native, latest | latest | latest |
-| `armv7` | portable JS `1.0.128` ¹ | `4.46.0` ² | `armv6` build ³ |
 
-¹ Current Claude Code native releases do not publish a 32-bit ARM binary, so armv7 uses the last portable JavaScript release.
-² `4.46.0` is the last HA CLI release that still ships the `ha_armv7` asset (later releases dropped it).
-³ GitHub CLI has no armv7 build; the armv6 binary runs on armv7 and is pinned to a version verified to publish it.
+32-bit ARM (`armv7`) was dropped in 2.3.9: Home Assistant itself stopped shipping for it after 2025.11. Existing armv7 installs keep the version they have.
 
 The target architecture is resolved from Home Assistant's `BUILD_ARCH` build argument, so the image builds correctly on each device without relying on BuildKit-specific variables.
 

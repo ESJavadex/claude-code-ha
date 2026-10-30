@@ -66,7 +66,7 @@ init_environment() {
 
     # Get dangerously-skip-permissions configuration
     local dangerously_skip_permissions
-    dangerously_skip_permissions=$(bashio::config 'dangerously_skip_permissions' 'false')
+    dangerously_skip_permissions=$(bashio::config 'dangerously_skip_permissions' 'false') || dangerously_skip_permissions='false'
     export CLAUDE_DANGEROUS_MODE="$dangerously_skip_permissions"
 
     # This addon always runs as root inside an HA supervisor container.
@@ -247,6 +247,103 @@ prune_claude_versions() {
     fi
 }
 
+# The persist-install venv in /data belongs to the Python that created it.
+# When an update brings a new Python (Alpine 3.21's 3.12 -> 3.24's 3.14), its
+# packages stop importing and its own pip breaks, and nothing repairs it:
+# venv/bin/python still resolves, to the new interpreter. Recreate the venv
+# and reinstall what it held from PyPI, one package at a time (needs the
+# network). A package installed from a URL, a path or a wheel (PEP 610
+# direct_url.json) is not reinstalled by name, which could fetch an unrelated
+# PyPI package. What needs a manual reinstall is kept in a file, because the
+# old venv, and with it the list, is gone after this boot.
+migrate_python_venv() {
+    local venv="${PERSIST_VENV:-/data/packages/python/venv}"
+    local python="${PYTHON_BIN:-python3}"
+    local todo="${venv%/*}/reinstall-needed.txt"
+    [ -f "$venv/pyvenv.cfg" ] || return 0
+
+    local old new
+    old=$(sed -n -E 's/^version(_info)? *= *([0-9]+\.[0-9]+).*/\2/p' "$venv/pyvenv.cfg")
+    new=$("$python" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null) || return 0
+    if [ -z "$old" ] || [ -z "$new" ] || [ "$old" = "$new" ]; then
+        return 0
+    fi
+
+    local -a packages=() manual=()
+    local info name url
+    for info in "$venv/lib/python$old/site-packages"/*.dist-info; do
+        [ -f "$info/METADATA" ] || continue
+        name=$(sed -n '/^Name:/{s/^Name: *//;p;q;}' "$info/METADATA")
+        case "$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')" in
+            ''|pip|setuptools|wheel) continue ;;
+        esac
+        if [ -f "$info/direct_url.json" ]; then
+            url=$(jq -r '.url // empty' "$info/direct_url.json" 2>/dev/null) || url=""
+            manual+=("$name${url:+ (from $url)}")
+        else
+            packages+=("$name")
+        fi
+    done
+
+    bashio::log.warning "Python changed from $old to $new: rebuilding the persist-install venv"
+    rm -rf "$venv"
+    if ! "$python" -m venv "$venv"; then
+        bashio::log.error "Could not recreate $venv; persist-install --python will create it again"
+        return 0
+    fi
+
+    # Short timeout and one retry: this runs before the terminal starts, so
+    # an offline boot must not wait out pip's defaults for every package
+    for name in "${packages[@]}"; do
+        bashio::log.info "  Reinstalling: $name"
+        "$venv/bin/pip" install -q --disable-pip-version-check --timeout 10 --retries 1 "$name" || \
+            manual+=("$name")
+    done
+    if [ "${#manual[@]}" -gt 0 ]; then
+        printf '%s\n' "${manual[@]}" > "$todo"
+        bashio::log.warning "Reinstall these with persist-install --python (list kept in $todo): ${manual[*]}"
+    else
+        rm -f "$todo"
+    fi
+}
+
+# Binaries and libraries that persist-install copied into /data/packages come
+# from the Alpine release they were installed on, and /data/packages/lib is
+# first on LD_LIBRARY_PATH. After the base image moves to a new release, name
+# the files to reinstall. Runs after the auto-install: packages listed in the
+# add-on options were just installed into the system and copied again, so an
+# identical system file means the copy is current. The container's system
+# files come from the image, so a manual install from before has none.
+check_persisted_alpine_release() {
+    local root="${PERSIST_ROOT:-/data/packages}"
+    local system="${SYSTEM_ROOT:-}"
+    local marker="$root/.alpine-release"
+    local current previous
+    current=$(cut -d. -f1,2 "${ALPINE_RELEASE_FILE:-/etc/alpine-release}" 2>/dev/null) || return 0
+    [ -n "$current" ] || return 0
+    # No marker: the files predate 2.3.8, and the base was 3.21 from early 2025
+    previous=$(cat "$marker" 2>/dev/null || echo "3.21")
+
+    if [ "$previous" != "$current" ]; then
+        local -a stale=()
+        local file name
+        for file in "$root"/bin/* "$root"/lib/*; do
+            [ -f "$file" ] || continue
+            name=${file##*/}
+            if cmp -s "$file" "$system/usr/bin/$name" || cmp -s "$file" "$system/usr/sbin/$name" || \
+                cmp -s "$file" "$system/usr/lib/$name"; then
+                continue
+            fi
+            stale+=("$name")
+        done
+        if [ "${#stale[@]}" -gt 0 ]; then
+            bashio::log.warning "The base image moved from Alpine $previous to $current. These files were installed with persist-install on $previous and may not work: ${stale[*]}"
+            bashio::log.warning "Reinstall the packages they came from with persist-install"
+        fi
+    fi
+    mkdir -p "$root" && printf '%s\n' "$current" > "$marker"
+}
+
 # Claude Code's runtime (Bun) requires AVX on x86-64. Hypervisor default CPU
 # types (Proxmox/QEMU kvm64, qemu64) mask it even when the host CPU has it,
 # and every claude invocation then crashes or spins at 100% CPU. Warn in the
@@ -267,7 +364,7 @@ setup_tmux() {
     local tmux_mouse
     local tmux_wrapper="${TMUX_WRAPPER_PATH:-/usr/local/bin/tmux-claude}"
 
-    tmux_mouse=$(bashio::config 'tmux_mouse' 'false')
+    tmux_mouse=$(bashio::config 'tmux_mouse' 'false') || tmux_mouse='false'
     case "${tmux_mouse:-false}" in
         true|on|yes|1) tmux_mouse="on" ;;
         *) tmux_mouse="off" ;;
@@ -328,8 +425,8 @@ setup_persistent_claude() {
     local claude_link="${CLAUDE_BIN_LINK:-/usr/local/bin/claude}"
     local claude_npm_spec="@anthropic-ai/claude-code@latest"
 
-    use_persistent_claude=$(bashio::config 'use_persistent_claude' 'false')
-    auto_update_claude_on_start=$(bashio::config 'auto_update_claude_on_start' 'false')
+    use_persistent_claude=$(bashio::config 'use_persistent_claude' 'false') || use_persistent_claude='false'
+    auto_update_claude_on_start=$(bashio::config 'auto_update_claude_on_start' 'false') || auto_update_claude_on_start='false'
 
     # Exported so the session picker knows whether to offer a manual
     # "Update Claude Code" menu option.
@@ -341,13 +438,6 @@ setup_persistent_claude() {
     fi
 
     mkdir -p "$persistent_root"
-
-    # Current Claude Code native releases do not provide 32-bit ARM binaries.
-    case "$(uname -m)" in
-        armv7l|armv6l|armhf)
-            claude_npm_spec="@anthropic-ai/claude-code@1.0.128"
-            ;;
-    esac
 
     # Exported so the session picker's manual update option can reuse the
     # same install path/spec instead of duplicating the arch resolution.
@@ -548,7 +638,7 @@ build_claude_flags() {
         flags="${flags:+$flags }--remote-control 'Home Assistant'"
     fi
 
-    extra=$(bashio::config 'claude_extra_args' '')
+    extra=$(bashio::config 'claude_extra_args' '') || extra=''
     if [ -n "$extra" ] && [ "$extra" != "null" ]; then
         flags="${flags:+$flags }$extra"
     fi
@@ -561,7 +651,7 @@ build_claude_flags() {
 # terminal. Claude asks its one-time folder-trust question per new directory.
 get_working_directory() {
     local dir
-    dir=$(bashio::config 'working_directory' '')
+    dir=$(bashio::config 'working_directory' '') || dir=''
     if [ -z "$dir" ] || [ "$dir" = "null" ]; then
         echo "/config"
     elif [ -d "$dir" ]; then
@@ -577,7 +667,7 @@ get_working_directory() {
 # itself is never logged.
 export_oauth_token() {
     local token
-    token=$(bashio::config 'claude_code_oauth_token' '')
+    token=$(bashio::config 'claude_code_oauth_token' '') || token=''
     if [ -n "$token" ] && [ "$token" != "null" ]; then
         export CLAUDE_CODE_OAUTH_TOKEN="$token"
         bashio::log.info "CLAUDE_CODE_OAUTH_TOKEN set from add-on configuration"
@@ -610,7 +700,7 @@ get_claude_launch_command() {
     local claude_flags
 
     # Get configuration values
-    auto_launch_claude=$(bashio::config 'auto_launch_claude' 'true')
+    auto_launch_claude=$(bashio::config 'auto_launch_claude' 'true') || auto_launch_claude='true'
     claude_flags=$(build_claude_flags)
 
     if [ "$auto_launch_claude" = "true" ]; then
@@ -638,7 +728,7 @@ get_claude_launch_command() {
 port_is_published() {
     [ "${DEV_DIRECT_ACCESS:-0}" = "1" ] && return 0
     local host_port
-    host_port=$(bashio::addon.port "${1}" 2>/dev/null || true)
+    host_port=$(bashio::app.port "${1}" 2>/dev/null || true)
     [ -n "${host_port}" ] && [ "${host_port}" != "null" ]
 }
 
@@ -660,7 +750,7 @@ start_image_service() {
     export IMAGE_SERVICE_PORT="${image_port}"
     export TTYD_PORT="${ttyd_port}"
     export UPLOAD_DIR="${upload_dir}"
-    ADDON_VERSION="$(bashio::addon.version)"
+    ADDON_VERSION="$(bashio::app.version)" || ADDON_VERSION=""
     export ADDON_VERSION
 
     # Without a published port, only ingress (and the container itself) may
@@ -754,7 +844,7 @@ start_web_terminal() {
 
     # Log the configuration being used
     local auto_launch_claude
-    auto_launch_claude=$(bashio::config 'auto_launch_claude' 'true')
+    auto_launch_claude=$(bashio::config 'auto_launch_claude' 'true') || auto_launch_claude='true'
     bashio::log.info "Auto-launch Claude: ${auto_launch_claude}"
 
     # Start the image upload service first
@@ -813,10 +903,12 @@ main() {
     init_environment
     check_cpu_features
     clean_persistent_storage
+    migrate_python_venv
     setup_tmux
     setup_persistent_claude
     setup_session_picker
     setup_persistent_packages
+    check_persisted_alpine_release
     run_init_commands
     start_web_terminal
 }
