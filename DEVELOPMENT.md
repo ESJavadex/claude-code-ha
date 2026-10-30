@@ -6,8 +6,8 @@ This guide covers local development and testing workflows for the Claude Termina
 
 Every pull request and push to `main` runs shell lint, metadata validation,
 JavaScript syntax checks, regression suites, npm audit and workflow validation
-with actionlint. CI then builds all architectures listed in the add-on manifest:
-amd64 and aarch64 on native runners, and armv7 with QEMU. Each image must run its
+with actionlint. CI then builds all architectures listed in the add-on manifest,
+amd64 and aarch64, each on a native runner. Each image must run its
 packaged tools and start the image service successfully. Failed container checks
 upload diagnostics for seven days. CI does not publish or deploy images.
 
@@ -342,9 +342,4 @@ podman build --platform linux/arm64 \
   --build-arg BUILD_ARCH=aarch64 \
   --build-arg BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.24 \
   -t local/claude-terminal:arm64 ./claude-terminal
-
-podman build --platform linux/arm/v7 \
-  --build-arg BUILD_ARCH=armv7 \
-  --build-arg BUILD_FROM=ghcr.io/home-assistant/armv7-base:3.21 \
-  -t local/claude-terminal:armv7 ./claude-terminal
 ```

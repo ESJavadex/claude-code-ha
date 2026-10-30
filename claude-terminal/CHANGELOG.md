@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.3.9
+
+### 🔧 Technical
+- **armv7 (32-bit ARM) is no longer supported.** Home Assistant Core was last
+  built for armv7 in 2025.11, and Home Assistant stopped publishing armv7 base
+  images after November 2025, so armv7 was stuck on Alpine 3.21 (end of life
+  on 1 November 2026). Every armv7 tool was also pinned to an old release
+  (Claude Code 1.0.128, HA CLI 4.46.0, GitHub CLI 2.96.0).
+  - **Existing armv7 installs keep the version they have.** The add-on store
+    no longer offers updates to them.
+  - The add-on now builds for amd64 and aarch64 only. The Dockerfile's 32-bit
+    paths, the armv7 CI build under QEMU and the armv7 docs are gone, and
+    `run.sh` calls bashio's `bashio::app.*` functions directly, since every
+    image now uses the 3.24 base.
+  - Discussed in #55.
+
 ## 2.3.8
 
 ### 🔧 Technical

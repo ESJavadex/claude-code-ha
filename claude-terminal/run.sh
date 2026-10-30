@@ -439,13 +439,6 @@ setup_persistent_claude() {
 
     mkdir -p "$persistent_root"
 
-    # Current Claude Code native releases do not provide 32-bit ARM binaries.
-    case "$(uname -m)" in
-        armv7l|armv6l|armhf)
-            claude_npm_spec="@anthropic-ai/claude-code@1.0.128"
-            ;;
-    esac
-
     # Exported so the session picker's manual update option can reuse the
     # same install path/spec instead of duplicating the arch resolution.
     export PERSISTENT_CLAUDE_ROOT="$persistent_root"
@@ -729,26 +722,13 @@ get_claude_launch_command() {
 }
 
 
-# bashio in the Alpine 3.24 base renamed bashio::addon.* to bashio::app.* and
-# logs a deprecation warning for every old call; armv7's 3.21 base has only
-# the old names. Use whichever this image has.
-bashio_self() {
-    local name="$1"
-    shift
-    if declare -F "bashio::app.${name}" >/dev/null; then
-        "bashio::app.${name}" "$@"
-    else
-        "bashio::addon.${name}" "$@"
-    fi
-}
-
 # True if the user has mapped this container port to a host port.
 # DEV_DIRECT_ACCESS=1 (docker/podman -e, for local testing without a
 # Supervisor) forces it; add-on users have no way to set it.
 port_is_published() {
     [ "${DEV_DIRECT_ACCESS:-0}" = "1" ] && return 0
     local host_port
-    host_port=$(bashio_self port "${1}" 2>/dev/null || true)
+    host_port=$(bashio::app.port "${1}" 2>/dev/null || true)
     [ -n "${host_port}" ] && [ "${host_port}" != "null" ]
 }
 
@@ -770,7 +750,7 @@ start_image_service() {
     export IMAGE_SERVICE_PORT="${image_port}"
     export TTYD_PORT="${ttyd_port}"
     export UPLOAD_DIR="${upload_dir}"
-    ADDON_VERSION="$(bashio_self version)" || ADDON_VERSION=""
+    ADDON_VERSION="$(bashio::app.version)" || ADDON_VERSION=""
     export ADDON_VERSION
 
     # Without a published port, only ingress (and the container itself) may
