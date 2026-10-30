@@ -32,6 +32,27 @@
 Adapted from heytcass/home-assistant-addons (2ec549c, 78d7b12 and 6641bfe),
 which took the base image move from @owine's fork.
 
+## 2.3.7
+
+### ✨ Added
+- **Upload any file, not just images.** Paste, drag-and-drop and 📎 now take
+  PDFs, text, YAML, CSV, logs, code and anything else Claude can read, and
+  several at once. Each file's path is typed at the prompt as before.
+  - Files keep a cleaned-up version of their name, e.g.
+    `/data/uploads/20261020-141233-automations.yaml`, so Claude can tell
+    what kind of file it is. The limit is 50 MB per file (was 10 MB).
+  - On an iPhone or iPad, 📎 now opens the Files picker as well as Photos.
+  - Claude is started with `--add-dir /data/uploads`, so it reads uploaded
+    files without asking for permission each time.
+  - Pasting a file copied in Finder or Explorer works in Safari and recent
+    Chrome/Edge.
+  - Dropping a file onto the terminal itself uploads it. Before, the drop
+    reached the terminal's frame and the browser opened the file in a new
+    tab instead.
+- **Uploads stay out of backups and are cleaned up.** `/data/uploads` (and
+  `/data/images`, where pasted images went before) are left out of Home
+  Assistant backups, and files older than 30 days are removed on startup.
+
 ## 2.3.6
 
 ### 🛠 Fixes

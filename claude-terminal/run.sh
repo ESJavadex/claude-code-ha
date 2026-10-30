@@ -193,6 +193,24 @@ migrate_legacy_auth_files() {
 clean_persistent_storage() {
     rm -rf "$HOME/.npm" "$XDG_CACHE_HOME/pip"
     prune_claude_versions
+    prune_uploads
+}
+
+# Files pasted, dropped or uploaded in the panel are only needed while Claude
+# works on them, so drop ones older than UPLOAD_MAX_AGE_DAYS. /data/images is
+# where images went before 2.3.7. Both are left out of backups.
+prune_uploads() {
+    local days="${UPLOAD_MAX_AGE_DAYS:-30}"
+    local dir pruned=0 count
+    for dir in ${UPLOAD_PRUNE_DIRS:-/data/uploads /data/images}; do
+        [ -d "$dir" ] || continue
+        count=$(find "$dir" -type f -mtime +"$days" -print -delete 2>/dev/null | wc -l)
+        pruned=$((pruned + count))
+    done
+    if [ "$pruned" -gt 0 ]; then
+        bashio::log.info "Removed $pruned uploaded file(s) older than $days days"
+    fi
+    return 0
 }
 
 # A native Claude Code update (`claude update`, or `claude install`) leaves
@@ -592,11 +610,15 @@ auto_install_packages() {
 # claude_extra_args works: --append-system-prompt 'be terse' arrives as one
 # argument.
 build_claude_flags() {
-    local flags=""
+    # Files pasted or dropped in the panel land in /data/uploads, outside the
+    # working directory, so Claude would ask before every read. Make it one
+    # of Claude's working directories. First, so the list-taking flag is
+    # always followed by another option, never a prompt.
+    local flags="--add-dir /data/uploads"
     local extra
 
     if [ "$(bashio::config 'dangerously_skip_permissions' 'false')" = "true" ]; then
-        flags="--dangerously-skip-permissions"
+        flags="${flags:+$flags }--dangerously-skip-permissions"
     fi
 
     # The interactive flag, not `claude remote-control` server mode: the
@@ -718,7 +740,7 @@ port_is_published() {
 start_image_service() {
     local image_port=7680
     local ttyd_port=7681
-    local upload_dir="/data/images"
+    local upload_dir="/data/uploads"
     local service_dir="/opt/image-service"
     local server_file="${service_dir}/server.mjs"
 
