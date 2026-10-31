@@ -236,6 +236,8 @@ The Supervisor token is never sent to the browser. Close the dialog to cancel.
 
 With `voice_stt_provider` empty, browsers supporting the Web Speech API use
 their own speech service, which may be online. Firefox needs the HA option.
+An invalid or unavailable configured HA provider never silently falls back to
+the browser's speech service.
 If transcription fails, check the configured entity and language, that its
 engine supports 16 kHz mono PCM audio, and that Home Assistant is reachable.
 

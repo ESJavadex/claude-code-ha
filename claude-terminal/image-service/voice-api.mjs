@@ -37,7 +37,7 @@ export function register(app, {
     let busy = false;
 
     app.get('/api/voice/config', (req, res) => {
-        res.set('Cache-Control', 'no-store').json({ enabled, language });
+        res.set('Cache-Control', 'no-store').json({ enabled, configured: Boolean(provider), language });
     });
 
     app.post('/api/voice/transcribe', (req, res, next) => {

@@ -16,7 +16,7 @@ let state = 'idle';
 
 function message(text) { status.textContent = text; }
 function update() {
-    record.disabled = !config || state === 'starting' || state === 'transcribing';
+    record.disabled = !config || (config.configured && !config.enabled) || state === 'starting' || state === 'transcribing';
     record.textContent = state === 'recording' ? 'Stop Recording' : state === 'transcribing' ? 'Transcribing…' : 'Start Recording';
     language.disabled = state !== 'idle';
     const ready = state === 'idle' && Boolean(transcript.textContent.trim());
@@ -58,7 +58,9 @@ get('btn').addEventListener('click', async () => {
     }
     message(config.enabled
         ? 'Uses your configured Home Assistant speech-to-text engine. Up to 60 seconds per recording.'
-        : SpeechRecognition
+        : config.configured
+            ? 'Home Assistant STT is configured but unavailable. Check voice_stt_provider and Supervisor access.'
+            : SpeechRecognition
             ? 'Uses your browser’s speech service. Set voice_stt_provider to use Home Assistant instead.'
             : 'Set voice_stt_provider in the add-on options to use Home Assistant speech-to-text in this browser.');
     update();
@@ -73,6 +75,7 @@ transcript.addEventListener('input', update);
 record.addEventListener('click', async () => {
     if (state === 'recording') { await stop(); return; }
     if (state !== 'idle' || !config) return;
+    if (config.configured && !config.enabled) return;
     if (!/^[a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,8}){0,2}$/.test(language.value.trim())) {
         message('Enter a language code such as en, en-US, es or de-DE.');
         return;

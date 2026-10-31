@@ -42,7 +42,7 @@ await test('fixed Supervisor destination, server-only token, raw PCM and languag
 }, async ({ base, post }) => {
     const config = await fetch(`${base}/api/voice/config`);
     assert.equal(config.headers.get('cache-control'), 'no-store');
-    assert.deepEqual(await config.json(), { enabled: true, language: '' });
+    assert.deepEqual(await config.json(), { enabled: true, configured: true, language: '' });
     const result = await post();
     assert.equal(result.status, 200);
     assert.equal(result.headers.get('cache-control'), 'no-store');
@@ -52,7 +52,12 @@ await test('fixed Supervisor destination, server-only token, raw PCM and languag
 for (const options of [{ token: '' }, { provider: 'http://evil.test/steal' }, { provider: '../config' }]) {
     await test('unconfigured or invalid providers never make outbound requests', {
         ...options, request: () => { assert.fail('outbound call'); }
-    }, async ({ post }) => assert.equal((await post()).status, 503));
+    }, async ({ base, post }) => {
+        const config = await (await fetch(`${base}/api/voice/config`)).json();
+        assert.equal(config.enabled, false);
+        assert.equal(config.configured, true); // never silently fall back to a browser cloud service
+        assert.equal((await post()).status, 503);
+    });
 }
 await test('cross-site forms, wrong content types and malformed PCM are refused', {
     request: () => { assert.fail('outbound call'); }
