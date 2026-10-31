@@ -204,6 +204,57 @@ Claude launches automatically when you open the terminal. You can also start Cla
 node /usr/local/bin/claude
 ```
 
+### Session Picker
+
+The session picker is the menu for starting Claude and the tools around it.
+
+- **`auto_launch_claude: true`** (the default): Claude starts as soon as you
+  open the terminal, and the picker appears when you exit Claude (`/exit`, or
+  Ctrl+C twice).
+- **`auto_launch_claude: false`**: the picker is the first thing you see.
+
+Whatever you start from the picker, you come back to it when that ends.
+
+```text
+Claude Code version: 2.1.316 (Claude Code)
+
+Choose your Claude session type:
+
+  1) 🆕 New interactive session (default)
+  2) ⏩ Continue most recent conversation (-c)
+  3) 📋 Resume from conversation list (-r)
+  4) ⚙️ Custom Claude command (manual flags)
+  5) 🔐 Claude authentication helper
+  6) 🐙 GitHub CLI login (gh auth)
+  7) 🔄 Update Claude Code (2.1.316, up to date)
+  8) 🐚 Drop to bash shell
+  9) ❌ Exit
+```
+
+| Option | What it does |
+| --- | --- |
+| 1 New interactive session | Starts `claude` in a new conversation. Pressing Enter on its own picks this. |
+| 2 Continue most recent conversation | `claude -c`: reopens the latest conversation in the working directory with its full context |
+| 3 Resume from conversation list | `claude -r`: lists earlier conversations to pick from |
+| 4 Custom Claude command | Asks for your own arguments, e.g. `--model claude-sonnet-5-5` or `-p "summarise automations.yaml"` for a one-off answer. Empty input starts a new session. |
+| 5 Claude authentication helper | Other ways to log in when pasting the code into the terminal doesn't work: type the code in, or read it from `/config/auth-code.txt`, which the helper deletes after use. |
+| 6 GitHub CLI login | `gh auth login` by browser or personal access token, so Claude can use `gh` for issues and pull requests. The login is kept in `/data`. |
+| 7 Update Claude Code | Installs the latest Claude Code into `/data/npm` and shows whether an update is available (checked at most once an hour). Only shown with `use_persistent_claude: true`; without it, the options below move up one number. |
+| 8 Drop to bash shell | A plain shell in the working directory, for `ha`, `git`, `persist-install` and so on. `exit` returns to the menu. |
+| 9 Exit | Closes the picker and ends the terminal session. Reload the panel to start a new one. |
+
+Options 1 to 4 add the flags from your configuration: `enable_remote_control`,
+`claude_extra_args` and `dangerously_skip_permissions`. Option 4 shows them
+before it runs.
+
+The terminal runs in a tmux session that outlives the browser tab. Closing the
+tab, or opening the panel on another device, reattaches to the same running
+session. You don't need option 2 for that.
+
+For the `gh` token login, the picker suggests the `repo`, `read:org` and
+`workflow` scopes. A fine-grained token limited to the repositories you want
+Claude to work on is safer.
+
 ### Logging In
 
 The first time Claude starts it shows a login link. There are two ways to
