@@ -1,7 +1,7 @@
 ---
 name: "Claude Terminal Pro"
 description: "Enhanced terminal interface for Anthropic's Claude Code CLI with persistent auth, package management, and image paste support. Fork of heytcass/home-assistant-addons"
-version: "2.3.7"
+version: "2.3.8"
 slug: "claude_terminal_pro"
 init: false
 
@@ -75,8 +75,6 @@ backup_exclude:
   - "*_claude_terminal_pro/.local/share/claude/versions"
   - "*_claude_terminal_pro/.cache"
   - "*_claude_terminal_pro/home/.claude/cache"
-  - "*_claude_terminal_pro/uploads"
-  - "*_claude_terminal_pro/images"
 
 # Volume mappings for file access. Studio Code Server's folders, minus three:
 # any signed-in HA user can reach this root shell through ingress.
