@@ -750,6 +750,11 @@ start_image_service() {
     export IMAGE_SERVICE_PORT="${image_port}"
     export TTYD_PORT="${ttyd_port}"
     export UPLOAD_DIR="${upload_dir}"
+    VOICE_STT_PROVIDER=$(bashio::config 'voice_stt_provider' '') || VOICE_STT_PROVIDER=''
+    VOICE_LANGUAGE=$(bashio::config 'voice_language' '') || VOICE_LANGUAGE=''
+    [ "$VOICE_STT_PROVIDER" != 'null' ] || VOICE_STT_PROVIDER=''
+    [ "$VOICE_LANGUAGE" != 'null' ] || VOICE_LANGUAGE=''
+    export VOICE_STT_PROVIDER VOICE_LANGUAGE
     ADDON_VERSION="$(bashio::app.version)" || ADDON_VERSION=""
     export ADDON_VERSION
 

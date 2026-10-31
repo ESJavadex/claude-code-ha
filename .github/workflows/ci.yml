@@ -136,6 +136,13 @@ jobs:
         env:
           TEST_PLATFORM: ${{ matrix.platform }}
 
+      - name: Voice API security and transcription tests
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
+            claude-terminal-test /tests/test-voice-api.mjs /opt/image-service/voice-api.mjs
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
+
       - name: Collect failure diagnostics
         if: failure()
         run: |

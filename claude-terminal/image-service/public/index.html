@@ -914,17 +914,21 @@
     <div id="voice-modal">
         <div id="voice-modal-content">
             <div id="voice-modal-title">🎤 Voice Input</div>
-            <div id="voice-status"></div>
+            <label for="voice-language">Speech language</label>
+            <input id="voice-language" type="text" maxlength="32" placeholder="en-US" autocomplete="off" aria-label="Speech language code">
+            <div id="voice-status" role="status" aria-live="polite"></div>
             <div id="voice-transcript" contenteditable="true"></div>
             <div class="modal-buttons">
                 <button id="voice-record-btn" class="modal-btn modal-btn-danger">Start Recording</button>
                 <button id="voice-copy-btn" class="modal-btn modal-btn-primary" style="display: none;">Copy Text</button>
+                <button id="voice-send-btn" class="modal-btn modal-btn-primary" style="display: none;">Insert in Terminal</button>
                 <button id="voice-close-btn" class="modal-btn modal-btn-secondary">Close</button>
             </div>
         </div>
     </div>
 
     <script src="terminal-clipboard.js"></script>
+    <script type="module" src="voice-input.mjs"></script>
     <script>
         let ttydPort = 7681;
         let uploadDir = '/data/uploads';
@@ -1605,239 +1609,6 @@
             if (at !== -1) {
                 copyTextArea.focus();
                 copyTextArea.setSelectionRange(at, at + found.url.length);
-            }
-        });
-
-        // ========================================
-        // Voice Input with Web Speech API
-        // ========================================
-
-        const voiceBtn = document.getElementById('voice-btn');
-        const voiceModal = document.getElementById('voice-modal');
-        const voiceRecordBtn = document.getElementById('voice-record-btn');
-        const voiceCopyBtn = document.getElementById('voice-copy-btn');
-        const voiceCloseBtn = document.getElementById('voice-close-btn');
-        const voiceTranscript = document.getElementById('voice-transcript');
-        const voiceStatus = document.getElementById('voice-status');
-
-        let recognition = null;
-        let isRecording = false;
-
-        // Check if Web Speech API is supported
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US'; // Default to English, can be made configurable
-
-            console.log('Web Speech API is supported!');
-        } else {
-            console.warn('Web Speech API is not supported in this browser');
-            voiceBtn.disabled = true;
-            voiceBtn.title = 'Voice input not supported in this browser';
-        }
-
-        // Open voice modal
-        voiceBtn.addEventListener('click', () => {
-            voiceModal.classList.add('active');
-            voiceTranscript.textContent = '';
-            voiceStatus.textContent = '';
-            voiceCopyBtn.style.display = 'none';
-        });
-
-        // Close voice modal
-        voiceCloseBtn.addEventListener('click', () => {
-            if (isRecording) {
-                stopRecording();
-            }
-            voiceModal.classList.remove('active');
-        });
-
-        // Click outside modal to close
-        voiceModal.addEventListener('click', (e) => {
-            if (e.target === voiceModal) {
-                if (isRecording) {
-                    stopRecording();
-                }
-                voiceModal.classList.remove('active');
-            }
-        });
-
-        // Start/Stop recording
-        voiceRecordBtn.addEventListener('click', () => {
-            if (isRecording) {
-                stopRecording();
-            } else {
-                startRecording();
-            }
-        });
-
-        function startRecording() {
-            if (!recognition) {
-                voiceStatus.textContent = '❌ Speech recognition not available';
-                voiceStatus.className = 'error';
-                return;
-            }
-
-            isRecording = true;
-            voiceRecordBtn.textContent = 'Stop Recording';
-            voiceRecordBtn.className = 'modal-btn modal-btn-danger';
-            voiceStatus.textContent = '🎤 Listening... (speak now)';
-            voiceStatus.classList.add('listening');
-            voiceTranscript.classList.add('listening');
-
-            let finalTranscript = '';
-            let interimTranscript = '';
-
-            recognition.onresult = (event) => {
-                interimTranscript = '';
-
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-
-                    if (event.results[i].isFinal) {
-                        finalTranscript += transcript + ' ';
-                    } else {
-                        interimTranscript += transcript;
-                    }
-                }
-
-                // Display both final and interim results
-                voiceTranscript.textContent = finalTranscript + interimTranscript;
-
-                // Auto-scroll to bottom
-                voiceTranscript.scrollTop = voiceTranscript.scrollHeight;
-            };
-
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                let errorMessage = 'Error: ';
-
-                switch(event.error) {
-                    case 'no-speech':
-                        errorMessage += 'No speech detected. Try speaking again.';
-                        break;
-                    case 'audio-capture':
-                        errorMessage += 'No microphone found. Check your settings.';
-                        break;
-                    case 'not-allowed':
-                        errorMessage += 'Microphone access denied. Please allow access.';
-                        break;
-                    default:
-                        errorMessage += event.error;
-                }
-
-                voiceStatus.textContent = '❌ ' + errorMessage;
-                voiceStatus.classList.remove('listening');
-                stopRecording();
-            };
-
-            recognition.onend = () => {
-                if (isRecording) {
-                    // Restart if it stops but we're still recording
-                    recognition.start();
-                }
-            };
-
-            try {
-                recognition.start();
-                console.log('Speech recognition started');
-            } catch (err) {
-                console.error('Failed to start recognition:', err);
-                voiceStatus.textContent = '❌ Failed to start recording';
-                isRecording = false;
-            }
-        }
-
-        function stopRecording() {
-            if (!recognition) return;
-
-            isRecording = false;
-            recognition.stop();
-
-            voiceRecordBtn.textContent = 'Start Recording';
-            voiceRecordBtn.className = 'modal-btn modal-btn-primary';
-            voiceStatus.textContent = '✓ Recording stopped';
-            voiceStatus.classList.remove('listening');
-            voiceTranscript.classList.remove('listening');
-
-            if (voiceTranscript.textContent.trim()) {
-                voiceCopyBtn.style.display = 'inline-block';
-                voiceStatus.textContent = '✓ Transcript ready! Edit if needed, then copy.';
-            }
-
-            console.log('Speech recognition stopped');
-        }
-
-        // Copy transcript to clipboard
-        voiceCopyBtn.addEventListener('click', async () => {
-            const text = voiceTranscript.textContent.trim();
-
-            if (!text) {
-                voiceStatus.textContent = '❌ No text to copy';
-                return;
-            }
-
-            // Try clipboard API first
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                try {
-                    await navigator.clipboard.writeText(text);
-                    voiceStatus.textContent = '✓ Copied to clipboard! Paste into terminal.';
-                    voiceStatus.className = 'success';
-                } catch (err) {
-                    fallbackCopy(text);
-                }
-            } else {
-                fallbackCopy(text);
-            }
-        });
-
-        function fallbackCopy(text) {
-            // Fallback using execCommand
-            const tempTextArea = document.createElement('textarea');
-            tempTextArea.value = text;
-            tempTextArea.style.position = 'absolute';
-            tempTextArea.style.left = '-9999px';
-            document.body.appendChild(tempTextArea);
-
-            tempTextArea.select();
-
-            try {
-                const copied = document.execCommand('copy');
-                if (copied) {
-                    voiceStatus.textContent = '✓ Copied! Paste into terminal.';
-                    voiceStatus.className = 'success';
-                } else {
-                    voiceStatus.textContent = '⚠️ Select text above and press Cmd+C to copy';
-                }
-            } catch (err) {
-                voiceStatus.textContent = '⚠️ Select text above and press Cmd+C to copy';
-            }
-
-            document.body.removeChild(tempTextArea);
-        }
-
-        // Keyboard shortcuts in voice modal
-        voiceModal.addEventListener('keydown', (e) => {
-            // Escape to close
-            if (e.key === 'Escape') {
-                if (isRecording) {
-                    stopRecording();
-                }
-                voiceModal.classList.remove('active');
-            }
-
-            // Enter to copy (if text exists and not recording)
-            if (e.key === 'Enter' && !isRecording && voiceTranscript.textContent.trim()) {
-                voiceCopyBtn.click();
-            }
-
-            // Space to start/stop recording (if not editing transcript)
-            if (e.key === ' ' && e.target !== voiceTranscript) {
-                e.preventDefault();
-                voiceRecordBtn.click();
             }
         });
 

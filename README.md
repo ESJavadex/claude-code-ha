@@ -31,9 +31,9 @@ Full history in the [changelog](claude-terminal/CHANGELOG.md).
 
 ## Install
 
-You need a paid Claude plan (Pro, Max, Team or Enterprise) or an Anthropic Console
+You need a Claude subscription that includes Claude Code, or an Anthropic Console
 account with API billing. Claude Code isn't included in the free Claude plan. See
-[Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
+[Claude Code account requirements](https://code.claude.com/docs/en/quickstart).
 
 1. Click the button above, or go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add `https://github.com/esjavadex/claude-code-ha`
 2. Install **Claude Terminal Pro** and start it
@@ -42,6 +42,12 @@ account with API billing. Claude Code isn't included in the free Claude plan. Se
 Claude's login link also shows up as a Home Assistant notification (and in the Companion app), so you can open it with one tap. With a Claude plan, no API key is needed.
 
 ## Features
+
+- **Voice input with Home Assistant STT:** use your configured speech engine
+  in Firefox or compatible Companion app WebViews over HTTPS. Set
+  `voice_stt_provider` and optionally `voice_language`, review the transcript,
+  and insert it at the prompt without submitting it. See
+  [Voice Input](claude-terminal/DOCS.md#voice-input).
 
 **Terminal**
 - Claude Code in a web terminal embedded in the HA sidebar, starting in `/config`

@@ -8,9 +8,9 @@ Claude Terminal Pro is an enhanced fork of the original Claude Terminal add-on, 
 
 ## Installation
 
-You need a paid Claude plan (Pro, Max, Team or Enterprise) or an Anthropic Console
+You need a Claude subscription that includes Claude Code, or an Anthropic Console
 account with API billing. Claude Code isn't included in the free Claude plan. See
-[Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
+[Claude Code account requirements](https://code.claude.com/docs/en/quickstart).
 
 1. Add this repository to your Home Assistant add-on store:
    - Go to Settings → Add-ons → Add-on Store
@@ -201,6 +201,45 @@ NPM_CONFIG_PREFIX=/data/npm npm install -g @anthropic-ai/claude-code@latest --pr
 After that, restarts will continue using the persistent version automatically.
 
 ## Usage
+
+### Voice Input
+
+Open **Voice Input** to dictate text, review and edit it, then **Copy Text**
+or **Insert in Terminal**. Insertion never presses Enter, and strips control
+characters and line breaks so a transcript cannot submit a shell command.
+
+For Firefox, or a Companion app WebView without browser speech recognition,
+configure a Home Assistant speech-to-text engine (for example Whisper) and set:
+
+```yaml
+voice_stt_provider: stt.faster_whisper
+voice_language: de
+```
+
+Use your actual STT entity ID from **Settings → Devices & services → Entities**
+(filter by the speech-to-text domain), and a language supported by that engine.
+Legacy STT provider names are also accepted. An empty `voice_language` uses
+your browser language; you can change the language in the dialog. The add-on
+matches regional codes such as `de-DE` to `de` if the engine supports it.
+It does not automatically choose or run an Assist conversation pipeline.
+
+Microphone access requires **HTTPS** (or localhost) and browser/app permission.
+In the Companion app, check both the app's OS microphone permission and the
+WebView's permission prompt. Availability still depends on the app/WebView.
+The add-on cannot enable microphone access that the browser or app blocks.
+
+Each recording is limited to 60 seconds and kept in memory. Audio goes through
+the Supervisor to the configured HA STT engine; neither audio nor transcripts
+are written to add-on storage or logs. A cloud STT engine may send audio to its
+own service under your HA configuration; choose a local engine to keep it local.
+The Supervisor token is never sent to the browser. Close the dialog to cancel.
+
+With `voice_stt_provider` empty, browsers supporting the Web Speech API use
+their own speech service, which may be online. Firefox needs the HA option.
+An invalid or unavailable configured HA provider never silently falls back to
+the browser's speech service.
+If transcription fails, check the configured entity and language, that its
+engine supports 16 kHz mono PCM audio, and that Home Assistant is reachable.
 
 Claude launches automatically when you open the terminal. You can also start Claude manually with:
 

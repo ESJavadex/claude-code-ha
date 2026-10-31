@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.4.0
+
+### ✨ New Feature - Home Assistant Speech-to-Text
+- Voice input can use your Home Assistant STT engine in Firefox and other
+  browsers without Web Speech recognition, including compatible Companion
+  app WebViews. Set `voice_stt_provider` to your STT entity ID and open HA over
+  HTTPS; microphone permission is required in the browser/app.
+- `voice_language` sets the speech language; an empty value uses the browser
+  language. You can also change it in the voice dialog before recording.
+- Record up to 60 seconds, review/edit the transcript, then copy it or insert
+  it at the terminal prompt. Insertion strips control characters and line
+  breaks and never presses Enter.
+- Recordings stay in memory and are sent only to the configured HA STT engine
+  via the Supervisor. The Supervisor token stays on the server. Requests and
+  responses are size limited, transcription has a timeout and only one runs
+  at a time. Closing the dialog cancels recording and pending requests.
+- When no HA STT engine is configured, browsers with Web Speech support keep
+  using their browser speech service. No new package or API permission is
+  needed. Fixes #53.
+
 ## 2.3.9
 
 ### 🔧 Technical
