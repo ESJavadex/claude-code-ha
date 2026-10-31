@@ -31,7 +31,10 @@ export async function recordAudio(onLimit, signal) {
     signal.addEventListener('abort', release, { once: true });
     try {
         // Resume inside the click handler, before waiting for permission.
-        context = new AudioContext({ sampleRate: 16000 });
+        // Use the device's rate for capture. Firefox may refuse to connect a
+        // microphone stream to a context forced to a different sample rate.
+        // OfflineAudioContext converts to the STT rate after recording.
+        context = new AudioContext();
         await context.resume();
         stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 }, video: false });
         if (signal.aborted) throw new Error('Recording cancelled.');
