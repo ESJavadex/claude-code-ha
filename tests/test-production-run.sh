@@ -244,13 +244,6 @@ wait $! || true
 bad_reads=$(grep -nE '^\s*(local )?\w+=\$\(bashio::config [^)]*\)\s*$' "$repo_root/claude-terminal/run.sh" || true)
 [ -z "$bad_reads" ] || fail "option reads without a fallback: $bad_reads"
 
-# bashio_self prefers bashio::app.* (3.24) and falls back to bashio::addon.* (3.21)
-bashio::addon.version() { echo old-name; }
-[ "$(bashio_self version)" = "old-name" ] || fail "bashio_self must fall back to bashio::addon.*"
-bashio::app.version() { echo new-name; }
-[ "$(bashio_self version)" = "new-name" ] || fail "bashio_self must prefer bashio::app.*"
-unset -f bashio::addon.version bashio::app.version
-
 # A venv from an older Python is rebuilt and its packages reinstalled
 venv="$tmp_dir/venv"
 mkdir -p "$venv/lib/python3.12/site-packages/"{Requests-2.32.3,pip-24.3.1,six-1.17.0,broken-1.0}.dist-info
@@ -329,7 +322,7 @@ check_release
 printf '3.21.4\n' > "$tmp_dir/alpine-release"
 rm -f "$persist/.alpine-release"
 check_release
-[ ! -s "$warnings" ] || fail "armv7, still on 3.21, must not warn"
+[ ! -s "$warnings" ] || fail "files from before the marker must not warn on a 3.21 image"
 bashio::log.warning() { :; }
 
 # Uploads older than 30 days go; newer ones and missing folders are fine

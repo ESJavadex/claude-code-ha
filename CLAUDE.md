@@ -45,7 +45,7 @@ curl -X GET http://localhost:7681/
 ### Add-on Structure (claude-terminal/)
 - **config.yaml** - Home Assistant add-on configuration (multi-arch, ingress, ports)
 - **Dockerfile** - Alpine-based container with Node.js and Claude Code CLI
-- **build.yaml** - Multi-architecture build configuration (amd64, aarch64, armv7)
+- **build.yaml** - Multi-architecture build configuration (amd64, aarch64)
 - **run.sh** - Main startup script: sets up `/data`, tmux, persistent Claude/packages, then starts the image service and ttyd
 - **scripts/** - Session picker, auth helper, `persist-install`, health check, HA CLI installer and API examples
 - **image-service/** - Node.js web page on port 7680 (the ingress panel) that embeds ttyd and handles image upload/paste
@@ -54,7 +54,7 @@ curl -X GET http://localhost:7681/
 1. **Web Terminal**: ttyd on port 7681, attached to a persistent tmux session, embedded in the image-service page on 7680
 2. **Persistent State**: All Claude state (login, settings, history) and installed packages live in the add-on's private `/data`
 3. **Service Integration**: Home Assistant ingress support with panel icon
-4. **Multi-Architecture**: Supports amd64, aarch64, armv7 platforms
+4. **Multi-Architecture**: Supports amd64 and aarch64 (armv7 was dropped in 2.3.9)
 
 ### Persistent State (`/data`)
 `/data` is private to each installed add-on and survives restarts and updates. `run.sh` (`init_environment`) points everything there:

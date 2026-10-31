@@ -12,7 +12,6 @@ build = yaml.safe_load((ROOT / "claude-terminal/build.yaml").read_text())
 targets = {
     "amd64": ("linux/amd64", "ubuntu-latest"),
     "aarch64": ("linux/arm64", "ubuntu-24.04-arm"),
-    "armv7": ("linux/arm/v7", "ubuntu-latest"),
 }
 
 matrix = []
