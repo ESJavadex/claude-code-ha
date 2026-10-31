@@ -43,6 +43,12 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 
 ## Features
 
+- **Voice input with Home Assistant STT:** use your configured speech engine
+  in Firefox or compatible Companion app WebViews over HTTPS. Set
+  `voice_stt_provider` and optionally `voice_language`, review the transcript,
+  and insert it at the prompt without submitting it. See
+  [Voice Input](claude-terminal/DOCS.md#voice-input).
+
 **Terminal**
 - Claude Code in a web terminal embedded in the HA sidebar, starting in `/config`
 - A persistent tmux session: close the tab or restart HA Core and you reattach to the same conversation
