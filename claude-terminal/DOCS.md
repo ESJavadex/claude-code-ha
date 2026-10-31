@@ -8,6 +8,10 @@ Claude Terminal Pro is an enhanced fork of the original Claude Terminal add-on, 
 
 ## Installation
 
+You need a paid Claude plan (Pro, Max, Team or Enterprise) or an Anthropic Console
+account with API billing. Claude Code isn't included in the free Claude plan. See
+[Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
+
 1. Add this repository to your Home Assistant add-on store:
    - Go to Settings → Add-ons → Add-on Store
    - Click the menu (⋮) and select Repositories
@@ -15,7 +19,7 @@ Claude Terminal Pro is an enhanced fork of the original Claude Terminal add-on, 
 2. Install the Claude Terminal Pro add-on
 3. Start the add-on
 4. Click "OPEN WEB UI" to access the terminal
-5. On first use, follow the OAuth prompts to log in to your Anthropic account
+5. On first use, follow the login prompts and sign in with your Claude plan or Anthropic Console account
 
 ## Configuration
 
