@@ -62,6 +62,10 @@ claude-logout
 
 ## Installation
 
+You need a paid Claude plan (Pro, Max, Team or Enterprise) or an Anthropic Console
+account with API billing. Claude Code isn't included in the free Claude plan. See
+[Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
+
 1. Add this repository to your Home Assistant add-on store:
    - Go to Settings → Add-ons → Add-on Store
    - Click the menu (⋮) and select Repositories
@@ -69,7 +73,7 @@ claude-logout
 2. Install the Claude Terminal Pro add-on
 3. Start the add-on
 4. Click "OPEN WEB UI" or the sidebar icon to access
-5. On first use, follow the OAuth prompts to log in to your Anthropic account
+5. On first use, follow the login prompts and sign in with your Claude plan or Anthropic Console account
 
 ## Configuration
 
@@ -173,7 +177,8 @@ For detailed usage instructions, see the [documentation](DOCS.md).
 ## Useful Links
 
 - [Claude Code Documentation](https://docs.anthropic.com/claude/docs/claude-code)
-- [Get an Anthropic API Key](https://console.anthropic.com/)
+- [Claude plans that include Claude Code](https://claude.com/pricing)
+- [Anthropic Console (API billing)](https://console.anthropic.com/)
 - [Claude Code GitHub Repository](https://github.com/anthropics/claude-code)
 - [Home Assistant Add-ons](https://www.home-assistant.io/addons/)
 

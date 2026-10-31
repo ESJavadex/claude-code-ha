@@ -31,11 +31,15 @@ Full history in the [changelog](claude-terminal/CHANGELOG.md).
 
 ## Install
 
+You need a paid Claude plan (Pro, Max, Team or Enterprise) or an Anthropic Console
+account with API billing. Claude Code isn't included in the free Claude plan. See
+[Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
+
 1. Click the button above, or go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add `https://github.com/esjavadex/claude-code-ha`
 2. Install **Claude Terminal Pro** and start it
 3. Open **Claude Terminal Pro** from the sidebar and log in to Claude when asked
 
-Claude's login link also shows up as a Home Assistant notification (and in the Companion app), so you can open it with one tap. No API key is needed for a normal setup.
+Claude's login link also shows up as a Home Assistant notification (and in the Companion app), so you can open it with one tap. With a Claude plan, no API key is needed.
 
 ## Features
 
