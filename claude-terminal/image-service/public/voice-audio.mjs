@@ -35,7 +35,9 @@ export async function recordAudio(onLimit, signal) {
         // microphone stream to a context forced to a different sample rate.
         // OfflineAudioContext converts to the STT rate after recording.
         context = new AudioContext();
-        await context.resume();
+        // Request resume during the click, but do not wait before asking for
+        // the microphone: some browsers defer audio startup until permission.
+        context.resume().catch(() => {});
         stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 }, video: false });
         if (signal.aborted) throw new Error('Recording cancelled.');
         await context.audioWorklet.addModule('voice-recorder-worklet.js');
@@ -55,6 +57,16 @@ export async function recordAudio(onLimit, signal) {
         source.connect(recorder);
         // The processor outputs silence, but needs a destination to be pulled.
         recorder.connect(context.destination);
+        let startupTimer;
+        try {
+            await Promise.race([
+                context.resume(),
+                new Promise((_, reject) => {
+                    startupTimer = setTimeout(() => reject(new Error('Audio could not start. Check your microphone and audio device permissions.')), 10000);
+                })
+            ]);
+        } finally { clearTimeout(startupTimer); }
+        if (signal.aborted) throw new Error('Recording cancelled.');
         timer = setTimeout(onLimit, 60000);
         return {
             cancel() { stopped = true; chunks.length = 0; signal.removeEventListener('abort', release); release(); },
