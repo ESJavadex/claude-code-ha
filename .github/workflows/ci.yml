@@ -143,6 +143,13 @@ jobs:
         env:
           TEST_PLATFORM: ${{ matrix.platform }}
 
+      - name: Panel files are served no-cache
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
+            claude-terminal-test /tests/test-static-cache.mjs /opt/image-service/server.mjs
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
+
       - name: Collect failure diagnostics
         if: failure()
         run: |
