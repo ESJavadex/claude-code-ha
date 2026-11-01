@@ -1,7 +1,7 @@
 ---
 name: "Claude Terminal Pro"
 description: "Enhanced terminal interface for Anthropic's Claude Code CLI with persistent auth, package management, and image paste support. Fork of heytcass/home-assistant-addons"
-version: "2.4.0"
+version: "2.4.4"
 slug: "claude_terminal_pro"
 init: false
 
@@ -16,6 +16,12 @@ url: "https://github.com/esjavadex/claude-code-ha"
 # Web interface configuration
 ingress: true
 ingress_port: 7680
+# Without this, the Supervisor reads each POST body into memory first and
+# rejects anything over 16 MiB with a 413 before the add-on sees it, so
+# uploads between 16 MiB and the 50 MB limit failed through the panel.
+# Streamed bodies arrive chunked (no Content-Length); multer and
+# express.raw both count bytes as they arrive and enforce their own limits.
+ingress_stream: true
 panel_icon: mdi:code-braces-box
 panel_title: "Claude Terminal Pro"
 panel_admin: true

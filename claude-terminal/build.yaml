@@ -8,4 +8,4 @@ labels:
   org.opencontainers.image.source: "https://github.com/anthropics/claude-code"
   org.opencontainers.image.licenses: "MIT"
 
-  org.opencontainers.image.version: "2.4.0"
+  org.opencontainers.image.version: "2.4.4"

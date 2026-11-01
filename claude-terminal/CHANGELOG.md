@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.4
+
+### 🐛 Bug Fix - Uploads Over 16 MB Work in the Panel
+- **Files between 16 MB and the 50 MB limit failed to upload through Home
+  Assistant.** Home Assistant's Supervisor reads each upload into memory
+  before passing it on, and turns away anything over 16 MiB, so the request
+  never reached the add-on and the panel showed a brief, unclear error. The
+  add-on now sets `ingress_stream`, so uploads are streamed through instead.
+  The 50 MB limit and its "File too large" message still apply.
+- DOCS now notes that a reverse proxy in front of Home Assistant has its own
+  upload limit (NGINX allows 1 MB by default), and how to raise it.
+- Found by owine (owine/claude-terminal-home-assistant#487).
+
 ## 2.4.0
 
 ### ✨ New Feature - Home Assistant Speech-to-Text
