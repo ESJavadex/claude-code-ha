@@ -799,6 +799,49 @@
                 z-index: 1500;
             }
         }
+        /* Phone key bar (key-bar.js): touch screens only, as the container's
+           last row, so it sits right above the on-screen keyboard
+           (trackOnScreenKeyboard sizes the container to what is visible). */
+        #key-bar {
+            display: none;
+            flex-shrink: 0;
+            gap: 4px;
+            padding: 4px;
+            background: #2d2d2d;
+            border-top: 1px solid #3d3d3d;
+        }
+
+        #key-bar button {
+            flex: 1;
+            min-width: 0;
+            height: 40px;
+            padding: 0;
+            background: #3a3a3a;
+            color: #eee;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #key-bar button:active {
+            background: #007acc;
+        }
+
+        #key-bar button.key-wait {
+            color: #888;
+        }
+
+        /* The primary pointer, so a touch laptop or an iPad with a trackpad
+           (which has a real keyboard) doesn't get it */
+        @media (pointer: coarse) {
+            #key-bar {
+                display: flex;
+            }
+        }
     </style>
 </head>
 <body>
@@ -867,6 +910,16 @@
                 </div>
             </div>
         </div>
+        <div id="key-bar" role="toolbar" aria-label="Terminal keys">
+            <button type="button" tabindex="-1" data-key="esc" aria-label="Escape">Esc</button>
+            <button type="button" tabindex="-1" data-key="up" aria-label="Arrow up">↑</button>
+            <button type="button" tabindex="-1" data-key="down" aria-label="Arrow down">↓</button>
+            <button type="button" tabindex="-1" data-key="tab" aria-label="Tab">Tab</button>
+            <button type="button" tabindex="-1" data-key="shift-tab" aria-label="Shift+Tab">⇧Tab</button>
+            <button type="button" tabindex="-1" data-key="ctrl-c" aria-label="Ctrl+C">^C</button>
+            <button type="button" tabindex="-1" data-key="newline" aria-label="New line">⇧↵</button>
+            <button type="button" tabindex="-1" data-key="enter" aria-label="Enter">↵</button>
+        </div>
     </div>
     <input type="file" id="file-input" multiple>
 
@@ -928,6 +981,7 @@
     </div>
 
     <script src="terminal-clipboard.js"></script>
+    <script src="key-bar.js"></script>
     <script type="module" src="voice-input.mjs"></script>
     <script>
         let ttydPort = 7681;
@@ -1545,6 +1599,16 @@
         }
 
         trackOnScreenKeyboard();
+
+        // Phone key bar. The terminal is looked up on every tap: the ttyd
+        // frame gets a new one after a reconnect.
+        ClaudeKeyBar.install(document.getElementById('key-bar'), () => {
+            try {
+                return document.getElementById('terminal-frame').contentWindow.term || null;
+            } catch (e) {
+                return null;
+            }
+        });
 
         // --- One-tap link copy ---
         // What people copy is almost always a login URL, and selecting it by

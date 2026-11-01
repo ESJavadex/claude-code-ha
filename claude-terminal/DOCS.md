@@ -140,6 +140,25 @@ wheel events, so they behave the same as a wheel.
 Pinch-zoom and horizontal panning still belong to the browser, and putting a
 second finger down stops the scroll — so a pinch is not read as a drag.
 
+### Keys for a Phone or Tablet
+
+On a touch screen, a row of keys sits above the on-screen keyboard, for the
+keys Claude Code uses that the keyboard doesn't have:
+
+| Key | What it does in Claude Code |
+|-----|-----------------------------|
+| **Esc** | Stops Claude, or closes a menu |
+| **↑ / ↓** | Moves through menu options and earlier prompts |
+| **Tab** | Accepts Claude's suggested prompt, or completes a file name or command |
+| **⇧Tab** | Switches mode (auto-accept edits, plan mode) |
+| **^C** | Ctrl+C: clears what you've typed, or cancels. Two in a row would quit Claude, so after one tap the key shows *wait* for two seconds and ignores taps. To quit Claude, type `/exit` |
+| **⇧↵** | Starts a new line in the prompt without sending it, like Shift+Enter |
+| **↵** | Enter |
+
+Tapping a key leaves the on-screen keyboard open. The row only appears when a
+touch screen is the main pointer, so a laptop with a touch screen, or an iPad
+with a trackpad, doesn't show it.
+
 ### Reading the Clipboard
 
 **Reading** the clipboard *from* the terminal is deliberately not implemented:
