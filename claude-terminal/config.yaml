@@ -1,7 +1,7 @@
 ---
 name: "Claude Terminal Pro"
 description: "Enhanced terminal interface for Anthropic's Claude Code CLI with persistent auth, package management, and image paste support. Fork of heytcass/home-assistant-addons"
-version: "2.4.0"
+version: "2.4.5"
 slug: "claude_terminal_pro"
 init: false
 
@@ -22,15 +22,14 @@ panel_admin: true
 
 # Port configuration
 # Both ports are closed by default: ingress reaches 7680 over the internal
-# network and needs neither. Neither port has a login of its own.
+# network and needs neither. Neither port has a login of its own. The Network
+# tab's warning about that is in translations/en.yaml.
 ports:
   7680/tcp: null
   7681/tcp: null
-ports_description:
-  7680/tcp: "Direct web UI access (with image paste). Not needed for ingress, and NOT password-protected: anyone who can reach this port gets a root shell in the container, with no Home Assistant login. Leave unset unless the port is firewalled."
-  7681/tcp: "Direct ttyd terminal access. Not needed for ingress, and NOT password-protected: anyone who can reach this port gets a root shell in the container, with no Home Assistant login. Leave unset unless the port is firewalled."
 
-# Add-on configuration options
+# Add-on configuration options. Their labels and help text in the
+# Configuration tab are in translations/en.yaml: add each new option there.
 options:
   auto_launch_claude: true
   tmux_mouse: false
