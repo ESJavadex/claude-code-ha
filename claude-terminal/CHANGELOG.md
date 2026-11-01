@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.5
+
+### 🛠️ Improvement - Labels and Help Text for Every Option
+- **The Configuration tab now names and explains each option** instead of
+  showing raw keys such as `claude_extra_args`. The text comes from the new
+  `translations/en.yaml`, the file Home Assistant reads for add-on labels.
+- The Network tab's warnings about ports 7680 and 7681 moved there from
+  `ports_description` in `config.yaml`, with the same wording.
+- `scripts/check-addon-metadata.py` (run in CI) fails if an option or port has
+  no entry, or an entry has no name or description, so a new option can't be
+  added without one.
+- Based on owine/claude-terminal-home-assistant#489.
+
 ## 2.4.0
 
 ### ✨ New Feature - Home Assistant Speech-to-Text

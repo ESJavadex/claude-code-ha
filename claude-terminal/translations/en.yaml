@@ -1,0 +1,95 @@
+---
+# Labels and help text for the Configuration and Network tabs. Every key under
+# configuration must match one in config.yaml's schema, and every key under
+# network one in its ports (scripts/check-addon-metadata.py checks both).
+configuration:
+  auto_launch_claude:
+    name: Start Claude automatically
+    description: >-
+      Start Claude as soon as the terminal opens. Turn off to see the session
+      picker first (new session, continue, resume, shell and more).
+  tmux_mouse:
+    name: tmux mouse mode
+    description: >-
+      Let tmux handle the mouse for selecting, scrolling and panes. Keep off
+      for the browser's own copy and paste, including login codes.
+  working_directory:
+    name: Working directory
+    description: >-
+      The folder the terminal and Claude start in, e.g. /config/my_repo.
+      Empty starts in /config. A folder that doesn't exist falls back to
+      /config with a warning in the log.
+  claude_code_oauth_token:
+    name: Claude Code OAuth token
+    description: >-
+      A long-lived token from claude setup-token, for when the browser login
+      is impractical. Empty logs in through the browser as usual. Never
+      logged, but stored in the add-on configuration and in backups. Doesn't
+      work with Remote Control.
+  dangerously_skip_permissions:
+    name: Skip permission prompts (dangerous)
+    description: >-
+      Run Claude with --dangerously-skip-permissions: it edits files and runs
+      commands as root without asking first. A mistake, or a prompt injection
+      in anything Claude reads, can change your configuration. See Security in
+      the Documentation tab.
+  enable_remote_control:
+    name: Remote Control
+    description: >-
+      Start Claude with --remote-control, so the same session can also be
+      driven from the Claude mobile app or claude.ai/code. Needs a normal
+      claude.ai login, not the OAuth token or an API key.
+  claude_extra_args:
+    name: Extra Claude arguments
+    description: >-
+      Flags added to every Claude launch, e.g. --model claude-sonnet-5-5.
+      Quoting works as in a shell.
+  persistent_apk_packages:
+    name: Alpine packages to install
+    description: >-
+      apk packages installed into /data/packages on each start, so they
+      survive restarts and updates.
+  persistent_pip_packages:
+    name: Python packages to install
+    description: >-
+      pip packages installed into the persistent Python environment in
+      /data/packages on each start.
+  use_persistent_claude:
+    name: Use a persistent Claude Code install
+    description: >-
+      Use Claude Code from /data/npm instead of the version in the image,
+      installing it there on the next start if it's missing. For advanced
+      users; it is left out of backups and reinstalled after a restore.
+  auto_update_claude_on_start:
+    name: Update Claude Code on start
+    description: >-
+      Update the persistent install in /data/npm on each start. Only used
+      with the persistent Claude Code install on.
+  init_commands:
+    name: Startup commands
+    description: >-
+      Shell commands run as root in /config on each start, before the
+      terminal opens. Each gets 120 seconds; start services in the background.
+      Output and failures appear in the add-on log.
+  voice_stt_provider:
+    name: Speech-to-text engine
+    description: >-
+      A Home Assistant speech-to-text entity for Voice Input, e.g.
+      stt.faster_whisper. Empty uses the browser's own speech recognition,
+      which Firefox doesn't have.
+  voice_language:
+    name: Voice Input language
+    description: >-
+      The speech language, e.g. de. Empty uses the browser's language. It can
+      also be changed in the Voice Input dialog.
+network:
+  7680/tcp: >-
+    Direct web UI access (with image paste). Not needed for ingress, and NOT
+    password-protected: anyone who can reach this port gets a root shell in
+    the container, with no Home Assistant login. Leave unset unless the port
+    is firewalled.
+  7681/tcp: >-
+    Direct ttyd terminal access. Not needed for ingress, and NOT
+    password-protected: anyone who can reach this port gets a root shell in
+    the container, with no Home Assistant login. Leave unset unless the port
+    is firewalled.

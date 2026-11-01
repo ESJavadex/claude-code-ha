@@ -44,6 +44,7 @@ curl -X GET http://localhost:7681/
 
 ### Add-on Structure (claude-terminal/)
 - **config.yaml** - Home Assistant add-on configuration (multi-arch, ingress, ports)
+- **translations/en.yaml** - The label and help text for each option in the Configuration tab, and the Network tab's port warnings. Every new option needs an entry (`scripts/check-addon-metadata.py` checks)
 - **Dockerfile** - Alpine-based container with Node.js and Claude Code CLI
 - **build.yaml** - Multi-architecture build configuration (amd64, aarch64)
 - **run.sh** - Main startup script: sets up `/data`, tmux, persistent Claude/packages, then starts the image service and ttyd
