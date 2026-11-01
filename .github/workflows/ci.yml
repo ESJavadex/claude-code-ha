@@ -136,6 +136,14 @@ jobs:
         env:
           TEST_PLATFORM: ${{ matrix.platform }}
 
+      - name: Streamed (ingress_stream) uploads over 16 MiB arrive whole
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" \
+            -v "$PWD/claude-terminal/config.yaml:/claude-terminal/config.yaml:ro" --entrypoint node \
+            claude-terminal-test /tests/test-upload-streamed.mjs /opt/image-service/server.mjs
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
+
       - name: Voice API security and transcription tests
         run: |
           docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
