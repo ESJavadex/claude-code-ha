@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.4.2
+
+### ✨ New Feature - Shift+Enter for a New Line, and Your Own tmux Settings
+- **Shift+Enter starts a new line in Claude's prompt** instead of sending it.
+  The browser terminal sent a plain Enter for it, and Claude's
+  `/terminal-setup` can't configure this terminal. The panel now types
+  `\` + Enter, which Claude Code reads as a line break. Plain Enter and other
+  combinations (Ctrl, Alt, Cmd) are unchanged.
+- **Your tmux settings can go in `~/.tmux.local.conf`.** `~/.tmux.conf` is
+  rewritten on every start, so edits there were lost. It now reads
+  `~/.tmux.local.conf` last, so your settings win and survive restarts.
+- **tmux passes focus events through** (`focus-events on`), so Claude Code
+  and vim notice when the terminal regains focus.
+- From heytcass/home-assistant-addons: 721f40b (Shift+Enter, an idea from
+  mattbsea's fork, 6e44e41) and f4b4294 (`~/.tmux.local.conf` and
+  `focus-events`, adapted from owine's fork, #381 and 1e0a33e).
+
 ## 2.4.0
 
 ### ✨ New Feature - Home Assistant Speech-to-Text
