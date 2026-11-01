@@ -438,6 +438,31 @@
         return true;
     }
 
+    // Shift+Enter: xterm.js sends a plain carriage return for it, so Claude
+    // Code submits the prompt, and Claude's /terminal-setup only knows desktop
+    // terminal apps. Backslash + return is what Claude Code reads as "insert a
+    // newline" (and bash as a line continuation).
+    var SHIFT_ENTER_INPUT = '\\\r';
+
+    function isShiftEnter(event) {
+        return event.key === 'Enter' && event.shiftKey &&
+            !event.ctrlKey && !event.altKey && !event.metaKey;
+    }
+
+    // ttyd's page attaches no key handler of its own, so nothing is displaced.
+    // Every event of the chord is claimed so xterm.js never also sends its
+    // CR; only the keydown types anything.
+    function installShiftEnter(term) {
+        if (typeof term.attachCustomKeyEventHandler !== 'function' ||
+            typeof term.input !== 'function') return false;
+        term.attachCustomKeyEventHandler(function (event) {
+            if (!isShiftEnter(event)) return true;
+            if (event.type === 'keydown') term.input(SHIFT_ENTER_INPUT, true);
+            return false;
+        });
+        return true;
+    }
+
     function install(win, options) {
         var opts = options || {};
         var term = win.term;
@@ -580,6 +605,7 @@
 
         installTouchScroll(win, term);
         installMobileInput(win, term);
+        installShiftEnter(term);
 
         term[INSTALL_FLAG] = true;
         term.__claudeClipboard = controller;
@@ -648,6 +674,8 @@
         findLastUrl: findLastUrl,
         findLinkInRows: findLinkInRows,
         installMobileInput: installMobileInput,
+        isShiftEnter: isShiftEnter,
+        SHIFT_ENTER_INPUT: SHIFT_ENTER_INPUT,
         urlProblem: urlProblem,
         decodeBase64Utf8: decodeBase64Utf8,
         copyWithTextarea: copyWithTextarea,
