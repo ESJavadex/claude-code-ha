@@ -16,6 +16,14 @@
 - From heytcass/home-assistant-addons: 721f40b (Shift+Enter, an idea from
   mattbsea's fork, 6e44e41) and f4b4294 (`~/.tmux.local.conf` and
   `focus-events`, adapted from owine's fork, #381 and 1e0a33e).
+## 2.4.1
+
+### 🐛 Bug Fix - Updates Show Without a Hard Refresh
+- **The panel's page and scripts are now served with `Cache-Control: no-cache`.**
+  Without it, a browser could keep running the old page or JavaScript after an
+  add-on update until you forced a refresh. It now checks with the add-on on
+  every load, and gets a quick "not modified" reply when nothing has changed.
+- Idea from owine (67dd7e5), via Eifel-Joe/claude-workbench.
 
 ## 2.4.0
 
