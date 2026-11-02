@@ -135,4 +135,23 @@ await test('closing the browser request aborts the upstream request', {
     for (let i = 0; i < 50 && !upstreamAborted; i++) await new Promise((resolve) => setTimeout(resolve, 10));
     assert.equal(upstreamAborted, true);
 });
+await test('a chunked recording with no Content-Length, as ingress_stream forwards it, is read whole', {
+    request: async (url, options) => {
+        if (!options.method) return json(capabilities);
+        assert.deepStrictEqual([...options.body], [1, 0, 2, 0, 3, 0]);
+        return json({ result: 'success', text: 'streamed' });
+    }
+}, async ({ base }) => {
+    const body = new ReadableStream({
+        start(controller) {
+            controller.enqueue(new Uint8Array([1, 0, 2]));
+            controller.enqueue(new Uint8Array([0, 3, 0]));
+            controller.close();
+        }
+    });
+    const result = await fetch(`${base}/api/voice/transcribe`, { method: 'POST', headers, body, duplex: 'half' });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { text: 'streamed' });
+});
+
 console.log(`All ${passed} voice API tests passed`);
