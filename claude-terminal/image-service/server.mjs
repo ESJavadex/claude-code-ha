@@ -108,6 +108,14 @@ app.post('/upload', upload.single('file'), (req, res) => {
     });
 });
 
+// Shown in the terminal frame while ttyd isn't listening yet; the meta
+// refresh reloads the frame's own URL, so ttyd's page replaces it
+const TERMINAL_STARTING_PAGE = `<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="1">
+<style>html,body{margin:0;height:100%;background:#1e1e1e;color:#ccc;color-scheme:dark}
+body{display:flex;align-items:center;justify-content:center;font:14px system-ui,sans-serif}</style>
+</head><body>Starting the terminal…</body></html>`;
+
 // Proxy endpoint for ttyd terminal
 // This allows ttyd to work through Home Assistant ingress
 // Handles both HTTP and WebSocket connections
@@ -129,7 +137,12 @@ app.use('/terminal', createProxyMiddleware({
         error: (err, req, res) => {
             console.error('Proxy error:', err.message);
             // res may be a raw socket (WebSocket) instead of an Express response
-            if (typeof res.status === 'function') {
+            if (typeof res.status === 'function' && req.method === 'GET' && req.accepts('html')) {
+                // run.sh starts ttyd a few seconds after this service, and the
+                // panel opens as soon as this port answers, so the terminal's
+                // page can be asked for first. Reload until ttyd is up.
+                res.status(503).set({ 'Retry-After': '1', 'Cache-Control': 'no-store' }).type('html').send(TERMINAL_STARTING_PAGE);
+            } else if (typeof res.status === 'function') {
                 res.status(502).send('Failed to connect to terminal');
             } else if (typeof res.end === 'function') {
                 res.end();

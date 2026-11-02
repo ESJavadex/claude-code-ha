@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.4.6
+
+### 🐛 Bug Fix - No "Failed to connect to terminal" Right After Starting
+- **Opening the panel just after starting the add-on could leave "Failed to
+  connect to terminal" on screen** until you went to another page and back.
+  Home Assistant opens the panel as soon as the add-on's web page answers,
+  and the terminal (ttyd) starts about three seconds later. The panel now
+  shows "Starting the terminal…" and reloads every second until the terminal
+  is up.
+
 ## 2.4.0
 
 ### ✨ New Feature - Home Assistant Speech-to-Text

@@ -143,6 +143,13 @@ jobs:
         env:
           TEST_PLATFORM: ${{ matrix.platform }}
 
+      - name: The terminal frame reloads until ttyd is up
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
+            claude-terminal-test /tests/test-terminal-starting.mjs /opt/image-service/server.mjs
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
+
       - name: Collect failure diagnostics
         if: failure()
         run: |
