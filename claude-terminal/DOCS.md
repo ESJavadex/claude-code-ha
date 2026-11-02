@@ -275,6 +275,13 @@ Claude launches automatically when you open the terminal. You can also start Cla
 node /usr/local/bin/claude
 ```
 
+### Fullscreen Mode
+
+Inside Claude Code, use `/tui fullscreen` to enable its fullscreen renderer or
+`/tui default` to return to the classic renderer. Claude saves this preference
+in `~/.claude/settings.json` under `/data/home`, so it survives add-on restarts
+and updates.
+
 ### Session Picker
 
 The session picker is the menu for starting Claude and the tools around it.
@@ -431,6 +438,12 @@ no Home Assistant account involved at all. Leave them unset unless the port is
 firewalled off and you accept that. While a port is unpublished, the add-on
 also refuses connections to it from other add-ons on Home Assistant's internal
 network.
+
+## Community Guides
+
+[Running Claude Code inside Home Assistant](https://nsleigh.github.io/home-assistant-claude-code.html)
+by Neil Sleightholm describes his personal setup with this add-on, MCP servers,
+configuration history and security precautions. It is an independent guide.
 
 ## Credits
 

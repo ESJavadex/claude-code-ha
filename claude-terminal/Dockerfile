@@ -1,5 +1,6 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+# The official image is multi-arch: Docker selects amd64 or arm64 itself.
+# Keep the base and OCI metadata here; build.yaml is deprecated by Supervisor.
+FROM ghcr.io/home-assistant/base:3.24
 
 # Install packages in a single layer to minimize image size
 # Node.js and npm kept for image-service dependency. ttyd and tmux are baked in
@@ -147,6 +148,15 @@ COPY scripts/ /opt/scripts/
 COPY .claude/ /opt/.claude/
 RUN chmod +x /run.sh \
     && chmod +x /opt/scripts/*.sh
+
+# Supervisor supplies config.yaml's version; CI does the same. A local build
+# without release arguments is explicitly marked as a development image.
+ARG BUILD_VERSION=dev
+LABEL org.opencontainers.image.title="Claude Terminal Pro" \
+    org.opencontainers.image.description="Claude Code terminal for Home Assistant with persistent auth, packages and file uploads" \
+    org.opencontainers.image.source="https://github.com/ESJavadex/claude-code-ha" \
+    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.version="${BUILD_VERSION}"
 
 # Use exec form for better signal handling
 CMD ["/run.sh"]

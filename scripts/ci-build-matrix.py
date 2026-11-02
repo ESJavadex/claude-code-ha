@@ -8,7 +8,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 config = yaml.safe_load((ROOT / "claude-terminal/config.yaml").read_text())
-build = yaml.safe_load((ROOT / "claude-terminal/build.yaml").read_text())
 targets = {
     "amd64": ("linux/amd64", "ubuntu-latest"),
     "aarch64": ("linux/arm64", "ubuntu-24.04-arm"),
@@ -23,7 +22,7 @@ for arch in config["arch"]:
         "arch": arch,
         "platform": platform,
         "runner": runner,
-        "base": build["build_from"][arch],
+        "version": config["version"],
     })
 
 print("matrix=" + json.dumps({"include": matrix}, separators=(",", ":")))
