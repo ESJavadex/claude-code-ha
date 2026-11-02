@@ -80,6 +80,14 @@ The add-on offers several configuration options:
 - Keep disabled for reliable native browser copy/paste in the ttyd terminal, including OAuth codes
 - Enable only if you prefer tmux mouse selection, scrolling, and pane controls
 
+### Your Own tmux Settings
+- `~/.tmux.conf` is rewritten from the add-on's options on every start, so edits there don't last. Put your settings in `~/.tmux.local.conf` (`/data/home/.tmux.local.conf`) instead: it's read last, so it wins over the add-on's defaults (including **tmux Mouse Mode**) and survives restarts and updates
+- Restart the add-on, or run `tmux source-file ~/.tmux.conf`, to apply a change
+
+### New Line Without Sending
+- **Shift+Enter** starts a new line in Claude's prompt instead of sending it. The terminal types `\` + Enter for it, which Claude Code reads as a line break (and bash as a line continuation)
+- Claude's `/terminal-setup` isn't needed, and can't configure this browser terminal
+
 ### Files Sidebar
 - The **🗂️ Files** button in the header (or the rail on the right edge) opens a sidebar with a tree of `/config`. Hide it with » and drag its left edge to resize it. Click a file to preview it and **Insert path** to type its path at the prompt
 - **Recent changes** lists the files in `/config` changed in the last hour, day or week, so you can see what Claude edited
@@ -90,6 +98,7 @@ The add-on offers several configuration options:
 ### Giving Claude Files
 - Paste (Cmd/Ctrl+V), drag-and-drop onto the terminal, or **📎 Upload** to send images, PDFs, text, YAML, CSV, logs, code or any other file. Several at once work too. Each file is saved to `/data/uploads` and its path is typed at the prompt, ready for your question
 - Names are kept, cleaned up for the prompt and given a time stamp, e.g. `/data/uploads/20261020-141233-automations.yaml`. Up to 50 MB per file
+- Behind a reverse proxy (NGINX, Caddy, a tunnel), the proxy's own upload limit applies first. NGINX allows only 1 MB unless told otherwise, so set `client_max_body_size 55m;` for Home Assistant if larger uploads fail with "413 Request Entity Too Large"
 - Pasting a file copied in Finder or Explorer works in Safari and recent Chrome/Edge; drag-and-drop works in every browser. On an iPhone or iPad, use 📎 to pick from Photos or the Files app
 - Claude is started with `--add-dir /data/uploads`, so it can read uploads without asking. If you start `claude` yourself from a shell, add that flag, or Claude asks before reading each one
 - Uploads are left out of Home Assistant backups and removed after 30 days. Files you want to keep belong in `/config` or `/share`
@@ -139,6 +148,25 @@ wheel events, so they behave the same as a wheel.
 
 Pinch-zoom and horizontal panning still belong to the browser, and putting a
 second finger down stops the scroll — so a pinch is not read as a drag.
+
+### Keys for a Phone or Tablet
+
+On a touch screen, a row of keys sits above the on-screen keyboard, for the
+keys Claude Code uses that the keyboard doesn't have:
+
+| Key | What it does in Claude Code |
+|-----|-----------------------------|
+| **Esc** | Stops Claude, or closes a menu |
+| **↑ / ↓** | Moves through menu options and earlier prompts |
+| **Tab** | Accepts Claude's suggested prompt, or completes a file name or command |
+| **⇧Tab** | Switches mode (auto-accept edits, plan mode) |
+| **^C** | Ctrl+C: clears what you've typed, or cancels. Two in a row would quit Claude, so after one tap the key shows *wait* for two seconds and ignores taps. To quit Claude, type `/exit` |
+| **⇧↵** | Starts a new line in the prompt without sending it, like Shift+Enter |
+| **↵** | Enter |
+
+Tapping a key leaves the on-screen keyboard open. The row only appears when a
+touch screen is the main pointer, so a laptop with a touch screen, or an iPad
+with a trackpad, doesn't show it.
 
 ### Reading the Clipboard
 

@@ -13,6 +13,66 @@
   added without one.
 - Based on owine/claude-terminal-home-assistant#489.
 
+## 2.4.4
+
+### 🐛 Bug Fix - Uploads Over 16 MB Work in the Panel
+- **Files between 16 MB and the 50 MB limit failed to upload through Home
+  Assistant.** Home Assistant's Supervisor reads each upload into memory
+  before passing it on, and turns away anything over 16 MiB, so the request
+  never reached the add-on and the panel showed a brief, unclear error. The
+  add-on now sets `ingress_stream`, so uploads are streamed through instead.
+  The 50 MB limit and its "File too large" message still apply.
+- DOCS now notes that a reverse proxy in front of Home Assistant has its own
+  upload limit (NGINX allows 1 MB by default), and how to raise it.
+- Found by owine (owine/claude-terminal-home-assistant#487).
+
+## 2.4.3
+
+### ✨ New Feature - Keys for a Phone or Tablet
+- **A row of keys above the on-screen keyboard**: Esc, ↑, ↓, Tab, ⇧Tab, ^C,
+  a new-line key and Enter. These are the keys Claude Code uses for stopping,
+  menus, accepting a suggested prompt, switching mode and multi-line prompts,
+  and a phone keyboard doesn't have them. Tapping one keeps the keyboard open.
+- **^C is guarded**: two Ctrl+C in a row quit Claude, and that's an easy
+  double tap on a phone, so after one the key shows *wait* for two seconds.
+  To quit Claude, type `/exit`.
+- **⇧↵ starts a new line** without sending the prompt, because an on-screen
+  keyboard has no Shift+Enter.
+- Touch activation is checked in Chromium and WebKit: only `mousedown` is
+  cancelled to preserve focus, so WebKit can still dispatch a tap's `click`.
+- The arrows follow the terminal's cursor-key mode, so they also work in
+  full-screen programs such as `less` and vim.
+- Shown only when a touch screen is the main pointer, so desktops, touch
+  laptops and an iPad with a trackpad don't see it.
+- Adapted from Claude Workbench 3.5.0 (Eifel-Joe/claude-workbench), with the
+  cursor-key handling from mattbsea's fork (ed215953).
+
+## 2.4.2
+
+### ✨ New Feature - Shift+Enter for a New Line, and Your Own tmux Settings
+- **Shift+Enter starts a new line in Claude's prompt** instead of sending it.
+  The browser terminal sent a plain Enter for it, and Claude's
+  `/terminal-setup` can't configure this terminal. The panel now types
+  `\` + Enter, which Claude Code reads as a line break. Plain Enter and other
+  combinations (Ctrl, Alt, Cmd) are unchanged.
+- **Your tmux settings can go in `~/.tmux.local.conf`.** `~/.tmux.conf` is
+  rewritten on every start, so edits there were lost. It now reads
+  `~/.tmux.local.conf` last, so your settings win and survive restarts.
+- **tmux passes focus events through** (`focus-events on`), so Claude Code
+  and vim notice when the terminal regains focus.
+- From heytcass/home-assistant-addons: 721f40b (Shift+Enter, an idea from
+  mattbsea's fork, 6e44e41) and f4b4294 (`~/.tmux.local.conf` and
+  `focus-events`, adapted from owine's fork, #381 and 1e0a33e).
+
+## 2.4.1
+
+### 🐛 Bug Fix - Updates Show Without a Hard Refresh
+- **The panel's page and scripts are now served with `Cache-Control: no-cache`.**
+  Without it, a browser could keep running the old page or JavaScript after an
+  add-on update until you forced a refresh. It now checks with the add-on on
+  every load, and gets a quick "not modified" reply when nothing has changed.
+- Idea from owine (67dd7e5), via Eifel-Joe/claude-workbench.
+
 ## 2.4.0
 
 ### ✨ New Feature - Home Assistant Speech-to-Text
@@ -584,7 +644,6 @@ and @mmackenzie2026.
     and runs correctly.
 - **Note on AVX2**: The crash was a linker error, **not** a CPU instruction issue.
   The existing 2.1.179 binary already runs on non-AVX2 hardware (e.g. AMD GX-415).
-
 
 ## 2.0.11
 

@@ -1,0 +1,10 @@
+{
+  "name": "claude-terminal-browser-tests",
+  "private": true,
+  "scripts": {
+    "test": "node test-key-bar.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

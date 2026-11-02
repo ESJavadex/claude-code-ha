@@ -138,8 +138,12 @@ app.use('/terminal', createProxyMiddleware({
     }
 }));
 
-// Serve static files (HTML interface) - MUST be after API routes
-app.use(express.static(path.join(import.meta.dirname, 'public')));
+// Serve static files (HTML interface) - MUST be after API routes.
+// no-cache makes the browser revalidate (a cheap 304 via the ETag) instead
+// of running a stale page or script after an add-on update.
+app.use(express.static(path.join(import.meta.dirname, 'public'), {
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
+}));
 
 // Multer error handling middleware
 app.use((err, req, res, next) => {
