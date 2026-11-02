@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.7
+
+### 🔧 Technical - Build Metadata in the Dockerfile
+- Replaced deprecated `build.yaml` with the official multi-architecture Home
+  Assistant base image and OCI labels in the Dockerfile. The Alpine 3.24 base
+  and amd64/aarch64 support are retained.
+- Supervisor and CI supply the version from `config.yaml`; CI checks the labels
+  on each built image. The image source now points at this repository.
+- Added Neil Sleightholm's independent community guide and documented Claude's
+  persistent fullscreen preference.
+
 ## 2.4.6
 
 ### 🐛 Bug Fix - No "Failed to connect to terminal" Right After Starting

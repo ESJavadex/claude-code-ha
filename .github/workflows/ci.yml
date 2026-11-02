@@ -116,7 +116,7 @@ jobs:
           context: claude-terminal
           platforms: ${{ matrix.platform }}
           build-args: |
-            BUILD_FROM=${{ matrix.base }}
+            BUILD_VERSION=${{ matrix.version }}
             BUILD_ARCH=${{ matrix.arch }}
           tags: claude-terminal-test
           load: true
@@ -124,6 +124,13 @@ jobs:
           no-cache: ${{ github.event_name == 'schedule' }}
           cache-from: type=gha,scope=addon-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=addon-${{ matrix.arch }}
+
+      - name: Built image metadata matches the release
+        run: |
+          test "$(docker image inspect claude-terminal-test --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "$TEST_VERSION"
+          test "$(docker image inspect claude-terminal-test --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = 'https://github.com/ESJavadex/claude-code-ha'
+        env:
+          TEST_VERSION: ${{ matrix.version }}
 
       # Running the binaries catches wrong-architecture downloads and missing
       # shared libraries that a successful docker build alone can miss.

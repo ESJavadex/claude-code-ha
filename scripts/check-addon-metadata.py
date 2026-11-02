@@ -8,15 +8,16 @@ Validates, without building anything:
     with a semver version and at least one supported architecture.
   - claude-terminal/translations/en.yaml gives every option in the schema a
     name and description, and describes every port.
-  - claude-terminal/build.yaml parses, covers the same architectures and its
-    org.opencontainers.image.version label matches config.yaml's version
-    (the label drifts easily because it sits far from config.yaml).
+  - The Dockerfile pins the multi-architecture Home Assistant base and defines
+    OCI metadata, with its version supplied through BUILD_VERSION by Supervisor
+    and CI. Deprecated build.yaml is absent.
   - repository.yaml parses and points at this repository.
   - image-service/package.json is valid JSON with a start script.
 """
 
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -49,22 +50,28 @@ check(bool(SEMVER.match(str(version))), f"config.yaml version '{version}' is sem
 arch = config.get("arch") or []
 check(bool(arch), "config.yaml lists at least one architecture")
 
-# --- build.yaml: per-arch base images and OCI labels ------------------------
-build_path = ROOT / "claude-terminal" / "build.yaml"
-build = yaml.safe_load(build_path.read_text())
-
-build_from = build.get("build_from") or {}
-check(bool(build_from), "build.yaml defines build_from")
+# --- Dockerfile: multi-arch base and OCI labels -----------------------------
+check(not (ROOT / "claude-terminal/build.yaml").exists(), "deprecated build.yaml is absent")
+dockerfile = (ROOT / "claude-terminal/Dockerfile").read_text()
 check(
-    set(build_from) == set(arch),
-    f"build.yaml archs {sorted(build_from)} match config.yaml archs {sorted(arch)}",
+    bool(re.search(r"^FROM ghcr\.io/home-assistant/base:\d+\.\d+$", dockerfile, re.M)),
+    "Dockerfile pins the multi-arch Home Assistant base image",
 )
-
-labels = build.get("labels") or {}
-label_version = labels.get("org.opencontainers.image.version", "")
+check(set(arch) <= {"amd64", "aarch64"}, "all configured architectures are supported by the base")
+check("ARG BUILD_VERSION=dev" in dockerfile, "Dockerfile accepts Supervisor's BUILD_VERSION")
+labels = {}
+for line in dockerfile.replace("\\\n", " ").splitlines():
+    if line.startswith("LABEL "):
+        labels.update(token.split("=", 1) for token in shlex.split(line[6:]))
 check(
-    label_version == str(version),
-    f"build.yaml image version label ({label_version}) matches config.yaml ({version})",
+    labels.get("org.opencontainers.image.version") == "${BUILD_VERSION}",
+    "OCI image version comes from BUILD_VERSION (validated on built images in CI)",
+)
+for field in ("title", "description", "source", "licenses"):
+    check(bool(labels.get(f"org.opencontainers.image.{field}")), f"Dockerfile defines OCI {field}")
+check(
+    labels.get("org.opencontainers.image.source") == "https://github.com/ESJavadex/claude-code-ha",
+    "OCI source points at this repository",
 )
 
 # --- translations/en.yaml: Configuration and Network tab labels -------------

@@ -20,6 +20,9 @@
 
 ## What's new
 
+- **2.4: voice and mobile terminal improvements.** Home Assistant speech-to-text,
+  phone keys, Shift+Enter, larger uploads through ingress and reliable terminal
+  startup. Version 2.4.7 also removes deprecated build metadata.
 - **2.3: Changes tab.** See exactly what Claude changed in `/config`, line by line, undo any file with two clicks, and accept the rest as a checkpoint. It uses a local git repository and can create one for you.
 - **2.2: Files sidebar.** A tree of `/config`, a *Recent changes* list showing what Claude just edited, and a button that runs Home Assistant's config check before you restart. It sits on the right and collapses to a thin rail.
 - **2.1: community release.** New installs build in seconds again. Copy and paste work properly, including on phones. The session picker no longer freezes after a crash. New options: `init_commands`, `working_directory`, `enable_remote_control`, `claude_code_oauth_token` and `claude_extra_args`. Security is tighter too: ingress only by default.
@@ -153,6 +156,12 @@ Pair the add-on with the **[Claude Home Assistant Plugins](https://github.com/ES
 ```bash
 npx claude-plugins install @ESJavadex/claude-homeassistant-plugins/homeassistant-config
 ```
+
+## Community guides
+
+- [Running Claude Code inside Home Assistant](https://nsleigh.github.io/home-assistant-claude-code.html)
+  by Neil Sleightholm: an independent guide to his personal setup, including
+  MCP servers, configuration history and security precautions.
 
 ## Community tools
 

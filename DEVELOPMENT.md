@@ -19,6 +19,12 @@ and the image service's npm dependencies; updates still go through these checks.
 To add another supported architecture, update the add-on metadata and the
 platform/runner mapping in `scripts/ci-build-matrix.py`.
 
+The Dockerfile pins Home Assistant's multi-architecture base and defines the
+OCI labels. Supervisor supplies `BUILD_VERSION` from `config.yaml`; CI takes
+the same version from the manifest and checks it on each built image. Local
+builds without that argument use the version label `dev`. There is no
+`build.yaml` to maintain.
+
 ## Local Container Testing
 
 ### Prerequisites
@@ -33,7 +39,7 @@ The fastest way to test changes without publishing new versions:
 
 ```bash
 # 1. Build test container
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 \
+podman build \
   -t local/claude-terminal:test ./claude-terminal
 
 # 2. Create test configuration
@@ -64,7 +70,7 @@ podman stop test-claude-dev && podman rm test-claude-dev
 vim claude-terminal/scripts/claude-session-picker.sh
 
 # Rebuild image
-podman build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 \
+podman build \
   -t local/claude-terminal:test ./claude-terminal
 
 # Stop old container
@@ -222,7 +228,7 @@ ls -laZ /tmp/test-config/
 #### Build Cache Issues
 ```bash
 # Force rebuild without cache
-podman build --no-cache --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 \
+podman build --no-cache \
   -t local/claude-terminal:test ./claude-terminal
 
 # Clean up unused images
@@ -340,6 +346,5 @@ podman run -d --name test-ha-claude -p 7681:7681 \
 # real cross-build add --platform so the emulated toolchain matches.
 podman build --platform linux/arm64 \
   --build-arg BUILD_ARCH=aarch64 \
-  --build-arg BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.24 \
   -t local/claude-terminal:arm64 ./claude-terminal
 ```
