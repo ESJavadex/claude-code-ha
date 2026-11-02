@@ -63,6 +63,28 @@ jobs:
       - name: npm audit gate
         run: python3 scripts/npm-audit-gate.py
 
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Install browser test dependencies
+        working-directory: tests/browser
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium webkit
+
+      - name: Real touch taps preserve terminal input and focus
+        working-directory: tests/browser
+        run: npm test
+
   workflow-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -136,6 +158,14 @@ jobs:
         env:
           TEST_PLATFORM: ${{ matrix.platform }}
 
+      - name: Streamed (ingress_stream) uploads over 16 MiB arrive whole
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" \
+            -v "$PWD/claude-terminal/config.yaml:/claude-terminal/config.yaml:ro" --entrypoint node \
+            claude-terminal-test /tests/test-upload-streamed.mjs /opt/image-service/server.mjs
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
+
       - name: Voice API security and transcription tests
         run: |
           docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
@@ -147,6 +177,13 @@ jobs:
         run: |
           docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
             claude-terminal-test /tests/test-terminal-starting.mjs /opt/image-service/server.mjs
+        env:
+          TEST_PLATFORM: ${{ matrix.platform }}
+
+      - name: Panel files are served no-cache
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" -v "$PWD/tests:/tests:ro" --entrypoint node \
+            claude-terminal-test /tests/test-static-cache.mjs /opt/image-service/server.mjs
         env:
           TEST_PLATFORM: ${{ matrix.platform }}
 
@@ -174,7 +211,7 @@ jobs:
   # work. A failed or skipped matrix/lint job must never produce a green gate.
   docker-build:
     if: always()
-    needs: [checks, workflow-lint, docker-images]
+    needs: [checks, workflow-lint, docker-images, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -183,7 +220,9 @@ jobs:
           CHECKS_RESULT: ${{ needs.checks.result }}
           LINT_RESULT: ${{ needs.workflow-lint.result }}
           BUILD_RESULT: ${{ needs.docker-images.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
         run: |
           test "$CHECKS_RESULT" = success
           test "$LINT_RESULT" = success
           test "$BUILD_RESULT" = success
+          test "$BROWSER_RESULT" = success

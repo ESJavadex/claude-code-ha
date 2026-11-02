@@ -6,6 +6,8 @@ Run locally with:  python3 scripts/check-addon-metadata.py
 Validates, without building anything:
   - claude-terminal/config.yaml parses and has the required add-on fields,
     with a semver version and at least one supported architecture.
+  - claude-terminal/translations/en.yaml gives every option in the schema a
+    name and description, and describes every port.
   - claude-terminal/build.yaml parses, covers the same architectures and its
     org.opencontainers.image.version label matches config.yaml's version
     (the label drifts easily because it sits far from config.yaml).
@@ -64,6 +66,36 @@ check(
     label_version == str(version),
     f"build.yaml image version label ({label_version}) matches config.yaml ({version})",
 )
+
+# --- translations/en.yaml: Configuration and Network tab labels -------------
+# Without an entry the Configuration tab shows the raw key with no help text
+translations_path = ROOT / "claude-terminal" / "translations" / "en.yaml"
+translations = yaml.safe_load(translations_path.read_text())
+
+schema = config.get("schema") or {}
+options = config.get("options") or {}
+labels_cfg = translations.get("configuration") or {}
+check(
+    set(options) == set(schema),
+    f"config.yaml options and schema list the same keys (only in one: {sorted(set(options) ^ set(schema))})",
+)
+check(
+    set(labels_cfg) == set(schema),
+    f"translations/en.yaml labels every option (only in one: {sorted(set(labels_cfg) ^ set(schema))})",
+)
+unlabelled = sorted(
+    key for key, entry in labels_cfg.items()
+    if not (isinstance(entry, dict) and entry.get("name") and entry.get("description"))
+)
+check(not unlabelled, f"every translated option has a name and description (missing: {unlabelled})")
+
+ports = config.get("ports") or {}
+network = translations.get("network") or {}
+check(
+    set(network) == set(ports),
+    f"translations/en.yaml describes every port (only in one: {sorted(set(network) ^ set(ports))})",
+)
+check("ports_description" not in config, "config.yaml leaves port descriptions to translations/en.yaml")
 
 # --- repository.yaml: the add-on repository manifest ------------------------
 repo = yaml.safe_load((ROOT / "repository.yaml").read_text())
