@@ -16,6 +16,7 @@ node "$tests_dir/test-voice-audio.mjs"
 if [ -d "$tests_dir/../claude-terminal/image-service/node_modules" ]; then
     node "$tests_dir/test-upload-concurrency.mjs"
     node "$tests_dir/test-voice-api.mjs"
+    node "$tests_dir/test-terminal-starting.mjs"
     node "$tests_dir/test-upload-streamed.mjs"
     node "$tests_dir/test-static-cache.mjs"
 else
