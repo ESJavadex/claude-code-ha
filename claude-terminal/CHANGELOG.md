@@ -21,6 +21,32 @@
 - Adapted from Claude Workbench 3.5.0 (Eifel-Joe/claude-workbench), with the
   cursor-key handling from mattbsea's fork (ed215953).
 
+## 2.4.2
+
+### ✨ New Feature - Shift+Enter for a New Line, and Your Own tmux Settings
+- **Shift+Enter starts a new line in Claude's prompt** instead of sending it.
+  The browser terminal sent a plain Enter for it, and Claude's
+  `/terminal-setup` can't configure this terminal. The panel now types
+  `\` + Enter, which Claude Code reads as a line break. Plain Enter and other
+  combinations (Ctrl, Alt, Cmd) are unchanged.
+- **Your tmux settings can go in `~/.tmux.local.conf`.** `~/.tmux.conf` is
+  rewritten on every start, so edits there were lost. It now reads
+  `~/.tmux.local.conf` last, so your settings win and survive restarts.
+- **tmux passes focus events through** (`focus-events on`), so Claude Code
+  and vim notice when the terminal regains focus.
+- From heytcass/home-assistant-addons: 721f40b (Shift+Enter, an idea from
+  mattbsea's fork, 6e44e41) and f4b4294 (`~/.tmux.local.conf` and
+  `focus-events`, adapted from owine's fork, #381 and 1e0a33e).
+
+## 2.4.1
+
+### 🐛 Bug Fix - Updates Show Without a Hard Refresh
+- **The panel's page and scripts are now served with `Cache-Control: no-cache`.**
+  Without it, a browser could keep running the old page or JavaScript after an
+  add-on update until you forced a refresh. It now checks with the add-on on
+  every load, and gets a quick "not modified" reply when nothing has changed.
+- Idea from owine (67dd7e5), via Eifel-Joe/claude-workbench.
+
 ## 2.4.0
 
 ### ✨ New Feature - Home Assistant Speech-to-Text
@@ -592,7 +618,6 @@ and @mmackenzie2026.
     and runs correctly.
 - **Note on AVX2**: The crash was a linker error, **not** a CPU instruction issue.
   The existing 2.1.179 binary already runs on non-AVX2 hardware (e.g. AMD GX-415).
-
 
 ## 2.0.11
 

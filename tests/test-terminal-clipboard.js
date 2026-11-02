@@ -80,7 +80,8 @@ function makeWindow(options) {
         overlayMessages: [],
         appendedTextareas: [],
         fits: 0,
-        scrollsToBottom: 0
+        scrollsToBottom: 0,
+        inputs: []
     };
 
     const doc = {
@@ -127,6 +128,7 @@ function makeWindow(options) {
     let selection = '';
     const selectionHandlers = [];
     const oscHandlers = new Map();
+    let keyHandler = null;
 
     // Mirrors xterm.js's IBuffer: `viewportY` is where the visible rows start,
     // and `isWrapped` marks a row that continues the one above it.
@@ -163,7 +165,10 @@ function makeWindow(options) {
         },
         parser: {
             registerOscHandler(ident, handler) { oscHandlers.set(ident, handler); }
-        }
+        },
+        // xterm.js keeps one custom key handler; input() types as the user.
+        attachCustomKeyEventHandler(handler) { keyHandler = handler; },
+        input(data, wasUserInput) { state.inputs.push([data, wasUserInput]); }
     };
 
     const originalAppend = body.appendChild.bind(body);
@@ -182,6 +187,8 @@ function makeWindow(options) {
         },
         osc(ident, data) { return oscHandlers.get(ident)(data); },
         hasOscHandler: ident => oscHandlers.has(ident),
+        // What xterm.js would do with the event: true lets it handle the key
+        key(event) { return keyHandler ? keyHandler(event) : true; },
         termElement
     };
 }
@@ -1093,6 +1100,47 @@ test('a throwing fit() does not stop the scroll', () => {
 
     controller.scrollToBottom();
     assert.strictEqual(env.state.scrollsToBottom, 1);
+});
+
+// --- Shift+Enter ----------------------------------------------------------
+// xterm.js sends a plain CR for Shift+Enter, which submits Claude's prompt.
+
+const keyEvent = (type, init) => Object.assign(
+    { type, key: 'Enter', shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }, init);
+
+test('Shift+Enter types backslash + return once, and xterm.js sends nothing', () => {
+    const env = makeWindow({ clipboardApi: true });
+    bridge.install(env.win);
+
+    for (const type of ['keydown', 'keypress', 'keyup']) {
+        assert.strictEqual(env.key(keyEvent(type, { shiftKey: true })), false, `${type} not claimed`);
+    }
+    assert.deepStrictEqual(env.state.inputs, [['\\\r', true]]);
+});
+
+test('plain Enter and other modified Enters are left to xterm.js', () => {
+    const env = makeWindow({ clipboardApi: true });
+    bridge.install(env.win);
+
+    const passThrough = [
+        {},
+        { shiftKey: true, ctrlKey: true },
+        { shiftKey: true, altKey: true },
+        { shiftKey: true, metaKey: true },
+        { key: 'a', shiftKey: true }
+    ];
+    for (const init of passThrough) {
+        assert.strictEqual(env.key(keyEvent('keydown', init)), true, JSON.stringify(init));
+    }
+    assert.deepStrictEqual(env.state.inputs, []);
+});
+
+test('a terminal without input() keeps its own key handling', () => {
+    const env = makeWindow({ clipboardApi: true });
+    delete env.win.term.input;
+    bridge.install(env.win);
+
+    assert.strictEqual(env.key(keyEvent('keydown', { shiftKey: true })), true);
 });
 
 (async () => {

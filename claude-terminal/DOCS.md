@@ -80,6 +80,14 @@ The add-on offers several configuration options:
 - Keep disabled for reliable native browser copy/paste in the ttyd terminal, including OAuth codes
 - Enable only if you prefer tmux mouse selection, scrolling, and pane controls
 
+### Your Own tmux Settings
+- `~/.tmux.conf` is rewritten from the add-on's options on every start, so edits there don't last. Put your settings in `~/.tmux.local.conf` (`/data/home/.tmux.local.conf`) instead: it's read last, so it wins over the add-on's defaults (including **tmux Mouse Mode**) and survives restarts and updates
+- Restart the add-on, or run `tmux source-file ~/.tmux.conf`, to apply a change
+
+### New Line Without Sending
+- **Shift+Enter** starts a new line in Claude's prompt instead of sending it. The terminal types `\` + Enter for it, which Claude Code reads as a line break (and bash as a line continuation)
+- Claude's `/terminal-setup` isn't needed, and can't configure this browser terminal
+
 ### Files Sidebar
 - The **🗂️ Files** button in the header (or the rail on the right edge) opens a sidebar with a tree of `/config`. Hide it with » and drag its left edge to resize it. Click a file to preview it and **Insert path** to type its path at the prompt
 - **Recent changes** lists the files in `/config` changed in the last hour, day or week, so you can see what Claude edited
