@@ -124,7 +124,7 @@ test('other keys are never held back', () => {
 
 test('a tap keeps the focus in the terminal, so the on-screen keyboard stays open', () => {
     const env = makeBar();
-    assert.ok(env.fire('pointerdown', env.buttons.enter), 'pointerdown cancelled');
+    assert.ok(!env.fire('pointerdown', env.buttons.enter), 'pointerdown must permit WebKit touch activation');
     assert.ok(env.fire('mousedown', env.buttons.enter), 'mousedown cancelled');
     assert.ok(!env.fire('pointerdown', env.bar), 'the gap between keys is left alone');
 });

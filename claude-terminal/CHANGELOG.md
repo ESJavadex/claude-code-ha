@@ -12,6 +12,8 @@
   To quit Claude, type `/exit`.
 - **⇧↵ starts a new line** without sending the prompt, because an on-screen
   keyboard has no Shift+Enter.
+- Touch activation is checked in Chromium and WebKit: only `mousedown` is
+  cancelled to preserve focus, so WebKit can still dispatch a tap's `click`.
 - The arrows follow the terminal's cursor-key mode, so they also work in
   full-screen programs such as `less` and vim.
 - Shown only when a touch screen is the main pointer, so desktops, touch

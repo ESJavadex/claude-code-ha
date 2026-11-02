@@ -67,9 +67,9 @@
 
     /**
      * Wire the bar. getTerm is asked on every tap: the ttyd frame reloads on
-     * reconnect and then has a new term. pointerdown and mousedown are
-     * cancelled so a tap doesn't move the focus out of the terminal - that
-     * would close the on-screen keyboard.
+     * reconnect and then has a new term. Cancel mousedown to keep focus in
+     * the terminal. Leave pointerdown alone: cancelling it also suppresses
+     * the touch-generated click in WebKit, so no key would be sent.
      */
     function install(bar, getTerm, options) {
         if (!bar || bar[KEYBAR_FLAG]) return false;
@@ -89,7 +89,6 @@
         function keepFocus(e) {
             if (keyButton(e.target)) e.preventDefault();
         }
-        bar.addEventListener('pointerdown', keepFocus);
         bar.addEventListener('mousedown', keepFocus);
         // iOS Safari applies :active only under a touch listener; without the
         // pressed look people tap twice. Passive and empty: it must not cancel
