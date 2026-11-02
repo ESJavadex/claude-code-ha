@@ -66,6 +66,13 @@ grep -qx 'set -g set-clipboard on' "$HOME/.tmux.conf" || \
 grep -qx "set -as terminal-features ',\*:clipboard'" "$HOME/.tmux.conf" || \
     fail "tmux must advertise the clipboard capability so OSC 52 reaches ttyd"
 
+# ~/.tmux.conf is rewritten on every start, so user settings live in
+# ~/.tmux.local.conf. It must be sourced last, or the defaults would win.
+[ "$(grep -v '^#' "$HOME/.tmux.conf" | grep -v '^$' | tail -1)" = 'source-file -q ~/.tmux.local.conf' ] || \
+    fail "tmux.conf must source ~/.tmux.local.conf as its last setting"
+grep -qx 'set -g focus-events on' "$HOME/.tmux.conf" || \
+    fail "tmux must pass focus events through to Claude Code"
+
 # The frontend fix has to be reachable from the page that embeds ttyd.
 clipboard_bridge="$repo_root/claude-terminal/image-service/public/terminal-clipboard.js"
 terminal_page="$repo_root/claude-terminal/image-service/public/index.html"
