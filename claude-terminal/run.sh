@@ -372,6 +372,10 @@ setup_tmux() {
     bashio::log.info "Setting up tmux..."
 
     cat > "$tmux_conf" << TMUX_EOF
+# Rewritten on every add-on start, so edits here don't survive a restart.
+# Put your own settings in ~/.tmux.local.conf: it is sourced at the end, so
+# it overrides anything below, and the add-on never touches it.
+
 # Mouse mode is disabled by default so ttyd/browser copy and paste keeps working.
 set -g mouse ${tmux_mouse}
 
@@ -389,6 +393,10 @@ set -g history-limit 50000
 # Reduce escape-time so claude/vim feel responsive inside tmux
 set -g escape-time 20
 
+# Pass focus in/out events through, so Claude Code and vim notice the
+# terminal regaining focus
+set -g focus-events on
+
 # Start window and pane numbering at 1 (easier to reach on keyboard)
 set -g base-index 1
 setw -g pane-base-index 1
@@ -399,6 +407,9 @@ set -g status-bg colour235
 set -g status-fg colour136
 set -g status-left '[#S] '
 set -g status-right '%H:%M'
+
+# Your overrides, last so they win. -q: a missing file is not an error.
+source-file -q ~/.tmux.local.conf
 TMUX_EOF
 
     # Wrapper: attach to existing 'claude' session, or create a fresh one that runs the launch command
