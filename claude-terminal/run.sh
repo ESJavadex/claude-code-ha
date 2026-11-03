@@ -674,7 +674,8 @@ setup_statusline() {
             "$settings_file" > "$tmp" && mv -f "$tmp" "$settings_file"
         bashio::log.info "Home Assistant status line enabled"
     else
-        bashio::log.info "Status line: keeping your own ($current). Add the home to it with: ha-statusline --home"
+        # Not the command itself: it may carry a token in its arguments
+        bashio::log.info "Status line: keeping your own. Add the home to it with: ha-statusline --home"
     fi
     rm -f "$tmp"
     return 0

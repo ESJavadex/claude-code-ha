@@ -229,7 +229,7 @@ use_persistent_claude: true
 auto_update_claude_on_start: false
 ```
 
-Your OAuth credentials are stored in the `/config/claude-config` directory and will persist across add-on updates and restarts, so you won't need to log in again.
+Your login is stored in the add-on's own `/data` (`/data/.config/claude`), outside `/config`, and persists across add-on updates and restarts, so you won't need to log in again.
 
 If you enable `use_persistent_claude`, the add-on installs Claude Code into `/data/npm` on the next start if nothing is there yet. `/data/npm` is left out of Home Assistant backups, so after a restore it is installed again the same way. To install or reinstall it by hand from a shell inside the add-on:
 

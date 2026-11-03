@@ -72,7 +72,7 @@ claude_json=$(jq -nc --arg d "$tmp_dir" '{model: {display_name: "Opus"}, workspa
                   seven_day: {used_percentage: 95, resets_at: 1800000000}}}')
 out=$("$script" <<< "$claude_json" | strip_ansi)
 [ "$(wc -l <<< "$out")" -eq 3 ] || fail "expected three lines: $out"
-[ "$(sed -n 1p <<< "$out")" = "Opus │ ✍️ 37% │ $(basename "$tmp_dir") │ 1h12m │ +12/-3" ] || \
+[ "$(sed -n 1p <<< "$out")" = "Opus │ ✍️  37% │ $(basename "$tmp_dir") │ 1h12m │ +12/-3" ] || \
     fail "line 1 wrong: $(sed -n 1p <<< "$out")"
 [ "$(sed -n 2p <<< "$out")" = "5h ●●●○○ 62% ⟳ 08:00 │ 7d ○○○○○ 5% ⟳ Fri 08:00 │ in 45.2k · out 3.1k" ] || \
     fail "line 2 wrong: $(sed -n 2p <<< "$out")"
@@ -85,7 +85,7 @@ out=$(jq -c 'del(.rate_limits) | .cost.total_cost_usd = 0.4213' <<< "$claude_jso
 
 # A new session: empty pieces and the empty usage line disappear
 out=$("$script" < /dev/null | strip_ansi)
-[ "$(sed -n 1p <<< "$out")" = "Claude │ ✍️ 100%" ] || fail "empty input line 1: $(sed -n 1p <<< "$out")"
+[ "$(sed -n 1p <<< "$out")" = "Claude │ ✍️  100%" ] || fail "empty input line 1: $(sed -n 1p <<< "$out")"
 [ "$(wc -l <<< "$out")" -eq 2 ] || fail "empty usage line should be dropped: $out"
 
 # All fine at home: a short check mark
@@ -133,7 +133,7 @@ PATH="$tmp_dir/fakebin:$PATH" HA_STATUSLINE_API="http://supervisor/core/api" "$s
 
 # --- setup_statusline in run.sh ---------------------------------------------
 
-bashio::log.info() { :; }
+bashio::log.info() { printf '%s\n' "$*" >> "$tmp_dir/info"; }
 bashio::log.warning() { printf '%s\n' "$*" >> "$tmp_dir/warnings"; }
 bashio::log.error() { :; }
 config_statusline=''
@@ -187,12 +187,16 @@ setup_statusline
 [ "$(jq -r '.theme' "$settings")" = dark ] || fail "off lost other settings"
 
 # A status line the user made (e.g. with /statusline) is never touched
-user_cmd="$HOME/.claude/statusline.sh"
+# Its command may carry a secret, so it never reaches the log.
+user_cmd="$HOME/.claude/statusline.sh --token s3cr3t-value"
 jq --arg c "$user_cmd" '.statusLine = {type: "command", command: $c}' "$settings" > "$settings.new" \
     && mv "$settings.new" "$settings"
 config_statusline=''
+: > "$tmp_dir/info"
 setup_statusline
 [ "$(jq -r '.statusLine.command' "$settings")" = "$user_cmd" ] || fail "user status line replaced"
+grep -q 'keeping your own' "$tmp_dir/info" || fail "keeping the user's status line should be logged"
+! grep -q 's3cr3t-value' "$tmp_dir/info" "$tmp_dir/warnings" || fail "the user's status line command reached the log"
 config_statusline='["off"]'
 setup_statusline
 [ "$(jq -r '.statusLine.command' "$settings")" = "$user_cmd" ] || fail "off removed the user's status line"
