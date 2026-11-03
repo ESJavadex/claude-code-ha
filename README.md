@@ -20,6 +20,10 @@
 
 ## What's new
 
+- **2.4.8: Home Assistant status line.** Context, tokens and plan limits, plus
+  the home under Claude's prompt: alerts, repairs, broken automations, old
+  backups, a full disk and updates, only when they need a look. Pick the
+  pieces in the options, or make your own with `/statusline`.
 - **2.4: voice and mobile terminal improvements.** Home Assistant speech-to-text,
   phone keys, Shift+Enter, larger uploads through ingress and reliable terminal
   startup. Version 2.4.7 also removes deprecated build metadata.
@@ -95,6 +99,7 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 | `init_commands` | `[]` | Shell commands run on every start, after packages (120 s each) |
 | `use_persistent_claude` | `false` | Use a Claude Code install kept in `/data/npm` |
 | `auto_update_claude_on_start` | `false` | Update that persistent install on every start |
+| `statusline` | `[]` | Pieces of the status bar under the prompt, in order (empty is the default, `off` removes it). See [DOCS.md](claude-terminal/DOCS.md#home-assistant-status-line) |
 
 ```yaml
 auto_launch_claude: true
@@ -167,6 +172,8 @@ npx claude-plugins install @ESJavadex/claude-homeassistant-plugins/homeassistant
 
 - **[ha-ws-client-go](https://github.com/schoolboyqueue/home-assistant-blueprints/tree/main/scripts/ha-ws-client-go)** by [@schoolboyqueue](https://github.com/schoolboyqueue) — lightweight Go CLI for the Home Assistant WebSocket API. Gives Claude direct access to entity states, service calls, automation traces, and real-time monitoring. Single binary, no dependencies.
 
+- **[claude-statusline](https://github.com/susomejias/claude-statusline)** by [@susomejias](https://github.com/susomejias) — a minimal Claude Code status line with context window, rate limits, git info and session stats. The add-on's [Home Assistant status line](claude-terminal/DOCS.md#home-assistant-status-line) is based on its style.
+
 ## Contributors
 
 This add-on keeps getting better thanks to people who send fixes, test releases and write detailed bug reports. Thank you all. 💙
@@ -191,6 +198,7 @@ This add-on keeps getting better thanks to people who send fixes, test releases 
 - [@PeterLinuxOSS](https://github.com/PeterLinuxOSS) made copying out of the terminal work, with touch-device copy and swipe scrolling.
 - [@mmackenzie2026](https://github.com/mmackenzie2026) fixed `persist-install` so packages really persist.
 - [@miczu71](https://github.com/miczu71), [@RobSlabaugh](https://github.com/RobSlabaugh), [@owine](https://github.com/owine) and [@martinboksa](https://github.com/martinboksa) sent earlier fixes and ideas.
+- [@susomejias](https://github.com/susomejias) designed [claude-statusline](https://github.com/susomejias/claude-statusline), the look the Home Assistant status line is based on.
 - [@heytcass](https://github.com/heytcass) (Tom Cassady) created the original [Claude Terminal add-on](https://github.com/heytcass/home-assistant-addons) this project is forked from.
 
 Want to help? PRs are welcome. Smaller, focused ones get reviewed fastest. See the [development guide](DEVELOPMENT.md) to build and test locally.

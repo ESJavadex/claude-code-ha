@@ -47,7 +47,7 @@ curl -X GET http://localhost:7681/
 - **translations/en.yaml** - The label and help text for each option in the Configuration tab, and the Network tab's port warnings. Every new option needs an entry (`scripts/check-addon-metadata.py` checks)
 - **Dockerfile** - Multi-architecture Alpine base, OCI labels, Node.js and Claude Code CLI; Supervisor supplies BUILD_VERSION from config.yaml
 - **run.sh** - Main startup script: sets up `/data`, tmux, persistent Claude/packages, then starts the image service and ttyd
-- **scripts/** - Session picker, auth helper, `persist-install`, health check, HA CLI installer and API examples
+- **scripts/** - Session picker, auth helper, `persist-install`, health check, HA CLI installer, API examples and `ha-statusline.sh` (the Claude Code status line: pieces in the `statusline` option order; HA states every 30 s and Supervisor backups/disk/repairs every 5 min are summarised by a background refresh into `/tmp/ha-statusline`, so a redraw never calls the API; the Supervisor token is only sent to `http(s)://supervisor`)
 - **image-service/** - Node.js web page on port 7680 (the ingress panel) that embeds ttyd and handles image upload/paste
 
 ### Key Components
@@ -72,7 +72,7 @@ Because `/data` is per add-on, installing the add-on from a different repository
 3. Warn if the CPU lacks AVX; remove leftover npm/pip caches and old Claude versions from `/data` (ttyd, tmux, jq and curl are baked into the image)
 4. Configure tmux and the `tmux-claude` wrapper
 5. Set up persistent Claude (if `use_persistent_claude`)
-6. Install the session picker and auth helper
+6. Install the session picker and auth helper, then the status line (`setup_statusline`: sets `statusLine` in `~/.claude/settings.json` only when there is none or it is ours)
 7. Set up `persist-install` and auto-install packages listed in the options
 8. Start the image service (7680), the login URL watcher (posts Claude's login link as an HA notification) and ttyd (7681)
 

@@ -517,6 +517,91 @@ setup_session_picker() {
     fi
 }
 
+# Home Assistant status line (scripts/ha-statusline.sh). The add-on's
+# statusline option is a list of pieces in display order: a piece name
+# (ha-statusline --segments), --- for a new line, or an entity as sensor.x or
+# Label=sensor.x. Empty means the default layout, off turns it off.
+# The script is always installed, so a status line of your own can include
+# the home with `ha-statusline --home`. ~/.claude/settings.json only gets our
+# statusLine when it has none or already has ours: one made with /statusline
+# or by hand is never replaced, and off only removes ours.
+setup_statusline() {
+    local script_source="${HA_STATUSLINE_SOURCE:-/opt/scripts/ha-statusline.sh}"
+    local script_bin="${HA_STATUSLINE_BIN:-/usr/local/bin/ha-statusline}"
+    local config_file="${HA_STATUSLINE_CONFIG:-/data/.config/ha-statusline.json}"
+    local settings_file="${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}"
+    local items item label entity_id segments current tmp enabled=true
+    local layout='[]'
+
+    if [ -f "$script_source" ]; then
+        if ! { cp "$script_source" "$script_bin" && chmod 755 "$script_bin"; }; then
+            bashio::log.warning "Could not install the Home Assistant status line"
+            return 0
+        fi
+    fi
+    segments=" $("$script_bin" --segments 2>/dev/null | tr '\n' ' ') "
+
+    items=$(normalize_config_list "$(bashio::config 'statusline' '')")
+    while IFS= read -r item; do
+        item="${item#"${item%%[![:space:]]*}"}"
+        item="${item%"${item##*[![:space:]]}"}"
+        [ -n "$item" ] || continue
+        if [ "$item" = 'off' ]; then
+            enabled=false
+        elif [ "$item" = '---' ] || [[ "$segments" == *" $item "* ]]; then
+            layout=$(jq -c --arg s "$item" '. + [{s: $s}]' <<< "$layout")
+        else
+            if [[ "$item" == *=* ]]; then
+                label="${item%%=*}"
+                entity_id="${item#*=}"
+            else
+                label=''
+                entity_id="$item"
+            fi
+            entity_id="${entity_id//[[:space:]]/}"
+            if [[ ! "$entity_id" =~ ^[a-z0-9_]+\.[a-z0-9_]+$ ]]; then
+                bashio::log.warning "  Status line: skipping '$item' (not a piece name or an entity ID like sensor.living_room_co2)"
+                continue
+            fi
+            layout=$(jq -c --arg id "$entity_id" --arg label "$label" \
+                '. + [{s: "entity", id: $id, label: ($label | gsub("^\\s+|\\s+$"; "") | .[0:16])}]' <<< "$layout")
+        fi
+    done <<< "$items"
+
+    # An empty list (or only invalid items) means the default layout
+    if ! { mkdir -p "$(dirname "$config_file")" \
+        && jq -n --argjson l "$layout" '{layout: (if ($l | length) > 0 then $l else null end)}' > "$config_file"; }; then
+        bashio::log.warning "Status line: could not write $config_file"
+    fi
+
+    mkdir -p "$(dirname "$settings_file")"
+    if [ ! -s "$settings_file" ]; then
+        [ "$enabled" = true ] || return 0
+        printf '{}\n' > "$settings_file"
+    fi
+    if ! current=$(jq -r '.statusLine.command // empty' "$settings_file" 2>/dev/null); then
+        bashio::log.warning "Status line: $settings_file is not valid JSON, leaving it alone"
+        return 0
+    fi
+
+    tmp=$(mktemp "$settings_file.XXXXXX")
+    if [ "$enabled" != true ]; then
+        if [ "$current" = "$script_bin" ]; then
+            jq 'del(.statusLine)' "$settings_file" > "$tmp" && mv -f "$tmp" "$settings_file"
+            bashio::log.info "Home Assistant status line turned off"
+        fi
+    elif [ -z "$current" ] || [ "$current" = "$script_bin" ]; then
+        jq --arg cmd "$script_bin" \
+            '.statusLine = {type: "command", command: $cmd, padding: 0, refreshInterval: 30}' \
+            "$settings_file" > "$tmp" && mv -f "$tmp" "$settings_file"
+        bashio::log.info "Home Assistant status line enabled"
+    else
+        bashio::log.info "Status line: keeping your own ($current). Add the home to it with: ha-statusline --home"
+    fi
+    rm -f "$tmp"
+    return 0
+}
+
 # Setup persistent package manager
 setup_persistent_packages() {
     local persist_install="${PERSIST_INSTALL_BIN:-/usr/local/bin/persist-install}"
@@ -923,6 +1008,7 @@ main() {
     setup_tmux
     setup_persistent_claude
     setup_session_picker
+    setup_statusline
     setup_persistent_packages
     check_persisted_alpine_release
     run_init_commands
