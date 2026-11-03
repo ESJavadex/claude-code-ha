@@ -14,6 +14,8 @@
 
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fesjavadex%2Fclaude-code-ha)
 
+**[📖 Documentation](claude-terminal/DOCS.md)** · **[Changelog](claude-terminal/CHANGELOG.md)** · **[Development guide](DEVELOPMENT.md)**
+
 ![Claude Terminal Pro with the Files sidebar](docs/images/files-sidebar.jpg)
 
 </div>
@@ -50,18 +52,15 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 
 ## Features
 
-- **Voice input with Home Assistant STT:** use your configured speech engine
-  in Firefox or compatible Companion app WebViews over HTTPS. Set
-  `voice_stt_provider` and optionally `voice_language`, review the transcript,
-  and insert it at the prompt without submitting it. See
-  [Voice Input](claude-terminal/DOCS.md#voice-input).
-
 **Terminal**
 - Claude Code in a web terminal embedded in the HA sidebar, starting in `/config`
 - A persistent tmux session: close the tab or restart HA Core and you reattach to the same conversation
 - An optional session picker: new, continue, resume, custom flags, auth helper, `gh` login, bash
 - Copy and paste that work: mouse selection, Claude's `/copy`, **Copy** and **Copy link** buttons, swipe to scroll on touch screens
-- Paste, drop or upload images and other files (PDFs, text, YAML, logs…) for Claude to read; voice input
+- Paste, drop or upload images and other files (PDFs, text, YAML, logs…) for Claude to read
+- Shift+Enter for a new line, and on phones a row of the keys Claude Code needs above the on-screen keyboard
+- [Voice input](claude-terminal/DOCS.md#voice-input): dictate, review, then insert at the prompt without sending. Uses your Home Assistant speech-to-text engine where the browser has none (Firefox, some Companion app WebViews)
+- A [status line](claude-terminal/DOCS.md#home-assistant-status-line) under Claude's prompt: context, plan limits, and anything in the home that needs a look
 
 **Files sidebar**
 - A read-only tree of `/config` with previews. **Insert path** types a file's path at the prompt
@@ -99,6 +98,8 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 | `init_commands` | `[]` | Shell commands run on every start, after packages (120 s each) |
 | `use_persistent_claude` | `false` | Use a Claude Code install kept in `/data/npm` |
 | `auto_update_claude_on_start` | `false` | Update that persistent install on every start |
+| `voice_stt_provider` | empty | Home Assistant speech-to-text engine for Voice Input, e.g. `stt.faster_whisper`. See [Voice Input](claude-terminal/DOCS.md#voice-input) |
+| `voice_language` | empty | Language for Voice Input, e.g. `de` (empty uses your browser's language) |
 | `statusline` | `[]` | Pieces of the status bar under the prompt, in order (empty is the default, `off` removes it). See [DOCS.md](claude-terminal/DOCS.md#home-assistant-status-line) |
 
 ```yaml
@@ -149,18 +150,20 @@ The target architecture is resolved from Home Assistant's `BUILD_ARCH` build arg
 
 ## Troubleshooting
 
-- **The session picker doesn't react to the keyboard.** Update to 2.1.13 or later.
 - **Typing lags, then catches up.** That comes from Home Assistant's ingress proxy, not the add-on. See [DOCS.md](claude-terminal/DOCS.md#typing-lags-or-pauses-for-a-few-seconds-then-catches-up).
-- **`persist-install` packages vanish after a restart.** Fixed in 2.1.13. Install them again once.
+- **Logging in fails.** Set `auto_launch_claude` to `false` and choose the login helper in the session picker.
 - **Anything else:** check the add-on log and [open an issue](https://github.com/ESJavadex/claude-code-ha/issues).
 
 ## Recommended: Home Assistant plugins for Claude
 
 Pair the add-on with the **[Claude Home Assistant Plugins](https://github.com/ESJavadex/claude-homeassistant-plugins)** for HA-specific context and tools:
 
-```bash
-npx claude-plugins install @ESJavadex/claude-homeassistant-plugins/homeassistant-config
 ```
+/plugin marketplace add ESJavadex/claude-homeassistant-plugins
+/plugin install homeassistant-config@claude-homeassistant-plugins
+```
+
+Type these at Claude's prompt, one at a time.
 
 ## Community guides
 
