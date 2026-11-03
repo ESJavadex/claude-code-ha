@@ -520,7 +520,9 @@ setup_session_picker() {
 # Home Assistant status line (scripts/ha-statusline.sh). The add-on's
 # statusline option is a list of pieces in display order: a piece name
 # (ha-statusline --segments), --- for a new line, or an entity as sensor.x or
-# Label=sensor.x. Empty means the default layout, off turns it off.
+# Label=sensor.x. -sensor.car_* leaves entities out of the home pieces (a
+# battery or a device that is often off). Empty means the default layout,
+# off turns it off.
 # The script is always installed, so a status line of your own can include
 # the home with `ha-statusline --home`. ~/.claude/settings.json only gets our
 # statusLine when it has none or already has ours: one made with /statusline
@@ -531,7 +533,7 @@ setup_statusline() {
     local config_file="${HA_STATUSLINE_CONFIG:-/data/.config/ha-statusline.json}"
     local settings_file="${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}"
     local items item label entity_id segments current tmp enabled=true
-    local layout='[]'
+    local layout='[]' exclude='[]'
 
     if [ -f "$script_source" ]; then
         if ! { cp "$script_source" "$script_bin" && chmod 755 "$script_bin"; }; then
@@ -550,6 +552,13 @@ setup_statusline() {
             enabled=false
         elif [ "$item" = '---' ] || [[ "$segments" == *" $item "* ]]; then
             layout=$(jq -c --arg s "$item" '. + [{s: $s}]' <<< "$layout")
+        elif [[ "$item" == -* ]]; then
+            item="${item//[[:space:]]/}"
+            if [[ ! "$item" =~ ^-[a-z0-9_*]+\.[a-z0-9_*]+$ ]]; then
+                bashio::log.warning "  Status line: skipping '$item' (to leave entities out, write -sensor.car_battery or -sensor.car_*)"
+                continue
+            fi
+            exclude=$(jq -c --arg p "${item#-}" '. + [$p]' <<< "$exclude")
         else
             if [[ "$item" == *=* ]]; then
                 label="${item%%=*}"
@@ -568,9 +577,10 @@ setup_statusline() {
         fi
     done <<< "$items"
 
-    # An empty list (or only invalid items) means the default layout
+    # No pieces (only exclusions, or only invalid items) means the default layout
     if ! { mkdir -p "$(dirname "$config_file")" \
-        && jq -n --argjson l "$layout" '{layout: (if ($l | length) > 0 then $l else null end)}' > "$config_file"; }; then
+        && jq -n --argjson l "$layout" --argjson x "$exclude" \
+            '{layout: (if ($l | length) > 0 then $l else null end), exclude: $x}' > "$config_file"; }; then
         bashio::log.warning "Status line: could not write $config_file"
     fi
 

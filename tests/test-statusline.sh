@@ -34,6 +34,7 @@ cat > "$tmp_dir/api/states" << 'STATES'
   {"entity_id": "sensor.door_battery", "state": "12", "attributes": {"device_class": "battery", "friendly_name": "Door\u001b]0;pwned\u0007"}},
   {"entity_id": "sensor.ok_battery", "state": "90", "attributes": {"device_class": "battery"}},
   {"entity_id": "sensor.gone_battery", "state": "unknown", "attributes": {"device_class": "battery"}},
+  {"entity_id": "sensor.car_battery", "state": "8", "attributes": {"device_class": "battery"}, "last_reported": "STALE"},
   {"entity_id": "binary_sensor.smoke", "state": "on", "attributes": {"device_class": "smoke", "friendly_name": "Kitchen smoke"}},
   {"entity_id": "binary_sensor.motion", "state": "on", "attributes": {"device_class": "motion"}},
   {"entity_id": "update.core", "state": "on", "attributes": {}},
@@ -41,11 +42,14 @@ cat > "$tmp_dir/api/states" << 'STATES'
   {"entity_id": "sensor.co2", "state": "820", "attributes": {"unit_of_measurement": "ppm", "friendly_name": "Living CO2"}}
 ]
 STATES
+# The parked car last reported three days ago: its level is old news
+sed -i "s/STALE/$(date -u -d "@$(( $(date +%s) - 3 * 86400 ))" +%Y-%m-%dT%H:%M:%S.123456+00:00)/" "$tmp_dir/api/states"
 old_backup=$(date -u -d "@$(( $(date +%s) - 10 * 86400 ))" +%Y-%m-%dT%H:%M:%S.123456+00:00)
 printf '{"result":"ok","data":{"version":"2026.10.3","version_latest":"2026.11.0","update_available":true}}' > "$tmp_dir/sup/core/info"
 printf '{"result":"ok","data":{"disk_total":100,"disk_used":91}}' > "$tmp_dir/sup/host/info"
 printf '{"result":"ok","data":{"backups":[{"date":"%s"}]}}' "$old_backup" > "$tmp_dir/sup/backups"
-printf '{"result":"ok","data":{"unhealthy":[],"unsupported":[],"issues":[{"type":"x"}]}}' > "$tmp_dir/sup/resolution/info"
+# no_current_backup is left to the backup piece
+printf '{"result":"ok","data":{"unhealthy":[],"unsupported":[],"issues":[{"type":"no_current_backup"},{"type":"multiple_data_disks"}]}}' > "$tmp_dir/sup/resolution/info"
 
 all_home='alerts repairs automations backup disk core updates unavailable battery people weather'
 printf '%s' "$all_home" | jq -Rc 'split(" ") | map({s: .}) + [{s: "entity", id: "sensor.co2", label: "CO2"}, {s: "entity", id: "sensor.nope", label: ""}] | {layout: .}' \
@@ -55,15 +59,27 @@ printf '%s' "$all_home" | jq -Rc 'split(" ") | map({s: .}) + [{s: "entity", id: 
 home=$("$script" --home)
 case "$home" in *$'\e]'*|*$'\a'*) fail "escape sequence from an entity name reached the output" ;; esac
 home=$(strip_ansi <<< "$home")
-for want in "🏠 🚨 Kitchen smoke" "🩺 1 repair" "🤖 1 broken" "💾 10d" "💽 91%" "⬆ HA 2026.11.0" \
+for want in "🏠 🚨 Kitchen smoke" "🩺 multiple data disks" "🤖 1 broken" "💾 10d" "💽 91%" "⬆ HA 2026.11.0" \
             "📦 1" "⚠ 2 unavailable" "🔋 Door]0;pwned" "👥 1/2" "☀ 18°C" "CO2 820 ppm" "sensor.nope missing"; do
     [[ "$home" == *"$want"* ]] || fail "home line lacks '$want': $home"
 done
 [[ "$home" != *motion* ]] || fail "motion is not an alert: $home"
+[[ "$home" != *"no current backup"* ]] || fail "no_current_backup is the backup piece's job: $home"
+
+# Excluded entities leave the home pieces; an entity piece still shows
+jq '.exclude = ["light.*", "sensor.door_*", "sensor.co2"]' "$HA_STATUSLINE_CONFIG" > "$tmp_dir/x.json" \
+    && cp "$tmp_dir/x.json" "$HA_STATUSLINE_CONFIG"
+"$script" --refresh || fail "--refresh with exclusions failed"
+home=$("$script" --home | strip_ansi)
+[[ "$home" == *"⚠ 1 unavailable"* ]] || fail "light.* should be excluded from unavailable: $home"
+[[ "$home" != *"🔋"* ]] || fail "excluded and stale batteries should not show: $home"
+[[ "$home" == *"CO2 820 ppm"* ]] || fail "an exclusion must not hide an entity piece: $home"
+jq 'del(.exclude)' "$HA_STATUSLINE_CONFIG" > "$tmp_dir/x.json" && cp "$tmp_dir/x.json" "$HA_STATUSLINE_CONFIG"
+"$script" --refresh || fail "refresh failed"
 [ "$(wc -l <<< "$home")" -eq 1 ] || fail "--home should be one line"
 
-# Default layout: Claude, usage and tokens, then the home. Pieces with
-# nothing to say are left out.
+# Default layout: two short lines, Claude then the home. Pieces with nothing
+# to say are left out; a reset time only shows once half the limit is used.
 rm -f "$HA_STATUSLINE_CONFIG"
 claude_json=$(jq -nc --arg d "$tmp_dir" '{model: {display_name: "Opus"}, workspace: {current_dir: $d},
     context_window: {used_percentage: 63.4, total_input_tokens: 45210, total_output_tokens: 3100},
@@ -71,22 +87,26 @@ claude_json=$(jq -nc --arg d "$tmp_dir" '{model: {display_name: "Opus"}, workspa
     rate_limits: {five_hour: {used_percentage: 38, resets_at: 1800000000},
                   seven_day: {used_percentage: 95, resets_at: 1800000000}}}')
 out=$("$script" <<< "$claude_json" | strip_ansi)
-[ "$(wc -l <<< "$out")" -eq 3 ] || fail "expected three lines: $out"
-[ "$(sed -n 1p <<< "$out")" = "Opus │ ✍️  37% │ $(basename "$tmp_dir") │ 1h12m │ +12/-3" ] || \
+[ "$(wc -l <<< "$out")" -eq 2 ] || fail "expected two lines: $out"
+[ "$(sed -n 1p <<< "$out")" = "Opus │ ✍️  37% │ $(basename "$tmp_dir") │ 5h 62% │ 7d 5% ⟳ Fri 08:00" ] || \
     fail "line 1 wrong: $(sed -n 1p <<< "$out")"
-[ "$(sed -n 2p <<< "$out")" = "5h ●●●○○ 62% ⟳ 08:00 │ 7d ○○○○○ 5% ⟳ Fri 08:00 │ in 45.2k · out 3.1k" ] || \
-    fail "line 2 wrong: $(sed -n 2p <<< "$out")"
-[[ "$(sed -n 3p <<< "$out")" == "🏠 🚨 Kitchen smoke │ 🩺 1 repair"* ]] || fail "line 3 wrong: $(sed -n 3p <<< "$out")"
-[[ "$out" != *"👥"* && "$out" != *"☀"* ]] || fail "people and weather are not in the default layout"
+[[ "$(sed -n 2p <<< "$out")" == "🏠 🚨 Kitchen smoke │ 🩺 multiple data disks"* ]] || fail "line 2 wrong: $(sed -n 2p <<< "$out")"
+[[ "$out" != *"👥"* && "$out" != *"☀"* && "$out" != *"unavailable"* ]] || \
+    fail "people, weather and unavailable are not in the default layout: $out"
 
 # API-key users have no rate limits: the cost is shown instead
 out=$(jq -c 'del(.rate_limits) | .cost.total_cost_usd = 0.4213' <<< "$claude_json" | "$script" | strip_ansi)
-[[ "$(sed -n 2p <<< "$out")" == '$0.42 │ in 45.2k'* ]] || fail "cost not shown: $(sed -n 2p <<< "$out")"
+[[ "$(sed -n 1p <<< "$out")" == *'│ $0.42' ]] || fail "cost not shown: $(sed -n 1p <<< "$out")"
 
-# A new session: empty pieces and the empty usage line disappear
+# A new session: empty pieces disappear
 out=$("$script" < /dev/null | strip_ansi)
 [ "$(sed -n 1p <<< "$out")" = "Claude │ ✍️  100%" ] || fail "empty input line 1: $(sed -n 1p <<< "$out")"
-[ "$(wc -l <<< "$out")" -eq 2 ] || fail "empty usage line should be dropped: $out"
+[ "$(wc -l <<< "$out")" -eq 2 ] || fail "expected the Claude line and the home line: $out"
+
+# A line that only has Claude pieces with nothing to say is dropped
+printf '{"layout":[{"s":"model"},{"s":"---"},{"s":"usage"},{"s":"tokens"}]}' > "$HA_STATUSLINE_CONFIG"
+[ "$("$script" < /dev/null | strip_ansi)" = "Claude" ] || fail "an empty line should be dropped"
+rm -f "$HA_STATUSLINE_CONFIG"
 
 # All fine at home: a short check mark
 printf '[]' > "$tmp_dir/api/states"
@@ -173,12 +193,20 @@ setup_statusline
 # The user's pieces, in order: names, line breaks, entities with and without
 # labels. Anything else is skipped with a warning.
 : > "$tmp_dir/warnings"
-config_statusline='["model", " context ", "---", "CO₂=sensor.air_co2", "sensor.temp", "people", "$(reboot)", "Bad=../../etc", "nonsense"]'
+config_statusline='["model", " context ", "---", "CO₂=sensor.air_co2", "sensor.temp", "people", "$(reboot)", "Bad=../../etc", "nonsense", "-sensor.car_*", " -light.coffee_machine ", "-$(reboot)", "-*"]'
 setup_statusline
 [ "$(jq -c '.layout' "$HA_STATUSLINE_CONFIG")" = \
   '[{"s":"model"},{"s":"context"},{"s":"---"},{"s":"entity","id":"sensor.air_co2","label":"CO₂"},{"s":"entity","id":"sensor.temp","label":""},{"s":"people"}]' ] || \
     fail "layout parsed wrong: $(jq -c '.layout' "$HA_STATUSLINE_CONFIG")"
-[ "$(grep -c skipping "$tmp_dir/warnings")" -eq 3 ] || fail "invalid items should be warned about"
+[ "$(jq -c '.exclude' "$HA_STATUSLINE_CONFIG")" = '["sensor.car_*","light.coffee_machine"]' ] || \
+    fail "exclusions parsed wrong: $(jq -c '.exclude' "$HA_STATUSLINE_CONFIG")"
+[ "$(grep -c skipping "$tmp_dir/warnings")" -eq 5 ] || fail "invalid items should be warned about"
+
+# Only exclusions: the default layout, with them applied
+config_statusline='["-sensor.car_*"]'
+setup_statusline
+[ "$(jq -c '[.layout, .exclude]' "$HA_STATUSLINE_CONFIG")" = '[null,["sensor.car_*"]]' ] || \
+    fail "exclusions alone should keep the default layout"
 
 # off removes ours only, and keeps other settings
 config_statusline='["off"]'
