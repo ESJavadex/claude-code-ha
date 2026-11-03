@@ -5,7 +5,7 @@
 ### ✨ New Feature - Home Assistant Plugin for Claude, Preinstalled
 - **Claude now knows current Home Assistant syntax out of the box.** The
   add-on ships the [homeassistant-config](https://github.com/ESJavadex/claude-homeassistant-plugins)
-  plugin (2.1.0) and installs it on the first start, with no network needed:
+  plugin (2.1.1) and installs it on the first start, with no network needed:
   - current syntax up to Home Assistant 2026.11 (purpose-specific triggers,
     modern template entities, `color_temp_kelvin`, sections dashboards,
     `perform-action`), written for the version you run;
