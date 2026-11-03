@@ -3,13 +3,14 @@
 #
 # ha-statusline: a Claude Code status line for Home Assistant.
 #
-# Default layout (each piece hides itself when there's nothing to say):
-#   Opus 5.5 │ ✍️ 63% │ config (main*) │ 1h12m │ +120/-30
-#   5h ●●●○○ 62% ⟳ 14:00 │ 7d ●●●●○ 81% ⟳ Fri 09:00 │ in 45.2k · out 3.1k
-#   🏠 🚨 Kitchen smoke │ 💾 9d │ ⚠ 3 unavailable          (or just 🏠 ✓)
+# Default layout, two short lines (each piece hides itself when there's
+# nothing to say):
+#   Opus 5.5 │ ✍️  63% │ config (main*) │ 5h 62% │ 7d 19% ⟳ Fri 09:00
+#   🏠 🚨 Kitchen smoke │ 💾 9d │ 🔋 Door sensor          (or just 🏠 ✓)
 #
 # Pieces, in the order you list them in the add-on's statusline option
-# (--- starts a new line, Label=sensor.x or sensor.x adds an entity):
+# (--- starts a new line, Label=sensor.x or sensor.x adds an entity,
+# -sensor.car_* leaves matching entities out of the home pieces):
 #   Claude: model context folder duration lines usage tokens
 #   Home:   alerts repairs automations backup disk core updates
 #           unavailable battery people weather
@@ -45,7 +46,10 @@ LOCK="$CACHE_DIR/refresh.lock"
 
 CLAUDE_SEGMENTS="model context folder duration lines usage tokens"
 HOME_SEGMENTS="alerts repairs automations backup disk core updates unavailable battery people weather"
-DEFAULT_LAYOUT='model context folder duration lines --- usage tokens --- alerts repairs automations backup disk core updates unavailable battery'
+DEFAULT_LAYOUT='model context folder usage --- alerts repairs automations backup disk core updates battery'
+# A battery that hasn't reported for a day shows an old level (a parked car,
+# a device out of range), so it doesn't count as low.
+BATTERY_STALE="${HA_STATUSLINE_BATTERY_STALE:-86400}"
 
 # The layout as [{"s": name}, {"s": "---"}, {"s": "entity", "id": ..., "label": ...}].
 # run.sh validates the add-on option and writes it; null means the default.
@@ -57,6 +61,15 @@ layout() {
     else
         jq -nc --arg l "$DEFAULT_LAYOUT" '$l | split(" ") | map({s: .})'
     fi
+}
+
+# Entities left out of the home pieces, as regexes: run.sh keeps the
+# patterns (-sensor.car_* in the option) and * matches anything.
+excludes() {
+    local saved=""
+    [ -r "$CONFIG_FILE" ] && saved=$(jq -c '[.exclude // [] | arrays | .[] | strings
+        | "^" + (gsub("[.]"; "[.]") | gsub("[*]"; ".*")) + "$"]' "$CONFIG_FILE" 2>/dev/null)
+    printf '%s' "${saved:-[]}"
 }
 
 supervisor_token() {
@@ -104,12 +117,16 @@ refresh_states() {
         return 1
     fi
     entities=$(layout | jq -c '[.[] | select(.s == "entity")]')
-    if ! jq -c --argjson wanted "$entities" '
+    if ! jq -c --argjson wanted "$entities" --argjson ex "$(excludes)" \
+        --argjson stale "$BATTERY_STALE" --argjson now "$(date +%s)" '
         def clean: tostring | gsub("[\u0000-\u001f\u007f-\u009f]"; "") | .[0:32];
         def name: (.attributes.friendly_name // .entity_id) | clean;
         def domain: .entity_id | split(".")[0];
-        . as $all
-        | (map({key: .entity_id, value: .}) | from_entries) as $by_id
+        def epoch: try (sub("[.][0-9]+"; "") | sub("[+]00:00$"; "Z") | fromdateiso8601) catch null;
+        def fresh: ((.last_reported // .last_updated // "") | epoch) as $t
+            | $t == null or ($now - $t) < $stale;
+        (map({key: .entity_id, value: .}) | from_entries) as $by_id
+        | [ .[] | .entity_id as $id | select(all($ex[]; . as $re | $id | test($re) | not)) ] as $all
         | {
             ts: (now | floor),
             alerts: [ $all[] | select(domain == "binary_sensor" and .state == "on")
@@ -121,7 +138,7 @@ refresh_states() {
             unavailable: [ $all[] | select(.state == "unavailable") ] | length,
             broken_automations: [ $all[] | select(domain == "automation" and .state == "unavailable") ] | length,
             low_battery: [ $all[] | select(domain == "sensor" and .attributes.device_class == "battery")
-                | select((.state | tonumber? // 101) < 20) | name ],
+                | select((.state | tonumber? // 101) < 20) | select(fresh) | name ],
             updates: [ $all[] | select(domain == "update" and .state == "on") ] | length,
             weather: ([ $all[] | select(domain == "weather") ][0]
                 | if . then {state: (.state | clean),
@@ -171,7 +188,9 @@ refresh_system() {
             last_backup: (if $b then ([$b.backups[]?.date | epoch] | map(select(. != null)) | max // 0)
                           else null end),
             unhealthy: (if $r then ($r.unhealthy | length) else null end),
-            repairs: (if $r then ($r.issues | length) else null end)
+            # no_current_backup is what the backup piece already says
+            repairs: (if $r then [$r.issues[]?.type | clean | select(. != "no_current_backup")]
+                      else null end)
           }' > "$SYSTEM.tmp" 2>/dev/null && mv -f "$SYSTEM.tmp" "$SYSTEM"
     rm -f "$CACHE_DIR"/*.raw "$SYSTEM.tmp"
 }
@@ -253,13 +272,13 @@ render() {
         def clean: tostring | gsub("[\u0000-\u001f\u007f-\u009f]"; "");
         def by_pct($p): if $p >= 90 then red elif $p >= 70 then yellow elif $p >= 50 then orange else green end;
         def k: if . >= 1000 then ((. / 100 | floor) / 10 | tostring) + "k" else (floor | tostring) end;
-        def bar($used): ((100 - $used) / 20 | floor) as $f
-            | ([range(0; 5)] | map(if . < $f then ("●" | by_pct($used)) else ("○" | dim) end) | join(""));
+        # What is left of a plan limit; the reset time once half is used
         def limit($label; $w; $fmt):
             if $w == null or $w.used_percentage == null then empty
             else ($w.used_percentage | floor) as $u
-              | ($label | white) + " " + bar($u) + " " + ("\(100 - $u)%" | by_pct($u))
-                + (if $w.resets_at then " " + ("⟳ " | dim) + ($w.resets_at | strflocaltime($fmt) | white) else "" end)
+              | ($label | white) + " " + ("\(100 - $u)%" | by_pct($u))
+                + (if $w.resets_at and $u >= 50
+                   then " " + ("⟳ " | dim) + ($w.resets_at | strflocaltime($fmt) | white) else "" end)
             end;
         def ago($t): ($now - $t) as $d
             | if $d >= 86400 then "\($d / 86400 | floor)d" elif $d >= 3600 then "\($d / 3600 | floor)h" else "\($d / 60 | floor)m" end;
@@ -326,8 +345,9 @@ render() {
           elif .s == "core" then (if $sys.core.update then "⬆ HA " + $sys.core.latest | orange else empty end)
           elif .s == "repairs" then
             if ($sys.unhealthy // 0) > 0 then "🩺 unhealthy" | red
-            elif ($sys.repairs // 0) > 0 then "🩺 \($sys.repairs) repair" + (if $sys.repairs > 1 then "s" else "" end) | yellow
-            else empty end
+            elif ($sys.repairs | type) != "array" or ($sys.repairs | length) == 0 then empty
+            elif ($sys.repairs | length) == 1 then "🩺 " + ($sys.repairs[0] | gsub("_"; " ")) | yellow
+            else "🩺 \($sys.repairs | length) Supervisor issues" | yellow end
           else empty end;
 
         def is_home: .s == "entity" or (.s as $s | $home | split(" ") | index($s));
@@ -367,7 +387,7 @@ case "${1:-}" in
                           seven_day: {used_percentage: 19, resets_at: (now + 300000 | floor)}}}')" "$(layout)"
         ;;
     -h|--help)
-        sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '3,34p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     *)
         input=$(cat 2>/dev/null)
