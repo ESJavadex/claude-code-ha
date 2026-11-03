@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.1
+
+### 🐛 Bug Fix - An Old `claude update` No Longer Pins Claude Code in the Shell
+- **`claude` in the add-on's shell runs the image's Claude Code again.** A `claude update` run inside the add-on leaves a native copy in `/data`, and `~/.local/bin` comes first in `PATH`. That copy was kept for good, so once the image moved past it, typing `claude` in bash (and the add-on's own `claude plugin` setup) still ran the old version. On one install it was 2.1.38 from February, which can't read the bundled plugin's manifest, while the panel ran the image's 2.1.316
+- At startup, a native copy older than the image's, or one that no longer runs, is replaced by a link to the image's Claude Code and its ~250 MB binary is removed. A `claude update` newer than the image is still kept
+- The panel's own launch command already used the image's Claude Code, so sessions started from the panel were not affected
+
 ## 2.5.0
 
 ### ✨ New Feature - Home Assistant Plugin for Claude, Preinstalled

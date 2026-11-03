@@ -8,6 +8,7 @@ tests_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 "$tests_dir/test-ha-plugin.sh"
 "$tests_dir/test-login-url-watcher.sh"
 "$tests_dir/test-statusline.sh"
+"$tests_dir/test-native-claude.sh"
 node "$tests_dir/test-terminal-clipboard.js"
 node "$tests_dir/test-key-bar.js"
 node "$tests_dir/test-sidebar-api.mjs"

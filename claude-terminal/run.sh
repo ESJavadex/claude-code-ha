@@ -5,6 +5,34 @@
 set -e
 set -o pipefail
 
+# Point $1 (the ~/.local/bin/claude link) back at the image's Claude ($2) when
+# it leads to an older version, or to one that no longer runs.
+relink_stale_native_claude() {
+    local link="$1" image_bin="$2" target native_version image_version
+    [ -L "$link" ] && [ -x "$image_bin" ] || return 0
+    target=$(readlink -f "$link" 2>/dev/null) || return 0
+    [ "$target" = "$(readlink -f "$image_bin")" ] && return 0
+    local limit=""
+    command -v timeout >/dev/null 2>&1 && limit="timeout 15"
+    # || true: a binary that won't run must not stop startup under set -e
+    # shellcheck disable=SC2086  # $limit is empty or "timeout 15"
+    image_version=$($limit "$image_bin" --version 2>/dev/null | awk 'NR==1 {print $1}') || true
+    [[ "$image_version" =~ ^[0-9]+(\.[0-9]+)+$ ]] || return 0
+    # shellcheck disable=SC2086
+    native_version=$($limit "$target" --version 2>/dev/null | awk 'NR==1 {print $1}') || true
+    if [[ "$native_version" =~ ^[0-9]+(\.[0-9]+)+$ ]] && [ "$native_version" != "$image_version" ] && \
+       [ "$(printf '%s\n%s\n' "$native_version" "$image_version" | sort -V | tail -1)" = "$native_version" ]; then
+        return 0  # a `claude update` newer than the image: keep it
+    fi
+    [ "$native_version" = "$image_version" ] && return 0
+    ln -sf "$image_bin" "$link"
+    bashio::log.info "  - Claude Code: using the image's ${image_version} instead of ${native_version:-a broken install} left by an earlier \`claude update\`"
+    # Nothing runs it at startup; an older copy is no use as a rollback (~250 MB)
+    case "$target" in
+        */claude/versions/*) rm -f "$target" ;;
+    esac
+}
+
 # Initialize environment for Claude Code CLI using /data (HA best practice)
 init_environment() {
     # Use /data exclusively - guaranteed writable by HA Supervisor
@@ -36,7 +64,9 @@ init_environment() {
     # native self-check looks (HOME=/data/home at runtime). The image installs
     # it at /usr/local/bin/claude. Up to 2.1.9 this link pointed at
     # /root/.local/bin/claude, which no longer exists, so replace a dangling
-    # link too; a working one (e.g. from `claude update`) is left alone.
+    # link too. One from `claude update` is kept only while it is newer than
+    # the image's: it comes first in PATH, so an old update would otherwise
+    # pin that version in every shell for good.
     local native_bin_dir="$data_home/.local/bin"
     if [ ! -d "$native_bin_dir" ]; then
         mkdir -p "$native_bin_dir"
@@ -44,6 +74,8 @@ init_environment() {
     if [ ! -e "$native_bin_dir/claude" ] && [ -x /usr/local/bin/claude ]; then
         ln -sf /usr/local/bin/claude "$native_bin_dir/claude"
         bashio::log.info "  - Claude binary linked: $native_bin_dir/claude"
+    else
+        relink_stale_native_claude "$native_bin_dir/claude" /usr/local/bin/claude
     fi
 
     # Set XDG and application environment variables
