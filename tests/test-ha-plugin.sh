@@ -25,7 +25,7 @@ bashio::config() {
     esac
 }
 
-CLAUDE_RUN_SH_SKIP_MAIN=true
+export CLAUDE_RUN_SH_SKIP_MAIN=true
 # shellcheck source=/dev/null
 source "$repo_root/claude-terminal/run.sh"
 
@@ -110,7 +110,7 @@ calls | grep -qx 'enable homeassistant-config@claude-homeassistant-plugins' || f
 [ "$(cat "$FAKE/enabled")" = true ] || fail "plugin should be enabled again"
 
 # 6. Option off on a fresh install never installs it
-rm -rf "$FAKE"/* "$HOME/.claude"
+rm -rf "${FAKE:?}"/* "$HOME/.claude"
 config_ha_plugin=false
 reset_calls
 setup_ha_plugin
