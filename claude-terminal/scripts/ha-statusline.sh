@@ -270,8 +270,9 @@ render() {
         def seg:
           if .s == "model" then ($c.model.display_name // "Claude" | clean | blue)
           elif .s == "context" then
+            # Two spaces: xterm.js gives ✍️ one cell but draws it across two
             (($c.context_window.used_percentage // 0) | floor) as $u
-            | "✍️ " + ("\(100 - $u)%" | by_pct($u))
+            | "✍️  " + ("\(100 - $u)%" | by_pct($u))
           elif .s == "folder" then
             (($c.workspace.current_dir // $c.cwd // "") | clean | split("/") | last // "") as $d
             | if $d == "" then empty
