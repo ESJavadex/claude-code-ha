@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.4.9
+
+### 📚 Documentation - Info Page, README and Old Files
+- **A new screenshot, and it shows on the add-on's Info page again.** The old
+  one dated from 1.0.0; the new one shows the panel today: the session picker,
+  the toolbar and the Changes sidebar. Home Assistant renders the README on its
+  own, so the relative `screenshot.png` link showed only the alt text. It now
+  uses the full GitHub URL.
+- **The Info page is up to date.** It had stopped at 1.0.2. It now lists what
+  the add-on does today, has a short guide to the options, and links to the
+  full documentation from the top, pointing at the Documentation tab.
+  - Removed: the 1.0.x version history (the Changelog link covers it), the
+    development setup (see DEVELOPMENT.md), and the `claude-auth` and
+    `claude-logout` commands, which don't exist.
+  - Fixed: credentials are in the add-on's `/data`, not `/config/claude-config`.
+  - All links are full URLs, since relative ones led nowhere in Home Assistant.
+- **The repository README** links to the documentation from the top, and lists
+  the voice options, the phone key bar, Shift+Enter and the status line. The
+  plugin install uses Claude Code's `/plugin` commands, and two tips about
+  2.1.13 are gone.
+- **Removed out-of-date files from the top of the repository.** Nothing linked
+  to any of them:
+  - `DOCS.md`: the 1.0.0 documentation, with paths and commands that no longer
+    exist. Home Assistant shows `claude-terminal/DOCS.md`.
+  - `DEVELOPMENT_STATUS.md`: notes from building the session picker in 2025.
+  - `MAC_CLIPBOARD_MONITOR.md` and `mac-clipboard-monitor.py`: they only
+    worked with port 7680 published, which exposes a root shell with no login,
+    and the panel now pastes, drops and uploads files itself.
+
 ## 2.4.8
 
 ### ✨ New Feature - Home Assistant Status Line
