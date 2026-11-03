@@ -295,25 +295,26 @@ and updates.
 
 ### Home Assistant Status Line
 
-A status bar under Claude's prompt for the session and the home. Each piece
-hides itself when there's nothing to say, so on a quiet day it is short:
+A status bar under Claude's prompt for the session and the home. The default
+is two short lines that fit a phone. Each piece hides itself when there's
+nothing to say, so on a quiet day it looks like this:
 
 ```text
-Opus 5.5 │ ✍️ 37% │ config (main*) │ 1h12m │ +120/-30
-5h ●●●○○ 62% ⟳ 14:00 │ 7d ●●●●○ 81% ⟳ Fri 09:00 │ in 74.2k · out 3.1k
+Opus 5.5 │ ✍️  37% │ config (main*) │ 5h 62% │ 7d 81%
 🏠 ✓
 ```
 
 When something needs a look, the home line says what:
 
 ```text
-🏠 🚨 Kitchen smoke │ 🩺 1 repair │ 🤖 3 broken │ 💾 9d │ ⬆ HA 2026.11.0 │ ⚠ 12 unavailable
+🏠 🚨 Kitchen smoke │ 🤖 3 broken │ 💾 9d │ ⬆ HA 2026.11.0 │ 🔋 Door sensor
 ```
 
 To try it in a shell: `ha-statusline --preview`.
 
 **Pieces.** The `statusline` option is a list of pieces, in display order.
-Leave it empty for the layout above.
+Leave it empty for the layout above, which is `model context folder usage`,
+a new line, then `alerts repairs automations backup disk core updates battery`.
 
 | Piece | Shows | When |
 | --- | --- | --- |
@@ -322,21 +323,22 @@ Leave it empty for the layout above.
 | `folder` | Folder and git branch, `*` with uncommitted changes | In a folder |
 | `duration` | Session time | After a minute |
 | `lines` | Lines added and removed | Once Claude edits |
-| `usage` | claude.ai plans: the 5-hour and 7-day limits left, with reset times. API keys: the session cost | After the first reply |
+| `usage` | claude.ai plans: the 5-hour and 7-day limits left, with the reset time once half is used. API keys: the session cost | After the first reply |
 | `tokens` | Input and output tokens in the context | After the first reply |
 | `alerts` | Smoke, gas, carbon monoxide, water and safety sensors that are on, in red | When one is on |
-| `repairs` | Supervisor repairs, red if the system is unhealthy | When there are any |
+| `repairs` | Supervisor issues, by name when there is one (`ha resolution info` shows them); red if the system is unhealthy. A missing full backup is left to `backup` | When there are any |
 | `automations` | Automations that failed to load | When there are any |
 | `backup` | Age of the latest backup | Over 2 days (yellow), over 7 (red) |
 | `disk` | Disk use | From 80% |
 | `core` | A new Home Assistant version | When there is one |
 | `updates` | Pending updates (core, OS, add-ons, HACS) | When there are any |
-| `unavailable` | Unavailable entities | When there are any |
-| `battery` | Batteries under 20% | When there are any |
+| `unavailable` | Unavailable entities. Not in the default: devices that are off often count too | When there are any |
+| `battery` | Batteries under 20%. One that hasn't reported for a day is skipped, since its level is old | When there are any |
 | `people` | People home | Not in the default |
 | `weather` | The first weather entity, e.g. ☀ 18°C | Not in the default |
 | `sensor.x` or `Label=sensor.x` | Any entity's state | Always |
 | `---` | New line | |
+| `-sensor.x` or `-sensor.car_*` | Leaves matching entities out of the home pieces (`*` matches anything) | |
 | `off` | Turns the status line off | |
 
 For example, one line with the essentials and your CO₂ sensor:
@@ -352,6 +354,28 @@ statusline:
   - people
   - CO₂=sensor.living_room_co2
 ```
+
+**Leave things out.** A coffee machine that is only on when in use, or a car
+that stops reporting its battery once parked, shows up in `unavailable` or
+`battery` without anything being wrong. Add a line starting with `-` for each:
+
+```yaml
+statusline:
+  - unavailable
+  - battery
+  - -switch.coffee_machine
+  - -sensor.car_*
+  - -media_player.*
+```
+
+With only `-` lines, the default layout is kept and they apply to it. They
+don't hide an entity you add as a piece. For a precise "offline" count, make a
+template sensor with your own rules and add it as a piece, e.g.
+`Offline=sensor.offline_devices`.
+
+**On a phone.** The bar is the same on every device: the panel is one terminal
+session, shared by every browser that opens it. For a narrow screen, keep a
+short list, like `model context usage --- alerts backup battery`.
 
 Every piece works on every install: backups, disk, versions and repairs come
 from the Supervisor, which the add-on always has.

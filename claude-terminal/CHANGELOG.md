@@ -26,6 +26,17 @@
   Documentation tab now says where your login really lives (`/data`, not
   `/config/claude-config`).
 
+## 2.4.11
+
+### ✨ Improvement - A Shorter, Quieter Status Line (#77)
+- **Two lines by default instead of three**, short enough for a phone: model, context, folder and plan limits, then the home. Duration, lines and tokens are still there to add
+- **Plan limits without the dots**: `5h 62% │ 7d 81%`, and the reset time only once half a limit is used
+- **`unavailable` is no longer in the default.** Devices that turn off on their own (a coffee machine, a TV) made it count all the time. Add it back with `unavailable`
+- **A battery that hasn't reported for a day is not shown as low**: a parked car keeps its last level for days
+- **Leave entities out with `-`**: `-switch.coffee_machine` or `-sensor.car_*` in the option removes them from the home pieces. On their own they keep the default layout
+- **Repairs say what they are**: one Supervisor issue shows its name (`🩺 multiple data disks`) instead of `1 repair`. "No current backup" is left out: the Supervisor raises it when backups skip a folder, with nothing to fix in the UI, and the backup piece already shows the backup's age
+- Thanks to @nsleigh for the report
+
 ## 2.4.10
 
 ### 🐛 Bug Fix - Status Line Context Icon Overlapped the Percentage
