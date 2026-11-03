@@ -101,6 +101,7 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 | `voice_stt_provider` | empty | Home Assistant speech-to-text engine for Voice Input, e.g. `stt.faster_whisper`. See [Voice Input](claude-terminal/DOCS.md#voice-input) |
 | `voice_language` | empty | Language for Voice Input, e.g. `de` (empty uses your browser's language) |
 | `statusline` | `[]` | Pieces of the status bar under the prompt, in order (empty is the default, `off` removes it). See [DOCS.md](claude-terminal/DOCS.md#home-assistant-status-line) |
+| `home_assistant_plugin` | `true` | Install and enable the bundled Home Assistant plugin for Claude. See [DOCS.md](claude-terminal/DOCS.md#home-assistant-plugin-for-claude) |
 
 ```yaml
 auto_launch_claude: true
@@ -154,16 +155,9 @@ The target architecture is resolved from Home Assistant's `BUILD_ARCH` build arg
 - **Logging in fails.** Set `auto_launch_claude` to `false` and choose the login helper in the session picker.
 - **Anything else:** check the add-on log and [open an issue](https://github.com/ESJavadex/claude-code-ha/issues).
 
-## Recommended: Home Assistant plugins for Claude
+## Home Assistant plugin for Claude, included
 
-Pair the add-on with the **[Claude Home Assistant Plugins](https://github.com/ESJavadex/claude-homeassistant-plugins)** for HA-specific context and tools:
-
-```
-/plugin marketplace add ESJavadex/claude-homeassistant-plugins
-/plugin install homeassistant-config@claude-homeassistant-plugins
-```
-
-Type these at Claude's prompt, one at a time.
+The add-on ships the **[homeassistant-config](https://github.com/ESJavadex/claude-homeassistant-plugins)** plugin and turns it on at the first start, with no network needed. It teaches Claude current Home Assistant syntax, checks every YAML file Claude writes or edits against the version you run, and adds `/ha-check`, `/ha-upgrade` and `/ha-find-duplicates`. Turn it off with the `home_assistant_plugin` option or with `/plugin` inside Claude; updates keep your choice. See [DOCS.md](claude-terminal/DOCS.md#home-assistant-plugin-for-claude).
 
 ## Community guides
 

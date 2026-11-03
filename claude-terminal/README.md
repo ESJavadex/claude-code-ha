@@ -20,6 +20,7 @@ Claude Code inside your Home Assistant sidebar: a browser terminal with the tool
 - Paste, drop or upload images and other files (PDFs, text, YAML, logs…) for Claude to read
 - Voice input through your Home Assistant speech-to-text engine
 - A status line under Claude's prompt: context, plan limits, and anything in the home that needs a look
+- The Home Assistant plugin for Claude, preinstalled: current HA syntax, a check of every YAML file Claude writes, `/ha-check` and `/ha-upgrade`
 
 **Files sidebar**
 - A read-only tree of `/config` with previews, and the files changed in the last hour, day or week
@@ -58,6 +59,7 @@ It works without changing anything. Each option has a description in the **Confi
 - **Packages:** `persistent_apk_packages`, `persistent_pip_packages` and `init_commands`, run on every start
 - **Claude Code itself:** `use_persistent_claude` and `auto_update_claude_on_start` for an install kept in `/data`
 - **Panel:** `statusline`, `voice_stt_provider`, `voice_language` and `tmux_mouse`
+- **Home Assistant plugin for Claude:** `home_assistant_plugin` (on by default), the bundled plugin that teaches Claude current HA syntax and checks the YAML it writes
 
 ## Security
 

@@ -496,6 +496,84 @@ setup_persistent_claude() {
     fi
 }
 
+# Install the bundled Home Assistant plugin for Claude Code
+# (ESJavadex/claude-homeassistant-plugins, copied into the image at build time).
+# It teaches Claude current Home Assistant syntax and checks every YAML edit.
+#   - first start: register the local marketplace and install the plugin
+#   - new add-on version with a newer plugin: update it, keeping the user's
+#     enabled/disabled choice (`claude plugin install` would re-enable it)
+#   - home_assistant_plugin: false: disable it; true again: enable it
+# Runs only when something changed (state file), never blocks startup and
+# needs no network: the marketplace is a local folder.
+setup_ha_plugin() {
+    local marketplace_dir="${HA_PLUGIN_MARKETPLACE_DIR:-/opt/claude-plugins/claude-homeassistant-plugins}"
+    local marketplace="claude-homeassistant-plugins"
+    local plugin_id="homeassistant-config@${marketplace}"
+    local state_file="$HOME/.claude/plugins/.addon-ha-plugin"
+    local enabled bundled wanted previous installed
+
+    enabled=$(bashio::config 'home_assistant_plugin' 'true') || enabled='true'
+    [ "$enabled" = "false" ] || enabled='true'
+
+    if [ ! -f "$marketplace_dir/homeassistant-config/.claude-plugin/plugin.json" ]; then
+        bashio::log.info "Home Assistant plugin: not bundled in this image"
+        return 0
+    fi
+    if ! command -v claude >/dev/null 2>&1; then
+        bashio::log.warning "Home Assistant plugin: claude not found, skipping"
+        return 0
+    fi
+
+    bundled=$(jq -r '.version // empty' "$marketplace_dir/homeassistant-config/.claude-plugin/plugin.json" 2>/dev/null) || bundled=''
+    wanted="${enabled}:${bundled}"
+    previous=$(cat "$state_file" 2>/dev/null) || previous=''
+    if [ "$previous" = "$wanted" ]; then
+        bashio::log.info "Home Assistant plugin: ${bundled}, home_assistant_plugin=${enabled}, nothing to do"
+        return 0
+    fi
+
+    # Every call is capped so a hung CLI can never block startup.
+    local -a limit=()
+    if command -v timeout >/dev/null 2>&1; then
+        limit=(timeout 60)
+    fi
+    ha_plugin_cli() { ${limit[@]+"${limit[@]}"} claude plugin "$@" </dev/null >/dev/null 2>&1; }
+
+    installed=$(${limit[@]+"${limit[@]}"} claude plugin list --json </dev/null 2>/dev/null \
+        | jq -r --arg id "$plugin_id" '.[]? | select(.id == $id) | .version' 2>/dev/null) || installed=''
+
+    if [ "$enabled" = "true" ]; then
+        ha_plugin_cli marketplace add "$marketplace_dir" || true
+        if [ -z "$installed" ]; then
+            if ha_plugin_cli install "$plugin_id"; then
+                bashio::log.info "Home Assistant plugin: installed ${bundled} (turn off with the home_assistant_plugin option or /plugin)"
+            else
+                bashio::log.warning "Home Assistant plugin: install failed, will retry on next start"
+                return 0
+            fi
+        else
+            if [ "$installed" != "$bundled" ]; then
+                ha_plugin_cli marketplace update "$marketplace" || true
+                if ha_plugin_cli update "$plugin_id"; then
+                    bashio::log.info "Home Assistant plugin: updated ${installed} -> ${bundled}"
+                else
+                    bashio::log.warning "Home Assistant plugin: update failed, keeping ${installed}"
+                fi
+            fi
+            # Turned back on through the add-on option
+            if [ "${previous%%:*}" = "false" ]; then
+                ha_plugin_cli enable "$plugin_id" && bashio::log.info "Home Assistant plugin: enabled"
+            fi
+        fi
+    elif [ -n "$installed" ]; then
+        ha_plugin_cli disable "$plugin_id" || true
+        bashio::log.info "Home Assistant plugin: disabled by the home_assistant_plugin option"
+    fi
+
+    mkdir -p "$(dirname "$state_file")"
+    printf '%s\n' "$wanted" > "$state_file"
+}
+
 # Setup session picker script
 setup_session_picker() {
     # Copy session picker script from built-in location
@@ -1018,6 +1096,7 @@ main() {
     migrate_python_venv
     setup_tmux
     setup_persistent_claude
+    setup_ha_plugin
     setup_session_picker
     setup_statusline
     setup_persistent_packages

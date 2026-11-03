@@ -1,7 +1,7 @@
 ---
 name: "Claude Terminal Pro"
 description: "Enhanced terminal interface for Anthropic's Claude Code CLI with persistent auth, package management, and image paste support. Fork of heytcass/home-assistant-addons"
-version: "2.4.11"
+version: "2.5.0"
 slug: "claude_terminal_pro"
 init: false
 
@@ -52,6 +52,7 @@ options:
   voice_stt_provider: ""
   voice_language: ""
   statusline: []
+  home_assistant_plugin: true
 
 schema:
   auto_launch_claude: bool?
@@ -73,6 +74,7 @@ schema:
   voice_language: str?
   statusline:
     - str?
+  home_assistant_plugin: bool?
 
 # Left out of HA backups: everything here is downloaded again when needed.
 # Supervisor matches each pattern against the path from the right (and `**`

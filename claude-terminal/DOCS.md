@@ -190,6 +190,17 @@ program in the terminal cannot exfiltrate your clipboard.
 - When enabled, the add-on will update Claude Code in `/data/npm/` on each startup
 - Safer default is to keep this off and update manually only when needed
 
+### Home Assistant Plugin for Claude
+- **Default**: `home_assistant_plugin: true`
+- Installs [homeassistant-config](https://github.com/ESJavadex/claude-homeassistant-plugins), a Claude Code plugin bundled in the image. It teaches Claude the Home Assistant syntax of 2026 (automations, scripts, template entities, blueprints, dashboards), checks every YAML file Claude writes or edits, and adds three commands:
+  - `/ha-check`: check the whole configuration (syntax with `!include`/`!secret`, removed and deprecated syntax, dashboards, missing includes, undefined secrets, `ha core check`)
+  - `/ha-upgrade`: find outdated syntax and migrate it, with backups, after you approve the plan
+  - `/ha-find-duplicates`: duplicate and near-duplicate automations and scripts
+- The check after each edit only blocks a broken file (YAML syntax, tabs, duplicate keys). Outdated syntax comes back to Claude as advice, compared with the Home Assistant version you run; if `ha core check` or Repairs disagree, they win
+- Files your configuration never loads (archive or draft folders) are skipped by the checks
+- Installed on the first start without network access; add-on updates bring newer plugin versions
+- Turning the option off disables the plugin. You can also disable it inside Claude with `/plugin`; the add-on keeps that choice across updates
+
 ### Init Commands
 - **Default**: `init_commands: []`
 - Shell commands run once on every start, as root, after persistent packages are installed and before the terminal starts. Each runs in `/config`, and its output appears in the add-on log
@@ -218,7 +229,7 @@ use_persistent_claude: true
 auto_update_claude_on_start: false
 ```
 
-Your OAuth credentials are stored in the `/config/claude-config` directory and will persist across add-on updates and restarts, so you won't need to log in again.
+Your login is stored in the add-on's own `/data` (`/data/.config/claude`), outside `/config`, and persists across add-on updates and restarts, so you won't need to log in again.
 
 If you enable `use_persistent_claude`, the add-on installs Claude Code into `/data/npm` on the next start if nothing is there yet. `/data/npm` is left out of Home Assistant backups, so after a restore it is installed again the same way. To install or reinstall it by hand from a shell inside the add-on:
 

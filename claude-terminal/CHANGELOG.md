@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.5.0
+
+### ✨ New Feature - Home Assistant Plugin for Claude, Preinstalled
+- **Claude now knows current Home Assistant syntax out of the box.** The
+  add-on ships the [homeassistant-config](https://github.com/ESJavadex/claude-homeassistant-plugins)
+  plugin (2.1.3) and installs it on the first start, with no network needed:
+  - current syntax up to Home Assistant 2026.11 (purpose-specific triggers,
+    modern template entities, `color_temp_kelvin`, sections dashboards,
+    `perform-action`), written for the version you run;
+  - a check of every YAML file Claude writes or edits. A broken file
+    (syntax error, tabs, duplicate keys) goes straight back to Claude to fix;
+    outdated syntax comes back as advice, compared with the Home Assistant
+    version you run. It also works when you have installed Python packages
+    (it falls back to the system Python);
+  - `/ha-check`, `/ha-upgrade` (it can also list what the next HA update will
+    break) and `/ha-find-duplicates`. They skip files your configuration
+    never loads, and count old-style items in imported blueprints instead of
+    listing them;
+  - passwords and keys are masked in everything the checks print, and
+    backups go to git (when `/config` is a repository) or to
+    `/config/.claude-backups`, never as `.bak` files next to your config.
+- **New option `home_assistant_plugin`** (on by default) to turn it off. If
+  you disable the plugin with `/plugin` instead, add-on updates keep it
+  disabled.
+- The plugin is pinned to a release tag in the Dockerfile
+  (`HA_PLUGINS_REF`); add-on releases bring newer versions.
+- README, Info page and Documentation say the plugin is included. The
+  Documentation tab now says where your login really lives (`/data`, not
+  `/config/claude-config`).
+
 ## 2.4.11
 
 ### ✨ Improvement - A Shorter, Quieter Status Line (#77)
