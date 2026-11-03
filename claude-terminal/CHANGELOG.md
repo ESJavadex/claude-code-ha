@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.5.0
+
+### ✨ New Feature - Home Assistant Plugin for Claude, Preinstalled
+- **Claude now knows current Home Assistant syntax out of the box.** The
+  add-on ships the [homeassistant-config](https://github.com/ESJavadex/claude-homeassistant-plugins)
+  plugin (2.0.1) and installs it on the first start, with no network needed:
+  - current syntax up to Home Assistant 2026.11 (purpose-specific triggers,
+    modern template entities, `color_temp_kelvin`, sections dashboards,
+    `perform-action`), written for the version you run;
+  - a check of every YAML file Claude writes or edits: syntax errors,
+    duplicate keys and removed syntax go straight back to Claude to fix;
+  - `/ha-check`, `/ha-upgrade` and `/ha-find-duplicates`.
+- **New option `home_assistant_plugin`** (on by default) to turn it off. If
+  you disable the plugin with `/plugin` instead, add-on updates keep it
+  disabled.
+- The plugin is pinned to a release tag in the Dockerfile
+  (`HA_PLUGINS_REF`); add-on releases bring newer versions.
+
 ## 2.4.8
 
 ### ✨ New Feature - Home Assistant Status Line

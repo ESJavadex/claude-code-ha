@@ -131,6 +131,18 @@ RUN ADDON_ARCH=$(cat /etc/addon-arch); \
     rm -rf /tmp/gh* && \
     echo "GitHub CLI v${GH_VERSION} installed successfully"
 
+# Home Assistant plugin for Claude Code (current HA syntax, YAML checks after
+# every edit). Pinned to a release tag of ESJavadex/claude-homeassistant-plugins
+# and installed from this local copy on first start (setup_ha_plugin in run.sh),
+# so startup never needs the network. Bump the tag to ship a newer plugin.
+ARG HA_PLUGINS_REF=v2.0.0
+RUN git clone --quiet --depth 1 --branch "${HA_PLUGINS_REF}" \
+        https://github.com/ESJavadex/claude-homeassistant-plugins.git \
+        /opt/claude-plugins/claude-homeassistant-plugins \
+    && cd /opt/claude-plugins/claude-homeassistant-plugins \
+    && rm -rf .git .github homeassistant-config/tests \
+    && jq -e '.version' homeassistant-config/.claude-plugin/plugin.json
+
 # Create directory for Claude configuration and set working directory
 RUN mkdir -p /config/claude-config
 WORKDIR /config

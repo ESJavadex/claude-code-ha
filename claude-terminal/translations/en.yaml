@@ -91,6 +91,13 @@ configuration:
       battery, people, weather. Add an entity as sensor.x or CO2=sensor.x,
       --- for a new line. Empty is the default layout, off removes it. A
       status line you made with /statusline is never replaced.
+  home_assistant_plugin:
+    name: Home Assistant plugin for Claude
+    description: >-
+      Install the bundled homeassistant-config plugin, which teaches Claude
+      current Home Assistant syntax and checks every YAML file it edits. Adds
+      /ha-check, /ha-upgrade and /ha-find-duplicates. Turn off to remove it
+      from Claude; /plugin can also disable it.
 network:
   7680/tcp: >-
     Direct web UI access (with image paste). Not needed for ingress, and NOT

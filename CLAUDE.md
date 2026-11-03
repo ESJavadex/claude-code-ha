@@ -72,9 +72,10 @@ Because `/data` is per add-on, installing the add-on from a different repository
 3. Warn if the CPU lacks AVX; remove leftover npm/pip caches and old Claude versions from `/data` (ttyd, tmux, jq and curl are baked into the image)
 4. Configure tmux and the `tmux-claude` wrapper
 5. Set up persistent Claude (if `use_persistent_claude`)
-6. Install the session picker and auth helper, then the status line (`setup_statusline`: sets `statusLine` in `~/.claude/settings.json` only when there is none or it is ours)
-7. Set up `persist-install` and auto-install packages listed in the options
-8. Start the image service (7680), the login URL watcher (posts Claude's login link as an HA notification) and ttyd (7681)
+6. Install or update the bundled Home Assistant plugin (`setup_ha_plugin`, option `home_assistant_plugin`; marketplace copied to `/opt/claude-plugins` at build time from the `HA_PLUGINS_REF` tag)
+7. Install the session picker and auth helper, then the status line (`setup_statusline`: sets `statusLine` in `~/.claude/settings.json` only when there is none or it is ours)
+8. Set up `persist-install` and auto-install packages listed in the options
+9. Start the image service (7680), the login URL watcher (posts Claude's login link as an HA notification) and ttyd (7681)
 
 ## Development Notes
 
