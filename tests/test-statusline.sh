@@ -133,7 +133,7 @@ PATH="$tmp_dir/fakebin:$PATH" HA_STATUSLINE_API="http://supervisor/core/api" "$s
 
 # --- setup_statusline in run.sh ---------------------------------------------
 
-bashio::log.info() { :; }
+bashio::log.info() { printf '%s\n' "$*" >> "$tmp_dir/info"; }
 bashio::log.warning() { printf '%s\n' "$*" >> "$tmp_dir/warnings"; }
 bashio::log.error() { :; }
 config_statusline=''
@@ -187,12 +187,16 @@ setup_statusline
 [ "$(jq -r '.theme' "$settings")" = dark ] || fail "off lost other settings"
 
 # A status line the user made (e.g. with /statusline) is never touched
-user_cmd="$HOME/.claude/statusline.sh"
+# Its command may carry a secret, so it never reaches the log.
+user_cmd="$HOME/.claude/statusline.sh --token s3cr3t-value"
 jq --arg c "$user_cmd" '.statusLine = {type: "command", command: $c}' "$settings" > "$settings.new" \
     && mv "$settings.new" "$settings"
 config_statusline=''
+: > "$tmp_dir/info"
 setup_statusline
 [ "$(jq -r '.statusLine.command' "$settings")" = "$user_cmd" ] || fail "user status line replaced"
+grep -q 'keeping your own' "$tmp_dir/info" || fail "keeping the user's status line should be logged"
+! grep -q 's3cr3t-value' "$tmp_dir/info" "$tmp_dir/warnings" || fail "the user's status line command reached the log"
 config_statusline='["off"]'
 setup_statusline
 [ "$(jq -r '.statusLine.command' "$settings")" = "$user_cmd" ] || fail "off removed the user's status line"
