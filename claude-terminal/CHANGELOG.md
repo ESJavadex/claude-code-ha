@@ -5,7 +5,7 @@
 ### ✨ New Feature - Home Assistant Plugin for Claude, Preinstalled
 - **Claude now knows current Home Assistant syntax out of the box.** The
   add-on ships the [homeassistant-config](https://github.com/ESJavadex/claude-homeassistant-plugins)
-  plugin (2.1.2) and installs it on the first start, with no network needed:
+  plugin (2.1.3) and installs it on the first start, with no network needed:
   - current syntax up to Home Assistant 2026.11 (purpose-specific triggers,
     modern template entities, `color_temp_kelvin`, sections dashboards,
     `perform-action`), written for the version you run;
@@ -16,7 +16,11 @@
     (it falls back to the system Python);
   - `/ha-check`, `/ha-upgrade` (it can also list what the next HA update will
     break) and `/ha-find-duplicates`. They skip files your configuration
-    never loads.
+    never loads, and count old-style items in imported blueprints instead of
+    listing them;
+  - passwords and keys are masked in everything the checks print, and
+    backups go to git (when `/config` is a repository) or to
+    `/config/.claude-backups`, never as `.bak` files next to your config.
 - **New option `home_assistant_plugin`** (on by default) to turn it off. If
   you disable the plugin with `/plugin` instead, add-on updates keep it
   disabled.
