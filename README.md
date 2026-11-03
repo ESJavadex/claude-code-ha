@@ -20,6 +20,9 @@
 
 ## What's new
 
+- **2.4.8: Home Assistant status line.** Alerts, people home, unavailable
+  entities, low batteries, updates and your own sensors, right under Claude's
+  prompt. Make your own with `/statusline`; the add-on never overwrites it.
 - **2.4: voice and mobile terminal improvements.** Home Assistant speech-to-text,
   phone keys, Shift+Enter, larger uploads through ingress and reliable terminal
   startup. Version 2.4.7 also removes deprecated build metadata.
@@ -95,6 +98,8 @@ Claude's login link also shows up as a Home Assistant notification (and in the C
 | `init_commands` | `[]` | Shell commands run on every start, after packages (120 s each) |
 | `use_persistent_claude` | `false` | Use a Claude Code install kept in `/data/npm` |
 | `auto_update_claude_on_start` | `false` | Update that persistent install on every start |
+| `statusline` | `home_assistant` | Status bar under the prompt with alerts, people home, unavailable entities, low batteries and updates. `off` removes it. Never replaces one you made with `/statusline` |
+| `statusline_entities` | `[]` | Entities to add to it, e.g. `CO₂=sensor.living_room_co2` |
 
 ```yaml
 auto_launch_claude: true

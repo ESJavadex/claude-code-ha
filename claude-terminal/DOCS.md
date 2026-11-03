@@ -282,6 +282,50 @@ Inside Claude Code, use `/tui fullscreen` to enable its fullscreen renderer or
 in `~/.claude/settings.json` under `/data/home`, so it survives add-on restarts
 and updates.
 
+### Home Assistant Status Line
+
+Under Claude's prompt, a two-line status bar shows the session and the home:
+
+```text
+Opus 5.5 · ▓▓▓▓▓▓░░░░ 63% · 📁 config · ⎇ main
+🚨 Kitchen smoke · 🏠 2/2 home · ⚠ 3 unavailable · 🔋 Door sensor · ⬆ 2 updates · CO₂ 820 ppm
+```
+
+- **Line 1**, from Claude Code: the model, how full the context window is
+  (green, then yellow from 50% and red from 80%), the folder and its git branch.
+- **Line 2**, from Home Assistant: smoke, gas, carbon monoxide, water and safety
+  sensors that are on (in red, first), people home, unavailable entities,
+  batteries under 20%, pending updates, and the entities you add with
+  `statusline_entities`.
+
+It is on by default (`statusline: home_assistant`). The states are read at most
+every 30 seconds by a background refresh, and drawing the line only reads a
+small cache, so it stays fast on a Raspberry Pi with thousands of entities. If
+the data is more than five minutes old it is marked *(stale)*. If Home
+Assistant can't be reached, the line says so.
+
+**Add your own entities** in the Configuration tab, one per line, with an
+optional short label before `=`:
+
+```yaml
+statusline_entities:
+  - CO₂=sensor.living_room_co2
+  - sensor.outdoor_temperature
+```
+
+**Make your own status line.** Run `/statusline` in Claude and describe what you
+want, e.g. `/statusline the model, the session cost, and the output of
+ha-statusline --home`. Claude writes the script to `~/.claude` and points your
+settings at it. The add-on never replaces a status line you made: it only sets
+up its own when there is none, and `statusline: off` only removes its own.
+`ha-statusline --home` prints just the home line for use in your script, and
+`ha-statusline --refresh` fetches the states now and prints any error.
+
+The settings live in `~/.claude/settings.json` (under `/data/home`), so they
+survive restarts and updates. Entity names and states are shown with control
+characters removed, so an entity name can't send escape sequences to the
+terminal.
+
 ### Session Picker
 
 The session picker is the menu for starting Claude and the tools around it.

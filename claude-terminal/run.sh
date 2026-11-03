@@ -517,6 +517,86 @@ setup_session_picker() {
     fi
 }
 
+# Home Assistant status line (ha-statusline, scripts/ha-statusline.sh). The
+# script is always installed, so a status line of your own can include its
+# home line with `ha-statusline --home`. With the statusline option on,
+# ~/.claude/settings.json gets a statusLine that runs it, but only when there
+# is none yet or the current one is ours: a status line made with /statusline
+# or by hand is never replaced. With the option off, only ours is removed.
+setup_statusline() {
+    local script_source="${HA_STATUSLINE_SOURCE:-/opt/scripts/ha-statusline.sh}"
+    local script_bin="${HA_STATUSLINE_BIN:-/usr/local/bin/ha-statusline}"
+    local config_file="${HA_STATUSLINE_CONFIG:-/data/.config/ha-statusline.json}"
+    local settings_file="${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}"
+    local mode entities item label entity_id current tmp
+    local entities_json='[]'
+
+    if [ -f "$script_source" ]; then
+        if ! { cp "$script_source" "$script_bin" && chmod 755 "$script_bin"; }; then
+            bashio::log.warning "Could not install the Home Assistant status line"
+            return 0
+        fi
+    fi
+
+    mode=$(bashio::config 'statusline' 'home_assistant') || mode='home_assistant'
+    case "$mode" in
+        off) ;;
+        *) mode='home_assistant' ;;
+    esac
+
+    # "Label=sensor.x" or just "sensor.x"; anything that isn't an entity ID is
+    # skipped, so the file only ever holds IDs and plain labels
+    entities=$(normalize_config_list "$(bashio::config 'statusline_entities' '')")
+    while IFS= read -r item; do
+        [ -n "$item" ] || continue
+        if [[ "$item" == *=* ]]; then
+            label="${item%%=*}"
+            entity_id="${item#*=}"
+        else
+            label=''
+            entity_id="$item"
+        fi
+        entity_id="${entity_id//[[:space:]]/}"
+        if [[ ! "$entity_id" =~ ^[a-z0-9_]+\.[a-z0-9_]+$ ]]; then
+            bashio::log.warning "  Status line: skipping '$item' (not an entity ID like sensor.living_room_temperature)"
+            continue
+        fi
+        entities_json=$(jq -c --arg id "$entity_id" --arg label "$label" \
+            '. + [{entity_id: $id, label: ($label | gsub("^\\s+|\\s+$"; "") | .[0:16])}]' <<< "$entities_json")
+    done <<< "$entities"
+    if ! { mkdir -p "$(dirname "$config_file")" \
+        && jq -n --argjson entities "$entities_json" '{entities: $entities}' > "$config_file"; }; then
+        bashio::log.warning "Status line: could not write $config_file"
+    fi
+
+    mkdir -p "$(dirname "$settings_file")"
+    if [ ! -s "$settings_file" ]; then
+        [ "$mode" = 'off' ] && return 0
+        printf '{}\n' > "$settings_file"
+    fi
+    if ! current=$(jq -r '.statusLine.command // empty' "$settings_file" 2>/dev/null); then
+        bashio::log.warning "Status line: $settings_file is not valid JSON, leaving it alone"
+        return 0
+    fi
+
+    tmp=$(mktemp "$settings_file.XXXXXX")
+    if [ "$mode" = 'off' ]; then
+        if [ "$current" = "$script_bin" ]; then
+            jq 'del(.statusLine)' "$settings_file" > "$tmp" && mv -f "$tmp" "$settings_file"
+            bashio::log.info "Home Assistant status line turned off"
+        fi
+    elif [ -z "$current" ] || [ "$current" = "$script_bin" ]; then
+        jq --arg cmd "$script_bin" \
+            '.statusLine = {type: "command", command: $cmd, padding: 0, refreshInterval: 30}' \
+            "$settings_file" > "$tmp" && mv -f "$tmp" "$settings_file"
+        bashio::log.info "Home Assistant status line enabled ($(jq length <<< "$entities_json") extra entities)"
+    else
+        bashio::log.info "Status line: keeping your own ($current). Add the home line to it with: ha-statusline --home"
+    fi
+    rm -f "$tmp"
+    return 0
+}
+
 # Setup persistent package manager
 setup_persistent_packages() {
     local persist_install="${PERSIST_INSTALL_BIN:-/usr/local/bin/persist-install}"
@@ -923,6 +1003,7 @@ main() {
     setup_tmux
     setup_persistent_claude
     setup_session_picker
+    setup_statusline
     setup_persistent_packages
     check_persisted_alpine_release
     run_init_commands

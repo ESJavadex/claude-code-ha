@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.8
+
+### ✨ New Feature - Home Assistant Status Line
+- **The home is shown under Claude's prompt**: smoke, gas, water and safety
+  alerts, people home, unavailable entities, low batteries and pending
+  updates, plus any entities you list in the new `statusline_entities` option
+  (e.g. `CO₂=sensor.living_room_co2`). The first line shows the model, a
+  context window bar, the folder and the git branch.
+- Fast on a Raspberry Pi: Home Assistant is read by a background refresh at
+  most every 30 seconds, and each redraw only reads a small cache.
+- **Your own status line wins.** One made with `/statusline` or by hand is
+  never replaced, and `statusline: off` only removes the add-on's. Include the
+  home in yours with `ha-statusline --home`.
+- Entity names and states have control characters removed before they reach
+  the terminal.
+
 ## 2.4.7
 
 ### 🔧 Technical - Build Metadata in the Dockerfile
