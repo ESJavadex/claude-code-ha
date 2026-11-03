@@ -72,7 +72,7 @@ claude_json=$(jq -nc --arg d "$tmp_dir" '{model: {display_name: "Opus"}, workspa
                   seven_day: {used_percentage: 95, resets_at: 1800000000}}}')
 out=$("$script" <<< "$claude_json" | strip_ansi)
 [ "$(wc -l <<< "$out")" -eq 3 ] || fail "expected three lines: $out"
-[ "$(sed -n 1p <<< "$out")" = "Opus │ ✍️ 37% │ $(basename "$tmp_dir") │ 1h12m │ +12/-3" ] || \
+[ "$(sed -n 1p <<< "$out")" = "Opus │ ✍️  37% │ $(basename "$tmp_dir") │ 1h12m │ +12/-3" ] || \
     fail "line 1 wrong: $(sed -n 1p <<< "$out")"
 [ "$(sed -n 2p <<< "$out")" = "5h ●●●○○ 62% ⟳ 08:00 │ 7d ○○○○○ 5% ⟳ Fri 08:00 │ in 45.2k · out 3.1k" ] || \
     fail "line 2 wrong: $(sed -n 2p <<< "$out")"
@@ -85,7 +85,7 @@ out=$(jq -c 'del(.rate_limits) | .cost.total_cost_usd = 0.4213' <<< "$claude_jso
 
 # A new session: empty pieces and the empty usage line disappear
 out=$("$script" < /dev/null | strip_ansi)
-[ "$(sed -n 1p <<< "$out")" = "Claude │ ✍️ 100%" ] || fail "empty input line 1: $(sed -n 1p <<< "$out")"
+[ "$(sed -n 1p <<< "$out")" = "Claude │ ✍️  100%" ] || fail "empty input line 1: $(sed -n 1p <<< "$out")"
 [ "$(wc -l <<< "$out")" -eq 2 ] || fail "empty usage line should be dropped: $out"
 
 # All fine at home: a short check mark

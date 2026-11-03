@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.10
+
+### 🐛 Bug Fix - Status Line Context Icon Overlapped the Percentage
+- **A second space after ✍️**: the hand is a one-cell character turned into a two-cell emoji by a variation selector. The panel's terminal leaves one cell for it, so the emoji ran into the percentage after it. The extra space is the cell it now draws into
+
 ## 2.4.9
 
 ### 📚 Documentation - Info Page, README and Old Files
