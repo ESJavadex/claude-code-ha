@@ -135,7 +135,7 @@ RUN ADDON_ARCH=$(cat /etc/addon-arch); \
 # every edit). Pinned to a release tag of ESJavadex/claude-homeassistant-plugins
 # and installed from this local copy on first start (setup_ha_plugin in run.sh),
 # so startup never needs the network. Bump the tag to ship a newer plugin.
-ARG HA_PLUGINS_REF=v2.0.1
+ARG HA_PLUGINS_REF=v2.1.0
 RUN git clone --quiet --depth 1 --branch "${HA_PLUGINS_REF}" \
         https://github.com/ESJavadex/claude-homeassistant-plugins.git \
         /opt/claude-plugins/claude-homeassistant-plugins \

@@ -196,6 +196,8 @@ program in the terminal cannot exfiltrate your clipboard.
   - `/ha-check`: check the whole configuration (syntax with `!include`/`!secret`, removed and deprecated syntax, dashboards, missing includes, undefined secrets, `ha core check`)
   - `/ha-upgrade`: find outdated syntax and migrate it, with backups, after you approve the plan
   - `/ha-find-duplicates`: duplicate and near-duplicate automations and scripts
+- The check after each edit only blocks a broken file (YAML syntax, tabs, duplicate keys). Outdated syntax comes back to Claude as advice, compared with the Home Assistant version you run; if `ha core check` or Repairs disagree, they win
+- Files your configuration never loads (archive or draft folders) are skipped by the checks
 - Installed on the first start without network access; add-on updates bring newer plugin versions
 - Turning the option off disables the plugin. You can also disable it inside Claude with `/plugin`; the add-on keeps that choice across updates
 
