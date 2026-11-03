@@ -3,18 +3,23 @@
 ## 2.4.8
 
 ### ✨ New Feature - Home Assistant Status Line
-- **The home is shown under Claude's prompt**: smoke, gas, water and safety
-  alerts, people home, unavailable entities, low batteries and pending
-  updates, plus any entities you list in the new `statusline_entities` option
-  (e.g. `CO₂=sensor.living_room_co2`). The first line shows the model, a
-  context window bar, the folder and the git branch.
-- Fast on a Raspberry Pi: Home Assistant is read by a background refresh at
-  most every 30 seconds, and each redraw only reads a small cache.
+- **A status bar under Claude's prompt** with the model, context left, folder
+  and git branch, session time, lines changed, the claude.ai 5-hour and 7-day
+  limits (or the session cost with an API key) and the tokens in context.
+- **The home on one line, only when something needs a look**: safety alerts,
+  Supervisor repairs, automations that failed to load, an old backup, a full
+  disk, a new Home Assistant version, pending updates, unavailable entities
+  and low batteries. Otherwise it's just `🏠 ✓`. Backups, disk and repairs come
+  from the Supervisor, so they work on every install.
+- **Pick and order the pieces** with the new `statusline` option, add any
+  entity (`CO₂=sensor.living_room_co2`), `---` for a new line, `off` to remove
+  it. Empty is the default layout. Try it with `ha-statusline --preview`.
 - **Your own status line wins.** One made with `/statusline` or by hand is
-  never replaced, and `statusline: off` only removes the add-on's. Include the
-  home in yours with `ha-statusline --home`.
-- Entity names and states have control characters removed before they reach
-  the terminal.
+  never replaced. Include the home in yours with `ha-statusline --home`.
+- Light on a Raspberry Pi: Home Assistant is read by a background refresh,
+  never while the line is drawn. Entity text has control characters removed,
+  and the Supervisor token is only sent to the Supervisor.
+- Style based on susomejias/claude-statusline.
 
 ## 2.4.7
 

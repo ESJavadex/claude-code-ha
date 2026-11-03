@@ -51,8 +51,7 @@ options:
   init_commands: []
   voice_stt_provider: ""
   voice_language: ""
-  statusline: home_assistant
-  statusline_entities: []
+  statusline: []
 
 schema:
   auto_launch_claude: bool?
@@ -72,8 +71,7 @@ schema:
     - str?
   voice_stt_provider: str?
   voice_language: str?
-  statusline: list(home_assistant|off)?
-  statusline_entities:
+  statusline:
     - str?
 
 # Left out of HA backups: everything here is downloaded again when needed.

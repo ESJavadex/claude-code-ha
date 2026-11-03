@@ -47,7 +47,7 @@ curl -X GET http://localhost:7681/
 - **translations/en.yaml** - The label and help text for each option in the Configuration tab, and the Network tab's port warnings. Every new option needs an entry (`scripts/check-addon-metadata.py` checks)
 - **Dockerfile** - Multi-architecture Alpine base, OCI labels, Node.js and Claude Code CLI; Supervisor supplies BUILD_VERSION from config.yaml
 - **run.sh** - Main startup script: sets up `/data`, tmux, persistent Claude/packages, then starts the image service and ttyd
-- **scripts/** - Session picker, auth helper, `persist-install`, health check, HA CLI installer, API examples and `ha-statusline.sh` (the Claude Code status line; HA states are summarised by a background refresh into `/tmp/ha-statusline`, so a redraw never calls the API)
+- **scripts/** - Session picker, auth helper, `persist-install`, health check, HA CLI installer, API examples and `ha-statusline.sh` (the Claude Code status line: pieces in the `statusline` option order; HA states every 30 s and Supervisor backups/disk/repairs every 5 min are summarised by a background refresh into `/tmp/ha-statusline`, so a redraw never calls the API; the Supervisor token is only sent to `http(s)://supervisor`)
 - **image-service/** - Node.js web page on port 7680 (the ingress panel) that embeds ttyd and handles image upload/paste
 
 ### Key Components

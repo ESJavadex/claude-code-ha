@@ -284,47 +284,81 @@ and updates.
 
 ### Home Assistant Status Line
 
-Under Claude's prompt, a two-line status bar shows the session and the home:
+A status bar under Claude's prompt for the session and the home. Each piece
+hides itself when there's nothing to say, so on a quiet day it is short:
 
 ```text
-Opus 5.5 · ▓▓▓▓▓▓░░░░ 63% · 📁 config · ⎇ main
-🚨 Kitchen smoke · 🏠 2/2 home · ⚠ 3 unavailable · 🔋 Door sensor · ⬆ 2 updates · CO₂ 820 ppm
+Opus 5.5 │ ✍️ 37% │ config (main*) │ 1h12m │ +120/-30
+5h ●●●○○ 62% ⟳ 14:00 │ 7d ●●●●○ 81% ⟳ Fri 09:00 │ in 74.2k · out 3.1k
+🏠 ✓
 ```
 
-- **Line 1**, from Claude Code: the model, how full the context window is
-  (green, then yellow from 50% and red from 80%), the folder and its git branch.
-- **Line 2**, from Home Assistant: smoke, gas, carbon monoxide, water and safety
-  sensors that are on (in red, first), people home, unavailable entities,
-  batteries under 20%, pending updates, and the entities you add with
-  `statusline_entities`.
+When something needs a look, the home line says what:
 
-It is on by default (`statusline: home_assistant`). The states are read at most
-every 30 seconds by a background refresh, and drawing the line only reads a
-small cache, so it stays fast on a Raspberry Pi with thousands of entities. If
-the data is more than five minutes old it is marked *(stale)*. If Home
-Assistant can't be reached, the line says so.
+```text
+🏠 🚨 Kitchen smoke │ 🩺 1 repair │ 🤖 3 broken │ 💾 9d │ ⬆ HA 2026.11.0 │ ⚠ 12 unavailable
+```
 
-**Add your own entities** in the Configuration tab, one per line, with an
-optional short label before `=`:
+To try it in a shell: `ha-statusline --preview`.
+
+**Pieces.** The `statusline` option is a list of pieces, in display order.
+Leave it empty for the layout above.
+
+| Piece | Shows | When |
+| --- | --- | --- |
+| `model` | Model name | Always |
+| `context` | ✍️ context window left (green → orange → yellow → red) | Always |
+| `folder` | Folder and git branch, `*` with uncommitted changes | In a folder |
+| `duration` | Session time | After a minute |
+| `lines` | Lines added and removed | Once Claude edits |
+| `usage` | claude.ai plans: the 5-hour and 7-day limits left, with reset times. API keys: the session cost | After the first reply |
+| `tokens` | Input and output tokens in the context | After the first reply |
+| `alerts` | Smoke, gas, carbon monoxide, water and safety sensors that are on, in red | When one is on |
+| `repairs` | Supervisor repairs, red if the system is unhealthy | When there are any |
+| `automations` | Automations that failed to load | When there are any |
+| `backup` | Age of the latest backup | Over 2 days (yellow), over 7 (red) |
+| `disk` | Disk use | From 80% |
+| `core` | A new Home Assistant version | When there is one |
+| `updates` | Pending updates (core, OS, add-ons, HACS) | When there are any |
+| `unavailable` | Unavailable entities | When there are any |
+| `battery` | Batteries under 20% | When there are any |
+| `people` | People home | Not in the default |
+| `weather` | The first weather entity, e.g. ☀ 18°C | Not in the default |
+| `sensor.x` or `Label=sensor.x` | Any entity's state | Always |
+| `---` | New line | |
+| `off` | Turns the status line off | |
+
+For example, one line with the essentials and your CO₂ sensor:
 
 ```yaml
-statusline_entities:
+statusline:
+  - model
+  - context
+  - usage
+  - "---"
+  - alerts
+  - backup
+  - people
   - CO₂=sensor.living_room_co2
-  - sensor.outdoor_temperature
 ```
 
-**Make your own status line.** Run `/statusline` in Claude and describe what you
-want, e.g. `/statusline the model, the session cost, and the output of
-ha-statusline --home`. Claude writes the script to `~/.claude` and points your
-settings at it. The add-on never replaces a status line you made: it only sets
-up its own when there is none, and `statusline: off` only removes its own.
-`ha-statusline --home` prints just the home line for use in your script, and
-`ha-statusline --refresh` fetches the states now and prints any error.
+Every piece works on every install: backups, disk, versions and repairs come
+from the Supervisor, which the add-on always has.
 
-The settings live in `~/.claude/settings.json` (under `/data/home`), so they
-survive restarts and updates. Entity names and states are shown with control
-characters removed, so an entity name can't send escape sequences to the
-terminal.
+**Make your own status line.** Run `/statusline` in Claude and describe what
+you want, for example `/statusline the model, the session cost and the output
+of ha-statusline --home`. Claude writes a script in `~/.claude` and points your
+settings at it. The add-on never replaces a status line you made: it only sets
+up its own when there is none, and `off` only removes its own.
+`ha-statusline --home` prints the home pieces on one line for your script.
+`ha-statusline --refresh` fetches the data now and prints any error.
+
+Home Assistant is never queried while the line is drawn. A background refresh
+reads the states every 30 seconds, and the backups, disk and repairs every 5
+minutes, into `/tmp/ha-statusline`, so it stays light on a Raspberry Pi. Entity
+names and states have control characters removed before they reach the
+terminal, and the Supervisor token is only ever sent to the Supervisor. The
+style is based on [susomejias/claude-statusline](https://github.com/susomejias/claude-statusline).
 
 ### Session Picker
 

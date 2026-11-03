@@ -83,17 +83,14 @@ configuration:
       The speech language, e.g. de. Empty uses the browser's language. It can
       also be changed in the Voice Input dialog.
   statusline:
-    name: Home Assistant status line
+    name: Status line
     description: >-
-      Show the home under Claude's prompt: alerts (smoke, gas, water), people
-      home, unavailable entities, low batteries and pending updates. A status
-      line you made yourself with /statusline is never replaced. off removes
-      this one.
-  statusline_entities:
-    name: Status line entities
-    description: >-
-      Entities to add to the status line, e.g. sensor.living_room_co2 or,
-      with a short label, CO2=sensor.living_room_co2.
+      The bar under Claude's prompt, one piece per line in display order.
+      Claude: model, context, folder, duration, lines, usage, tokens. Home:
+      alerts, repairs, automations, backup, disk, core, updates, unavailable,
+      battery, people, weather. Add an entity as sensor.x or CO2=sensor.x,
+      --- for a new line. Empty is the default layout, off removes it. A
+      status line you made with /statusline is never replaced.
 network:
   7680/tcp: >-
     Direct web UI access (with image paste). Not needed for ingress, and NOT

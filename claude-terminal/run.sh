@@ -517,19 +517,21 @@ setup_session_picker() {
     fi
 }
 
-# Home Assistant status line (ha-statusline, scripts/ha-statusline.sh). The
-# script is always installed, so a status line of your own can include its
-# home line with `ha-statusline --home`. With the statusline option on,
-# ~/.claude/settings.json gets a statusLine that runs it, but only when there
-# is none yet or the current one is ours: a status line made with /statusline
-# or by hand is never replaced. With the option off, only ours is removed.
+# Home Assistant status line (scripts/ha-statusline.sh). The add-on's
+# statusline option is a list of pieces in display order: a piece name
+# (ha-statusline --segments), --- for a new line, or an entity as sensor.x or
+# Label=sensor.x. Empty means the default layout, off turns it off.
+# The script is always installed, so a status line of your own can include
+# the home with `ha-statusline --home`. ~/.claude/settings.json only gets our
+# statusLine when it has none or already has ours: one made with /statusline
+# or by hand is never replaced, and off only removes ours.
 setup_statusline() {
     local script_source="${HA_STATUSLINE_SOURCE:-/opt/scripts/ha-statusline.sh}"
     local script_bin="${HA_STATUSLINE_BIN:-/usr/local/bin/ha-statusline}"
     local config_file="${HA_STATUSLINE_CONFIG:-/data/.config/ha-statusline.json}"
     local settings_file="${CLAUDE_SETTINGS_FILE:-$HOME/.claude/settings.json}"
-    local mode entities item label entity_id current tmp
-    local entities_json='[]'
+    local items item label entity_id segments current tmp enabled=true
+    local layout='[]'
 
     if [ -f "$script_source" ]; then
         if ! { cp "$script_source" "$script_bin" && chmod 755 "$script_bin"; }; then
@@ -537,41 +539,44 @@ setup_statusline() {
             return 0
         fi
     fi
+    segments=" $("$script_bin" --segments 2>/dev/null | tr '\n' ' ') "
 
-    mode=$(bashio::config 'statusline' 'home_assistant') || mode='home_assistant'
-    case "$mode" in
-        off) ;;
-        *) mode='home_assistant' ;;
-    esac
-
-    # "Label=sensor.x" or just "sensor.x"; anything that isn't an entity ID is
-    # skipped, so the file only ever holds IDs and plain labels
-    entities=$(normalize_config_list "$(bashio::config 'statusline_entities' '')")
+    items=$(normalize_config_list "$(bashio::config 'statusline' '')")
     while IFS= read -r item; do
+        item="${item#"${item%%[![:space:]]*}"}"
+        item="${item%"${item##*[![:space:]]}"}"
         [ -n "$item" ] || continue
-        if [[ "$item" == *=* ]]; then
-            label="${item%%=*}"
-            entity_id="${item#*=}"
+        if [ "$item" = 'off' ]; then
+            enabled=false
+        elif [ "$item" = '---' ] || [[ "$segments" == *" $item "* ]]; then
+            layout=$(jq -c --arg s "$item" '. + [{s: $s}]' <<< "$layout")
         else
-            label=''
-            entity_id="$item"
+            if [[ "$item" == *=* ]]; then
+                label="${item%%=*}"
+                entity_id="${item#*=}"
+            else
+                label=''
+                entity_id="$item"
+            fi
+            entity_id="${entity_id//[[:space:]]/}"
+            if [[ ! "$entity_id" =~ ^[a-z0-9_]+\.[a-z0-9_]+$ ]]; then
+                bashio::log.warning "  Status line: skipping '$item' (not a piece name or an entity ID like sensor.living_room_co2)"
+                continue
+            fi
+            layout=$(jq -c --arg id "$entity_id" --arg label "$label" \
+                '. + [{s: "entity", id: $id, label: ($label | gsub("^\\s+|\\s+$"; "") | .[0:16])}]' <<< "$layout")
         fi
-        entity_id="${entity_id//[[:space:]]/}"
-        if [[ ! "$entity_id" =~ ^[a-z0-9_]+\.[a-z0-9_]+$ ]]; then
-            bashio::log.warning "  Status line: skipping '$item' (not an entity ID like sensor.living_room_temperature)"
-            continue
-        fi
-        entities_json=$(jq -c --arg id "$entity_id" --arg label "$label" \
-            '. + [{entity_id: $id, label: ($label | gsub("^\\s+|\\s+$"; "") | .[0:16])}]' <<< "$entities_json")
-    done <<< "$entities"
+    done <<< "$items"
+
+    # An empty list (or only invalid items) means the default layout
     if ! { mkdir -p "$(dirname "$config_file")" \
-        && jq -n --argjson entities "$entities_json" '{entities: $entities}' > "$config_file"; }; then
+        && jq -n --argjson l "$layout" '{layout: (if ($l | length) > 0 then $l else null end)}' > "$config_file"; }; then
         bashio::log.warning "Status line: could not write $config_file"
     fi
 
     mkdir -p "$(dirname "$settings_file")"
     if [ ! -s "$settings_file" ]; then
-        [ "$mode" = 'off' ] && return 0
+        [ "$enabled" = true ] || return 0
         printf '{}\n' > "$settings_file"
     fi
     if ! current=$(jq -r '.statusLine.command // empty' "$settings_file" 2>/dev/null); then
@@ -580,7 +585,7 @@ setup_statusline() {
     fi
 
     tmp=$(mktemp "$settings_file.XXXXXX")
-    if [ "$mode" = 'off' ]; then
+    if [ "$enabled" != true ]; then
         if [ "$current" = "$script_bin" ]; then
             jq 'del(.statusLine)' "$settings_file" > "$tmp" && mv -f "$tmp" "$settings_file"
             bashio::log.info "Home Assistant status line turned off"
@@ -589,9 +594,9 @@ setup_statusline() {
         jq --arg cmd "$script_bin" \
             '.statusLine = {type: "command", command: $cmd, padding: 0, refreshInterval: 30}' \
             "$settings_file" > "$tmp" && mv -f "$tmp" "$settings_file"
-        bashio::log.info "Home Assistant status line enabled ($(jq length <<< "$entities_json") extra entities)"
+        bashio::log.info "Home Assistant status line enabled"
     else
-        bashio::log.info "Status line: keeping your own ($current). Add the home line to it with: ha-statusline --home"
+        bashio::log.info "Status line: keeping your own ($current). Add the home to it with: ha-statusline --home"
     fi
     rm -f "$tmp"
     return 0
