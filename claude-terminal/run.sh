@@ -1102,7 +1102,6 @@ start_web_terminal() {
         --interface "${interface}" \
         --writable \
         --ping-interval 30 \
-        --client-option reconnect=5 \
         "${TMUX_WRAPPER_PATH:-/usr/local/bin/tmux-claude}"
 }
 
