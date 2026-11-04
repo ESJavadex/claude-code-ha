@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.2
+
+### 🔧 Improvement - Dashboard Findings Say Where They Are
+- **The Home Assistant plugin is updated to 2.1.4.** Dashboards built in the UI are stored as JSON without line numbers, so a finding only gave a path like `views[1].sections[1].cards[0]`. Each dashboard finding now names what you see in the editor: the view title and tab, the section heading, and the card number and type (e.g. `view "Living Room" (tab 2) > section "Lights" > card 2 (tile)`). Reported in #82
+- A sections view with `cards: []`, which the UI editor writes on every new one, no longer gets a warning
+- Installs that already have the plugin are updated on the next start; if you turned it off, it stays off
+
 ## 2.5.1
 
 ### 🐛 Bug Fix - An Old `claude update` No Longer Pins Claude Code in the Shell
