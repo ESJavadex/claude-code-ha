@@ -5,6 +5,7 @@
 ### 🐛 Bug Fix - The Terminal Reconnects After Sleep, a Network Drop or a Home Assistant Restart
 - **The panel now retries when ttyd gives up**: ttyd tries once to reconnect, straight away, and then stops at "Press ⏎ to Reconnect". That one try often comes too early: after sleep the network isn't back yet, or Home Assistant's ingress session has expired (the Supervisor log shows "No valid ingress session") and Home Assistant's page only creates a new one when it next checks, up to a minute later. While Home Assistant restarts, the add-on can't be reached at all. Pressing Enter failed the same way, and only leaving the dashboard and coming back worked
 - While that message shows, the panel asks the add-on if it's reachable after 1, 2 and 5 s, then every 10 s, and at once when the browser is back online or the tab is shown again. When the add-on answers, it reloads the terminal, which attaches to the same tmux session. When Claude restarts Home Assistant itself (say with `ha core restart` after a configuration change), or you restart it from Settings, the terminal now comes back by itself once Home Assistant is up, with Claude's session where it left off
+- Health checks time out after 10 seconds, and recovery keeps retrying if the terminal frame fails to load after a successful check
 - Each try is logged in the browser console as `[terminal-reconnect]`
 - Removed ttyd's `--client-option reconnect=5`: ttyd 1.7.7 has no such option, so it did nothing
 

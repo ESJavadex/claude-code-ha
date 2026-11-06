@@ -66,6 +66,9 @@
         var timer = null;
         var checking = false;
         var observer = null;
+        var recovering = false;
+        var reloading = false;
+        var reloadDoc = null;
 
         function frameDoc() {
             try {
@@ -77,6 +80,39 @@
 
         function stuck() {
             return isStuck(frameDoc());
+        }
+
+        function needsRecovery() {
+            if (stuck()) recovering = true;
+            var d = frameDoc();
+            // Only a replacement terminal document can finish a reload.
+            if (recovering && (!reloading || d !== reloadDoc) && !stuck()) {
+                try {
+                    if (d && d.querySelector('.xterm')) {
+                        recovering = false;
+                        reloading = false;
+                        attempt = 0;
+                    }
+                } catch (e) { /* a browser error page may be inaccessible */ }
+            }
+            return recovering;
+        }
+
+        function healthCheck() {
+            var controller = new win.AbortController();
+            var timeout;
+            var request = Promise.resolve().then(function () {
+                return fetchFn(healthUrl, { cache: 'no-store', signal: controller.signal });
+            });
+            var deadline = new Promise(function (resolve, reject) {
+                timeout = setTimer(function () {
+                    reject(new Error('health check timed out'));
+                    controller.abort();
+                }, 10000);
+            });
+            return Promise.race([request, deadline]).finally(function () {
+                clearTimer(timeout);
+            });
         }
 
         function schedule(now) {
@@ -105,14 +141,14 @@
             if (checking) {
                 return Promise.resolve();
             }
-            if (!stuck()) {
+            if (!needsRecovery()) {
                 attempt = 0;
                 return Promise.resolve();
             }
             checking = true;
             return Promise.resolve()
                 .then(function () {
-                    return fetchFn(healthUrl, { cache: 'no-store' });
+                    return healthCheck();
                 })
                 .then(function (resp) {
                     if (resp && resp.ok) {
@@ -127,12 +163,16 @@
                 .then(function (ok) {
                     checking = false;
                     // Enter pressed in the meantime may have reconnected it
-                    if (!stuck()) {
+                    if (!needsRecovery()) {
                         attempt = 0;
                     } else if (ok) {
-                        attempt = 0;
                         log('add-on reachable, reloading the terminal');
+                        reloadDoc = frameDoc();
+                        reloading = true;
                         reload();
+                        // Navigation can fail after health succeeds. Keep a watchdog
+                        // until a replacement terminal document appears.
+                        timer = setTimer(check, 10000);
                     } else {
                         schedule(false);
                         log('retrying in ' + DELAYS_MS[Math.min(attempt - 1, DELAYS_MS.length - 1)] / 1000 + ' s');
@@ -141,7 +181,7 @@
         }
 
         function onMutation() {
-            if (timer === null && !checking && stuck()) {
+            if (timer === null && !checking && needsRecovery()) {
                 schedule(false);
             }
         }
@@ -164,12 +204,12 @@
         iframe.addEventListener('load', watch);
         watch();
         win.addEventListener('online', function () {
-            if (stuck()) {
+            if (needsRecovery()) {
                 schedule(true);
             }
         });
         doc.addEventListener('visibilitychange', function () {
-            if (!doc.hidden && stuck()) {
+            if (!doc.hidden && needsRecovery()) {
                 schedule(true);
             }
         });

@@ -20,10 +20,11 @@ function makeSetup(healthResults) {
     const overlay = { textContent: '' };
     const xterm = { children: [] };
     let frameDoc;
+    let hasTerminal = true;
     function newDoc() {
         return {
             body: {},
-            querySelector: sel => (sel === '.xterm' ? xterm : null)
+            querySelector: sel => (sel === '.xterm' && hasTerminal ? xterm : null)
         };
     }
     frameDoc = newDoc();
@@ -41,6 +42,7 @@ function makeSetup(healthResults) {
     const winListeners = {};
     const docListeners = {};
     const win = {
+        AbortController,
         MutationObserver: class {
             constructor(cb) { this.cb = cb; this.target = null; observers.push(this); }
             observe(target) { this.target = target; }
@@ -88,7 +90,8 @@ function makeSetup(healthResults) {
         },
         emitWindow(type) { (winListeners[type] || []).forEach(fn => fn()); },
         emitDoc(type) { (docListeners[type] || []).forEach(fn => fn()); },
-        frameLoad() {
+        frameLoad(terminal = true) {
+            hasTerminal = terminal;
             frameDoc = newDoc();
             (frameListeners.load || []).forEach(fn => fn());
         },
@@ -127,6 +130,10 @@ test('stuck, and the add-on answers: the frame is reloaded once', async () => {
     assert.deepStrictEqual(s.fetches.map(f => f.url), ['health']);
     assert.strictEqual(s.fetches[0].init.cache, 'no-store');
     assert.strictEqual(s.iframe.reloads, 1);
+    assert.strictEqual(s.timers.length, 1, 'navigation watchdog remains active');
+    s.setStuck(null);
+    s.frameLoad();
+    await s.fire();
     assert.strictEqual(s.timers.length, 0);
 });
 
@@ -182,10 +189,51 @@ test('after a reload, the new frame document is watched', async () => {
     assert.strictEqual(s.iframe.reloads, 1);
     s.setStuck(null);
     s.frameLoad();
+    await s.fire();
     const live = s.observers.filter(o => o.target);
     assert.strictEqual(live.length, 1, 'only the new document is observed');
     s.setStuck(STUCK);
     assert.strictEqual(await s.fire(), 1000, 'the wait starts again from 1 s');
+    assert.strictEqual(s.iframe.reloads, 2);
+});
+
+test('a hung health request times out and retries', async () => {
+    const s = makeSetup([new Promise(() => {}), { ok: true }]);
+    s.setStuck(STUCK);
+    const pending = s.timers.shift().fn();
+    await new Promise(r => setImmediate(r));
+    assert.strictEqual(s.timers[0].ms, 10000);
+    const signal = s.fetches[0].init.signal;
+    s.timers.shift().fn();
+    await pending;
+    assert.strictEqual(signal.aborted, true);
+    assert.strictEqual(s.timers[0].ms, 2000);
+    await s.fire();
+    assert.strictEqual(s.iframe.reloads, 1);
+});
+
+test('failed navigation keeps retrying until a terminal document loads', async () => {
+    const s = makeSetup([{ ok: true }, { ok: false, status: 502 }, { ok: true }]);
+    s.setStuck(STUCK);
+    await s.fire();
+    s.setStuck(null);
+    s.frameLoad(false); // ingress error page, without xterm
+    await s.fire();
+    assert.strictEqual(s.iframe.reloads, 1);
+    s.emitWindow('online');
+    assert.strictEqual(s.timers[0].ms, 0);
+    await s.fire();
+    assert.strictEqual(s.iframe.reloads, 2);
+    s.frameLoad();
+    await s.fire();
+    assert.strictEqual(s.timers.length, 0);
+});
+
+test('a navigation that never loads is retried', async () => {
+    const s = makeSetup();
+    s.setStuck(STUCK);
+    await s.fire();
+    await s.fire();
     assert.strictEqual(s.iframe.reloads, 2);
 });
 
