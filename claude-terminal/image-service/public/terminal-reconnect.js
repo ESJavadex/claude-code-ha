@@ -69,6 +69,7 @@
         var recovering = false;
         var reloading = false;
         var reloadDoc = null;
+        var reloadAttempt = 0;
 
         function frameDoc() {
             try {
@@ -91,6 +92,7 @@
                     if (d && d.querySelector('.xterm')) {
                         recovering = false;
                         reloading = false;
+                        reloadAttempt = 0;
                         attempt = 0;
                     }
                 } catch (e) { /* a browser error page may be inaccessible */ }
@@ -172,7 +174,9 @@
                         reload();
                         // Navigation can fail after health succeeds. Keep a watchdog
                         // until a replacement terminal document appears.
-                        timer = setTimer(check, 10000);
+                        var reloadDelay = Math.min(10000 * Math.pow(2, reloadAttempt), 60000);
+                        reloadAttempt = Math.min(reloadAttempt + 1, 3);
+                        timer = setTimer(check, reloadDelay);
                     } else {
                         schedule(false);
                         log('retrying in ' + DELAYS_MS[Math.min(attempt - 1, DELAYS_MS.length - 1)] / 1000 + ' s');

@@ -237,6 +237,23 @@ test('a navigation that never loads is retried', async () => {
     assert.strictEqual(s.iframe.reloads, 2);
 });
 
+test('repeated failed navigations back off and recovery resets the delay', async () => {
+    const s = makeSetup();
+    s.setStuck(STUCK);
+    await s.fire();
+    for (const delay of [10000, 20000, 40000, 60000, 60000]) {
+        assert.strictEqual(s.timers[0].ms, delay);
+        await s.fire();
+    }
+    s.setStuck(null);
+    s.frameLoad();
+    await s.fire();
+    assert.strictEqual(s.timers.length, 0);
+    s.setStuck(STUCK);
+    assert.strictEqual(await s.fire(), 1000);
+    assert.strictEqual(s.timers[0].ms, 10000);
+});
+
 (async () => {
     let failed = 0;
     for (const [name, fn] of tests) {
