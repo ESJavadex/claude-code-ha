@@ -11,6 +11,7 @@ tests_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 "$tests_dir/test-native-claude.sh"
 node "$tests_dir/test-terminal-clipboard.js"
 node "$tests_dir/test-key-bar.js"
+node "$tests_dir/test-terminal-reconnect.js"
 node "$tests_dir/test-sidebar-api.mjs"
 node "$tests_dir/test-uploads.mjs"
 node "$tests_dir/test-voice-audio.mjs"

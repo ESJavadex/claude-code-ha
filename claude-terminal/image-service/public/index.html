@@ -982,6 +982,7 @@
 
     <script src="terminal-clipboard.js"></script>
     <script src="key-bar.js"></script>
+    <script src="terminal-reconnect.js"></script>
     <script type="module" src="voice-input.mjs"></script>
     <script>
         let ttydPort = 7681;
@@ -1024,6 +1025,11 @@
                     iframe.contentDocument.body.style.background = '#1e1e1e';
                 } catch { /* not same-origin */ }
             });
+            // ttyd gives up after one failed reconnect (sleep, a network drop
+            // or an expired ingress session); retry until the add-on answers
+            if (window.ClaudeTerminalReconnect) {
+                ClaudeTerminalReconnect.install(iframe);
+            }
         }
 
         // Async Clipboard API path (needs HTTPS or localhost; prompts for permission once).
