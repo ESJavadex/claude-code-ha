@@ -30,9 +30,37 @@ reset_terminal() {
     printf '\033[<u\033[>4;0m\033[?2004l\033[?1004l\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049l\033[?25h'
 }
 
+# The box and the full menu labels need 64 columns. A phone shows about 45,
+# where they wrap into a broken frame, so narrow terminals get a short form.
+PICKER_WIDE_COLS=64
+
+# Width of the terminal on stdin. stty, not tput: the image has no ncurses
+# tools. Not a terminal (or no answer): assume 80.
+term_cols() {
+    local size cols
+    size=$(stty size 2>/dev/null) || size=''
+    cols=${size#* }
+    case "$cols" in
+        ''|*[!0-9]*|0) cols=80 ;;
+    esac
+    echo "$cols"
+}
+
+is_narrow() {
+    [ "$(term_cols)" -lt "$PICKER_WIDE_COLS" ]
+}
+
 show_banner() {
     reset_terminal
     clear
+    if is_narrow; then
+        local rule
+        rule=$(printf '%*s' "$(term_cols)" '' | sed 's/ /═/g')
+        echo "🤖 Claude Terminal · Session Picker"
+        echo "$rule"
+        echo ""
+        return
+    fi
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║                    🤖 Claude Terminal                        ║"
     echo "║                   Interactive Session Picker                 ║"
@@ -123,6 +151,33 @@ show_menu() {
         ver=$(/usr/local/bin/claude --version 2>/dev/null || echo "unknown")
     fi
 
+    # 🔧, not ⚙️: ⚙️ (with the emoji selector) is one cell wide in some
+    # terminals and two in others, so no spacing after it looks right everywhere
+    if is_narrow; then
+        echo "Claude Code: ${ver% (Claude Code)}"
+        echo ""
+        echo "Choose a session:"
+        echo ""
+        echo "  1) 🆕 New session (default)"
+        echo "  2) ⏩ Continue last conversation (-c)"
+        echo "  3) 📋 Resume a conversation (-r)"
+        echo "  4) 🔧 Custom command (manual flags)"
+        echo "  5) 🔐 Claude login helper"
+        echo "  6) 🐙 GitHub CLI login"
+        if is_persistent_claude_enabled; then
+            local label detail
+            label=$(update_menu_label)
+            detail=${label#Update Claude Code (}
+            detail=${detail%)}
+            echo "  ${NUM_UPDATE}) 🔄 Update Claude Code"
+            echo "        ${detail}"
+        fi
+        echo "  ${NUM_BASH}) 🐚 Bash shell"
+        echo "  ${NUM_EXIT}) ❌ Exit"
+        echo ""
+        return
+    fi
+
     echo "Claude Code version: $ver"
     echo ""
     echo "Choose your Claude session type:"
@@ -130,7 +185,7 @@ show_menu() {
     echo "  1) 🆕 New interactive session (default)"
     echo "  2) ⏩ Continue most recent conversation (-c)"
     echo "  3) 📋 Resume from conversation list (-r)"
-    echo "  4) ⚙️ Custom Claude command (manual flags)"
+    echo "  4) 🔧 Custom Claude command (manual flags)"
     echo "  5) 🔐 Claude authentication helper"
     echo "  6) 🐙 GitHub CLI login (gh auth)"
     if is_persistent_claude_enabled; then
@@ -141,11 +196,33 @@ show_menu() {
     echo ""
 }
 
+show_prompt() {
+    printf "Enter your choice [1-%s] (default: 1): " "$NUM_EXIT"
+}
+
 get_user_choice() {
-    local choice
+    local choice cols now status
     # Send prompt to stderr to avoid capturing it with the return value
-    printf "Enter your choice [1-%s] (default: 1): " "$NUM_EXIT" >&2
-    read -r choice
+    show_prompt >&2
+    # The menu is often drawn before anyone is watching: at start-up the
+    # session has tmux's default 80 columns until a browser attaches. Redraw
+    # when the width changes. Typed text waits in the terminal's line buffer
+    # until Enter, so a redraw doesn't lose it.
+    cols=$(term_cols)
+    while :; do
+        if read -r -t 1 choice; then
+            break
+        else
+            status=$?
+        fi
+        # Not a timeout (end of input): fall through to the default
+        [ "$status" -gt 128 ] || break
+        now=$(term_cols)
+        if [ "$now" != "$cols" ]; then
+            cols=$now
+            { show_banner; show_menu; show_prompt; } >&2
+        fi
+    done
     
     # Default to 1 if empty
     if [ -z "$choice" ]; then
@@ -382,5 +459,7 @@ main() {
     done
 }
 
-# Run main function
-main "$@"
+# Run main function, unless sourced by the tests
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi
