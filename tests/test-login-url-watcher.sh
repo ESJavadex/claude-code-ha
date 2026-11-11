@@ -85,4 +85,31 @@ $(cat "$calls")
 expected:
 $expected"
 
+# /login while still logged in (renewing or switching account): the link is
+# posted although the old login is valid, the notification stays while the
+# saved login is unchanged, and goes once the new login is saved.
+: > "$calls"
+printf '{"claudeAiOauth":{"expiresAt":%s,"n":1}}' "$future" > "$creds"
+printf 'Claude is running\n' > "$pane"
+step=0
+sleep() {
+    step=$((step + 1))
+    case "$step" in
+        1) printf ' %s\n\n' "${link/STATE1/STATE3}" > "$pane" ;;
+        2) ;;
+        3) printf '{"claudeAiOauth":{"expiresAt":%s,"n":2}}' "$future" > "$creds" ;;
+        4) ;;
+        5) exit 0 ;;
+    esac
+}
+( main >/dev/null )
+
+expected="dismiss
+create ${link/STATE1/STATE3}
+dismiss"
+[ "$(cat "$calls")" = "$expected" ] || fail "re-login while logged in, unexpected service calls:
+$(cat "$calls")
+expected:
+$expected"
+
 echo "Login URL watcher regression suite passed"

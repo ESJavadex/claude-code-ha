@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.5
+
+### 🐛 Bug Fix - The Login Notification Also Appears for `/login` While Logged In
+- **Running `/login` to renew a login or switch account now posts the link as a Home Assistant notification too**: the add-on only looked for a login link while Claude was logged out, so while the old login was still valid the new link was never posted
+- The notification is now dismissed once the saved login has changed and is valid, rather than as soon as any valid login exists. A link already posted is still never posted again, and a stale one is still cleared at start-up
+
 ## 2.5.3
 
 ### 🐛 Bug Fix - The Terminal Reconnects After Sleep, a Network Drop or a Home Assistant Restart
