@@ -300,6 +300,27 @@ test('OSC 52 is handled and base64 UTF-8 is decoded', async () => {
     assert.deepStrictEqual(env.state.clipboardWrites, ['žltý kôň — ok']);
 });
 
+test('control bytes are stripped before the clipboard: no paste injection', async () => {
+    assert.strictEqual(bridge.sanitizeForClipboard('a\tb\nc'), 'a\tb\nc', 'TAB and LF stay');
+    assert.strictEqual(bridge.sanitizeForClipboard('x\u001b[201~\rrm -rf /\u007f\u009b'), 'x[201~rm -rf /');
+    assert.strictEqual(bridge.sanitizeForClipboard('žltý kôň — ok'), 'žltý kôň — ok');
+
+    const env = makeWindow({ clipboardApi: true });
+    bridge.install(env.win);
+    const payload = Buffer.from('safe\u001b[201~\recho owned\n', 'utf8').toString('base64');
+    env.osc(52, `c;${payload}`);
+    await tick();
+    assert.deepStrictEqual(env.state.clipboardWrites, ['safe[201~echo owned\n']);
+});
+
+test('text that is only control bytes copies nothing', async () => {
+    const env = makeWindow({ clipboardApi: true });
+    bridge.install(env.win);
+    env.osc(52, `c;${Buffer.from('\u001b\r', 'utf8').toString('base64')}`);
+    await tick();
+    assert.deepStrictEqual(env.state.clipboardWrites, []);
+});
+
 test('OSC 52 without a selection parameter still copies', async () => {
     const env = makeWindow({ clipboardApi: true });
     bridge.install(env.win);

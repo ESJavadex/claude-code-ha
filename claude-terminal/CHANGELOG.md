@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.6
+
+### 🔧 Technical - Harden the Clipboard, Start-up and Legacy Login Migration
+Four fixes from owine/claude-terminal-home-assistant's security audit (#542, #533, #531, #543), adapted here. Each closes a way for another add-on or a Samba user, who can write to `/config`, or a program in the terminal, to reach further than it should.
+- **Clipboard text has its control characters removed**: a program can set the clipboard through OSC 52 (as Claude's `/copy` does), and a file in `/config` can have control characters in its name (**Copy path**). Pasted back into the terminal, an escape and a carriage return could end the paste early and run a command. Tabs and line breaks are kept
+- **tmux no longer answers a program's request to read the clipboard**: with its default setting it replied with whatever was last copied in tmux. Programs can still set the clipboard
+- **Start-up runs from `/` instead of `/config`**: Python looks in the current folder first, so a `venv.py` placed in `/config` would have run as root when the add-on rebuilt the persist-install venv. `persist-install` now runs Python isolated (`python3 -I`) for the same reason, since the terminal opens in `/config`
+- **The legacy login migration runs once**: it copied `/config/claude-config` into Claude's config folder on every start, replacing files already there. Claude Code reads profiles from that folder (with credentials and the API server address), so anything written there later would have been picked up. Now it copies only what's missing, once, and records that in `/data`
+
 ## 2.5.3
 
 ### 🐛 Bug Fix - The Terminal Reconnects After Sleep, a Network Drop or a Home Assistant Restart

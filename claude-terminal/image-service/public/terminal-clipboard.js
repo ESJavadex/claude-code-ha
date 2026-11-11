@@ -63,9 +63,21 @@
         return copied;
     }
 
+    /**
+     * Clipboard text is pasted back into a terminal, which acts on control
+     * bytes. ESC could end a bracketed paste early and CR would then run what
+     * follows, so a program writing OSC 52, or a file name planted in /config,
+     * could type commands. Keep TAB and LF, drop every other C0 byte, DEL and
+     * C1. Adapted from owine/claude-terminal-home-assistant#542.
+     */
+    function sanitizeForClipboard(text) {
+        return String(text).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
+    }
+
     /** The single clipboard writer every path goes through. Resolves to success. */
     function makeCopyText(win, nativeExecCommand) {
         return function copyText(text) {
+            text = text ? sanitizeForClipboard(text) : text;
             if (!text) return Promise.resolve(false);
 
             var clipboard = win.navigator && win.navigator.clipboard;
@@ -678,6 +690,7 @@
         SHIFT_ENTER_INPUT: SHIFT_ENTER_INPUT,
         urlProblem: urlProblem,
         decodeBase64Utf8: decodeBase64Utf8,
+        sanitizeForClipboard: sanitizeForClipboard,
         copyWithTextarea: copyWithTextarea,
         makeCopyText: makeCopyText,
         createOverlay: createOverlay,
