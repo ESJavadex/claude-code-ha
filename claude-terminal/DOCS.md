@@ -414,7 +414,7 @@ Choose your Claude session type:
   1) 🆕 New interactive session (default)
   2) ⏩ Continue most recent conversation (-c)
   3) 📋 Resume from conversation list (-r)
-  4) ⚙️ Custom Claude command (manual flags)
+  4) 🔧 Custom Claude command (manual flags)
   5) 🔐 Claude authentication helper
   6) 🐙 GitHub CLI login (gh auth)
   7) 🔄 Update Claude Code (2.1.316, up to date)
@@ -453,9 +453,11 @@ open it:
 
 - **Home Assistant notification**: the add-on posts the link as a "Claude Code
   login" notification as soon as it appears, including in the Companion app.
-  Tap it to sign in. The notification disappears by itself once login
-  succeeds, and a stale one left over from before a restart is cleared on
-  startup.
+  Tap it to sign in. This includes running `/login` again to renew a login
+  or switch account while you're still logged in. The notification
+  disappears by itself once the new login is saved, and a stale one left
+  over from before a restart is cleared on startup. The add-on watches the
+  window Claude starts in, so run `/login` there.
 - **`🔗 Copy link`** in the terminal header (see below).
 
 Either way, the browser then shows an **authorization code**: paste it into
