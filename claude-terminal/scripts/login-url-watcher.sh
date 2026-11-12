@@ -48,6 +48,17 @@ is_logged_in() {
     [ -n "$expires_at" ] && [ "$expires_at" -gt "$(($(date +%s) * 1000))" ] 2>/dev/null
 }
 
+# Changes whenever the saved login does: a new login or a token refresh.
+# A checksum, so the tokens themselves are never read into the script.
+credentials_stamp() {
+    local cred="$HOME/.claude/.credentials.json"
+    if [ -f "$cred" ]; then
+        cksum < "$cred" 2>/dev/null
+    else
+        echo none
+    fi
+}
+
 call_service() {
     local service="$1" body="$2"
     curl -s -m 10 -X POST \
@@ -77,27 +88,28 @@ main() {
     # exists. Clear it before publishing current ones.
     dismiss
 
-    # Every URL already posted. Not cleared on login: the used URL stays in
-    # scrollback, and when the access token later expires is_logged_in turns
-    # false again, which must not re-post a dead link. A new login always
-    # prints a new URL (fresh state), so it is still posted.
-    local posted=" " notified=0 url
+    # Every URL already posted. Never cleared: a used URL stays in
+    # scrollback and must not be posted again. A new login always prints a
+    # new URL (fresh state), so it is still posted.
+    #
+    # Links are looked for while logged in too: /login to switch account or
+    # renew a login prints one while the old login is still valid. The
+    # notification goes once the saved login has changed and is valid.
+    local posted=" " notified=0 url stamp=""
     while true; do
         if tmux has-session -t claude 2>/dev/null; then
-            if is_logged_in; then
-                if [ "$notified" = "1" ]; then
-                    dismiss
-                    notified=0
-                    echo "Login complete; notification dismissed"
-                fi
-            else
-                url=$(extract_url)
-                if [ -n "$url" ] && [[ "$posted" != *" $url "* ]]; then
-                    notify "$url"
-                    posted="$posted$url "
-                    notified=1
-                    echo "Login link posted as a Home Assistant notification"
-                fi
+            if [ "$notified" = "1" ] && [ "$(credentials_stamp)" != "$stamp" ] && is_logged_in; then
+                dismiss
+                notified=0
+                echo "Login complete; notification dismissed"
+            fi
+            url=$(extract_url)
+            if [ -n "$url" ] && [[ "$posted" != *" $url "* ]]; then
+                notify "$url"
+                posted="$posted$url "
+                notified=1
+                stamp=$(credentials_stamp)
+                echo "Login link posted as a Home Assistant notification"
             fi
         fi
         sleep "$POLL_INTERVAL"
