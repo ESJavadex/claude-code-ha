@@ -63,6 +63,15 @@ grep -qx 'set -g mouse off' "$HOME/.tmux.conf" || fail "empty optional bool shou
 # outer terminal advertises the Ms capability.
 grep -qx 'set -g set-clipboard on' "$HOME/.tmux.conf" || \
     fail "tmux must accept and forward OSC 52 from applications"
+# ...but tmux must not answer a program's OSC 52 read with its paste buffer
+grep -qx 'set -g get-clipboard off' "$HOME/.tmux.conf" || \
+    fail "tmux must not answer OSC 52 clipboard reads"
+if command -v tmux >/dev/null && tmux -L gc-check -f /dev/null start-server \; show -g get-clipboard >/dev/null 2>&1; then
+    tmux -L gc-check -f "$HOME/.tmux.conf" new-session -d "sleep 5" 2>/dev/null || true
+    [ "$(tmux -L gc-check show -gv get-clipboard 2>/dev/null)" = off ] || \
+        fail "a real tmux should load get-clipboard off from the generated conf"
+    tmux -L gc-check kill-server 2>/dev/null || true
+fi
 grep -qx "set -as terminal-features ',\*:clipboard'" "$HOME/.tmux.conf" || \
     fail "tmux must advertise the clipboard capability so OSC 52 reaches ttyd"
 
@@ -276,6 +285,9 @@ FAKE
 fake_python="$tmp_dir/fake-python"
 cat > "$fake_python" << 'FAKE'
 #!/usr/bin/env bash
+# Every call must be isolated (-I), or Python imports from the current directory
+[ "$1" = "-I" ] || exit 1
+shift
 [ "$1" = "-c" ] && { echo 3.14; exit 0; }
 [ "$1 $2" = "-m venv" ] || exit 1
 mkdir -p "$3/bin"
@@ -342,5 +354,34 @@ prune_uploads
 [ ! -e "$tmp_dir/uploads/old.pdf" ] || fail "prune_uploads must remove uploads older than 30 days"
 [ ! -e "$tmp_dir/images/pasted-1.png" ] || fail "prune_uploads must also clear the pre-2.3.7 images folder"
 unset UPLOAD_PRUNE_DIRS
+
+
+# Boot runs from /, not the image's WORKDIR /config (writable by other add-ons)
+[ "$(sed -n '/^main() {/,/^}/p' "$repo_root/claude-terminal/run.sh" | grep -v '^ *#' | sed -n 2p | tr -d ' ')" = "cd/" ] || \
+    fail "main() must start with cd /"
+# persist-install's Python must not import from the current directory
+! grep -v '^ *#' "$repo_root/claude-terminal/scripts/persist-install" | grep -E 'python3 +-m' | grep -q . || \
+    fail "persist-install must run python3 -I"
+
+
+# The legacy login migration runs once: a file planted later in a legacy
+# source (writable by other add-ons) is never copied in, and an existing file
+# in the target is never replaced
+legacy_src="$tmp_dir/legacy-src"
+legacy_dst="$tmp_dir/legacy-dst"
+mkdir -p "$legacy_src" "$legacy_dst"
+echo theirs > "$legacy_src/settings.json"
+echo mine > "$legacy_dst/settings.json"
+echo old > "$legacy_src/old-login.json"
+export LEGACY_AUTH_SOURCES="$legacy_src" LEGACY_AUTH_MARKER="$tmp_dir/legacy-marker"
+migrate_legacy_auth_files "$legacy_dst"
+[ "$(cat "$legacy_dst/settings.json")" = mine ] || fail "migration must not replace an existing file"
+[ -f "$legacy_dst/old-login.json" ] || fail "the first migration should copy what the target lacks"
+[ -f "$LEGACY_AUTH_MARKER" ] || fail "a completed migration must leave its marker"
+mkdir -p "$legacy_src/configs"
+echo '{"base_url":"https://evil.example"}' > "$legacy_src/configs/default.json"
+migrate_legacy_auth_files "$legacy_dst"
+[ ! -e "$legacy_dst/configs" ] || fail "after the first pass, files planted in a legacy source must not be copied"
+unset LEGACY_AUTH_SOURCES LEGACY_AUTH_MARKER
 
 echo "Production run.sh regression suite passed"

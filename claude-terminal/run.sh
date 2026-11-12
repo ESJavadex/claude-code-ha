@@ -178,37 +178,54 @@ PROFILE_EOF
 # One-time migration of existing authentication files
 migrate_legacy_auth_files() {
     local target_dir="$1"
-    local migrated=false
+    local marker="${LEGACY_AUTH_MARKER:-/data/.legacy-auth-migrated}"
+    local migrated=false failed=false
+
+    # Once only. /config/claude-config and /tmp are writable by other add-ons
+    # and Samba users, and Claude Code reads profiles (with credentials and an
+    # API base_url) from this target, ANTHROPIC_CONFIG_DIR. Re-checking on
+    # every boot let anything that wrote there later be copied in. Adapted
+    # from owine/claude-terminal-home-assistant#543.
+    [ -f "$marker" ] && return 0
 
     bashio::log.info "Checking for existing authentication files to migrate..."
 
-    # Check common legacy locations
+    # Check common legacy locations (LEGACY_AUTH_SOURCES: a test seam)
     local legacy_locations=(
         "/root/.config/anthropic"
-        "/root/.anthropic" 
+        "/root/.anthropic"
         "/config/claude-config"
         "/tmp/claude-config"
     )
+    if [ -n "${LEGACY_AUTH_SOURCES:-}" ]; then
+        read -r -a legacy_locations <<< "$LEGACY_AUTH_SOURCES"
+    fi
 
     for legacy_path in "${legacy_locations[@]}"; do
         if [ -d "$legacy_path" ] && [ "$(ls -A "$legacy_path" 2>/dev/null)" ]; then
             bashio::log.info "Migrating auth files from: $legacy_path"
-            
-            # Copy files to new location
-            if cp -r "$legacy_path"/* "$target_dir/" 2>/dev/null; then
+
+            # Never replace what the target already has
+            local entry copy_ok=true
+            for entry in "$legacy_path"/*; do
+                [ -e "$target_dir/${entry##*/}" ] && continue
+                cp -r "$entry" "$target_dir/" 2>/dev/null || copy_ok=false
+            done
+            if [ "$copy_ok" = true ]; then
                 # Set proper permissions
                 find "$target_dir" -type f -exec chmod 600 {} \;
-                
+
                 # Create compatibility symlink if this is a standard location
                 if [[ "$legacy_path" == "/root/.config/anthropic" ]] || [[ "$legacy_path" == "/root/.anthropic" ]]; then
                     rm -rf "$legacy_path"
                     ln -sf "$target_dir" "$legacy_path"
                     bashio::log.info "Created compatibility symlink: $legacy_path -> $target_dir"
                 fi
-                
+
                 migrated=true
                 bashio::log.info "Migration completed from: $legacy_path"
             else
+                failed=true
                 bashio::log.warning "Failed to migrate from: $legacy_path"
             fi
         fi
@@ -216,6 +233,11 @@ migrate_legacy_auth_files() {
 
     if [ "$migrated" = false ]; then
         bashio::log.info "No existing authentication files found to migrate"
+    fi
+
+    # A failed copy is retried on the next boot; otherwise this was the one pass
+    if [ "$failed" = false ]; then
+        touch "$marker" && chmod 600 "$marker"
     fi
 }
 
@@ -296,7 +318,7 @@ migrate_python_venv() {
 
     local old new
     old=$(sed -n -E 's/^version(_info)? *= *([0-9]+\.[0-9]+).*/\2/p' "$venv/pyvenv.cfg")
-    new=$("$python" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null) || return 0
+    new=$("$python" -I -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null) || return 0
     if [ -z "$old" ] || [ -z "$new" ] || [ "$old" = "$new" ]; then
         return 0
     fi
@@ -319,7 +341,7 @@ migrate_python_venv() {
 
     bashio::log.warning "Python changed from $old to $new: rebuilding the persist-install venv"
     rm -rf "$venv"
-    if ! "$python" -m venv "$venv"; then
+    if ! "$python" -I -m venv "$venv"; then
         bashio::log.error "Could not recreate $venv; persist-install --python will create it again"
         return 0
     fi
@@ -414,6 +436,11 @@ set -g mouse ${tmux_mouse}
 # Let applications in the pane (Claude Code's /copy) set the clipboard through
 # OSC 52 and forward it out to ttyd. The default 'external' drops what they send.
 set -g set-clipboard on
+
+# ...but never let them read it. With get-clipboard at its default, 'buffer',
+# tmux itself answers an OSC 52 read with its top paste buffer: whatever was
+# last copied in tmux. Adapted from owine/claude-terminal-home-assistant#533.
+set -g get-clipboard off
 
 # tmux only emits OSC 52 when the outer terminal advertises the 'Ms' capability.
 # ttyd's frontend always accepts it, so declare it instead of trusting terminfo.
@@ -1116,6 +1143,12 @@ run_health_check() {
 
 # Main execution
 main() {
+    # The image's WORKDIR is /config, which other add-ons and Samba users can
+    # write to. Python puts the current directory first on its import path,
+    # so a planted venv.py there would run as root at boot. Steps that want
+    # /config name it. Adapted from owine/claude-terminal-home-assistant#531.
+    cd /
+
     bashio::log.info "Initializing Claude Terminal add-on..."
 
     # Run diagnostics first (especially helpful for VirtualBox issues)

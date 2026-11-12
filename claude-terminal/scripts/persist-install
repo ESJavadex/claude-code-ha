@@ -142,7 +142,9 @@ install_python_packages() {
         fi
 
         mkdir -p "$PERSIST_PYTHON"
-        python3 -m venv "$PERSIST_PYTHON/venv"
+        # -I: the terminal starts in /config, and Python would otherwise
+        # import a planted module (venv.py) from the current directory first
+        python3 -I -m venv "$PERSIST_PYTHON/venv"
         echo "✅ Virtual environment created"
         echo ""
     fi
