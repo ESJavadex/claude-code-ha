@@ -6,6 +6,14 @@
 - **Running `/login` to renew a login or switch account now posts the link as a Home Assistant notification too**: the add-on only looked for a login link while Claude was logged out, so while the old login was still valid the new link was never posted
 - The notification is now dismissed once the saved login has changed and is valid, rather than as soon as any valid login exists. A link already posted is still never posted again, and a stale one is still cleared at start-up
 
+## 2.5.4
+
+### 🐛 Bug Fix - The Session Picker Fits a Phone Screen
+- **The picker no longer wraps into a broken layout on a phone**: its box banner and menu labels need 64 columns, and a phone in portrait shows about 45, so the box frame broke up and several options wrapped onto a second line
+- Below 64 columns the picker now shows a one-line header and shorter labels (the Update option's version goes on its own line). Wider terminals look exactly as before, and the option numbers are unchanged
+- The menu redraws when the terminal's width changes. At start-up it is drawn before any browser is attached, at tmux's default 80 columns, so opening the panel on a phone, resizing a window or rotating the phone now switches the layout
+- Option 4 (Custom command) now shows 🔧 instead of ⚙️. ⚙️ is drawn one cell wide in some terminals and two in others, so with one space it ran into the text in some views and with two it left a gap in others. 🔧 is always two cells, like the other icons
+
 ## 2.5.3
 
 ### 🐛 Bug Fix - The Terminal Reconnects After Sleep, a Network Drop or a Home Assistant Restart
