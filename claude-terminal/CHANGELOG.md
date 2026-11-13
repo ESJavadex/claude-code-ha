@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.5.7
+
+### ✨ New Feature - Paste Button
+- **📥 Paste in the header, next to Copy**: a phone or tablet has no paste key, and a long-press on the terminal shows no Paste menu, so there was no easy way to paste text, such as Claude's login code, on an iPhone or iPad
+  - Over HTTPS it pastes the clipboard straight away. A copied image is uploaded and its path typed at the prompt, as with 📎
+  - Over plain HTTP, where browsers don't let a page read the clipboard, or if the browser refuses, it opens a box to paste into, then **Insert in Terminal**. Images pasted there are uploaded too
+  - On an iPhone or iPad, iOS refuses the first read while **Paste from Other Apps** is on Ask (the default), so the box offers **Paste from Clipboard**, which then works. Setting it to **Allow** for the Home Assistant app (or Safari) makes it one tap
+  - In the Home Assistant app on a Mac, where Cmd+V doesn't paste at all, right-click → Paste in the box now gives a way to paste
+  - Text copied from a web page, which may be on the clipboard only as HTML or a link, is pasted as plain text
+  - Line breaks are kept. Control characters are removed, as they are for copying
+- Ctrl+V on a Mac now uses the same clipboard code, with no change in behaviour
+
 ## 2.5.6
 
 ### 🔧 Technical - Harden the Clipboard, Start-up and Legacy Login Migration

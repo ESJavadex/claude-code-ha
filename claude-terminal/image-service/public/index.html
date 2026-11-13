@@ -182,7 +182,8 @@
         }
 
         /* Voice Modal */
-        #voice-modal {
+        #voice-modal,
+        #paste-modal {
             position: fixed;
             top: 0;
             left: 0;
@@ -195,11 +196,13 @@
             z-index: 2000;
         }
 
-        #voice-modal.active {
+        #voice-modal.active,
+        #paste-modal.active {
             display: flex;
         }
 
-        #voice-modal-content {
+        #voice-modal-content,
+        #paste-modal-content {
             background: #2d2d2d;
             border-radius: 8px;
             padding: 24px;
@@ -208,7 +211,8 @@
             border: 1px solid #3d3d3d;
         }
 
-        #voice-modal-title {
+        #voice-modal-title,
+        #paste-modal-title {
             font-size: 18px;
             font-weight: 500;
             margin-bottom: 16px;
@@ -237,6 +241,35 @@
             content: "Click 'Start Recording' and speak...";
             color: #666;
             font-style: italic;
+        }
+
+        /* Paste box: a real textarea, so a long-press gives the native Paste
+           menu, and line breaks in pasted YAML or logs are kept. */
+        #paste-text {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            height: 120px;
+            resize: vertical;
+            background: #1e1e1e;
+            border: 1px solid #3d3d3d;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 16px;
+            color: #ccc;
+            font-family: Menlo, Monaco, 'Courier New', monospace;
+            /* 16px stops iOS zooming the page when the box is focused */
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        #paste-status.error {
+            color: #d9534f;
+        }
+
+        .modal-btn:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
 
         .modal-buttons {
@@ -281,7 +314,8 @@
             background: #666;
         }
 
-        #voice-status {
+        #voice-status,
+        #paste-status {
             font-size: 12px;
             color: #888;
             margin-bottom: 12px;
@@ -862,6 +896,10 @@
                     <span>📋</span>
                     <span class="btn-label">Copy</span>
                 </button>
+                <button id="paste-btn" class="header-btn" title="Paste into the terminal (an image is uploaded)">
+                    <span>📥</span>
+                    <span class="btn-label">Paste</span>
+                </button>
                 <button id="voice-btn" class="header-btn">
                     <span>🎤</span>
                     <span class="btn-label">Voice Input</span>
@@ -980,6 +1018,21 @@
         </div>
     </div>
 
+    <!-- Paste Modal: where the browser can't read the clipboard (plain http,
+         or the read was refused), the user pastes into this box instead -->
+    <div id="paste-modal">
+        <div id="paste-modal-content" role="dialog" aria-labelledby="paste-modal-title">
+            <div id="paste-modal-title">📥 Paste into terminal</div>
+            <div id="paste-status" role="status" aria-live="polite"></div>
+            <textarea id="paste-text" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="Paste here" aria-label="Text to paste into the terminal"></textarea>
+            <div class="modal-buttons">
+                <button id="paste-retry-btn" class="modal-btn modal-btn-primary" style="display: none;">Paste from Clipboard</button>
+                <button id="paste-insert-btn" class="modal-btn modal-btn-primary" disabled>Insert in Terminal</button>
+                <button id="paste-close-btn" class="modal-btn modal-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="terminal-clipboard.js"></script>
     <script src="key-bar.js"></script>
     <script src="terminal-reconnect.js"></script>
@@ -1034,33 +1087,25 @@
 
         // Async Clipboard API path (needs HTTPS or localhost; prompts for permission once).
         async function pasteFromAsyncClipboard(win) {
-            const term = win.term;
-            if (!navigator.clipboard || !navigator.clipboard.read) {
-                setStatus('Ctrl+V needs HTTPS here - use Cmd+V, drag-drop or 📎', 'error');
-                return;
-            }
+            let content;
             try {
-                const items = await navigator.clipboard.read();
-                for (const item of items) {
-                    const type = item.types.find(t => t.startsWith('image/'));
-                    if (type) {
-                        const blob = await item.getType(type);
-                        const ext = type.split('/')[1].replace('svg+xml', 'svg');
-                        await uploadFile(new File([blob], `pasted.${ext}`, { type }));
-                        return;
-                    }
-                }
-                // Prefer text/plain from the same read() so we stay within the user
-                // activation (Safari rejects a second clipboard call after awaits).
-                const textItem = items.find(i => i.types.includes('text/plain'));
-                const text = textItem
-                    ? await (await textItem.getType('text/plain')).text()
-                    : await navigator.clipboard.readText();
-                if (text && term) term.paste(text);
+                content = await ClaudeTerminalClipboard.readClipboardForPaste(navigator);
             } catch (err) {
                 console.log('Async clipboard read failed:', err);
-                setStatus('Clipboard read blocked - use Cmd+V, drag-drop or 📎', 'error');
+                setStatus(navigator.clipboard
+                    ? 'Clipboard read blocked - use Cmd+V, drag-drop or 📎'
+                    : 'Ctrl+V needs HTTPS here - use Cmd+V, drag-drop or 📎', 'error');
+                return;
             }
+            if (content.blob) {
+                await uploadFile(clipboardImageFile(content));
+            } else if (content.text && win.term) {
+                win.term.paste(content.text);
+            }
+        }
+
+        function clipboardImageFile(content) {
+            return new File([content.blob], content.name, { type: content.type });
         }
 
         // Intercept file pastes (images, or files copied in Finder/Explorer)
@@ -1406,6 +1451,158 @@
             iframe.addEventListener('dragover', (e) => e.preventDefault());
             iframe.addEventListener('drop', (e) => e.preventDefault());
         });
+
+        // --- Paste: the counterpart of Copy for a touch device ---
+        // A phone has no Cmd+V, and a long-press on the terminal gives no Paste
+        // menu (xterm.js draws on a canvas). The button reads the clipboard
+        // where the browser allows it (https or localhost). Otherwise, or if
+        // the read is refused, it opens a box the user pastes into, which works
+        // over plain http too.
+
+        const pasteModal = document.getElementById('paste-modal');
+        const pasteBtn = document.getElementById('paste-btn');
+        const pasteText = document.getElementById('paste-text');
+        const pasteStatus = document.getElementById('paste-status');
+        const pasteInsertBtn = document.getElementById('paste-insert-btn');
+        const pasteCloseBtn = document.getElementById('paste-close-btn');
+        const pasteRetryBtn = document.getElementById('paste-retry-btn');
+        const PASTE_HINT = 'Long-press or right-click in the box and choose Paste (or press Ctrl+V / Cmd+V), '
+            + 'then Insert. Pasting an image uploads it.';
+
+        function terminalTerm() {
+            try {
+                const term = document.getElementById('terminal-frame').contentWindow.term;
+                return term && typeof term.paste === 'function' ? term : null;
+            } catch {
+                return null;
+            }
+        }
+
+        // Control bytes are dropped (keeping TAB and LF) for the reason given
+        // at sanitizeForClipboard: ESC or CR in the text could run commands.
+        function insertPastedText(text) {
+            const clean = ClaudeTerminalClipboard.sanitizeForClipboard(text);
+            const term = terminalTerm();
+            if (!clean || !term) return false;
+            term.paste(clean);
+            term.focus();
+            return true;
+        }
+
+        function setPasteStatus(message, type = '') {
+            pasteStatus.textContent = message;
+            pasteStatus.className = type;
+        }
+
+        function updatePasteInsert() {
+            pasteInsertBtn.disabled = !pasteText.value.trim();
+        }
+
+        // canRetry: the browser has a Clipboard API but refused this read.
+        // From inside the box (which has focus) a second read is allowed.
+        function openPasteModal(message = PASTE_HINT, canRetry = false) {
+            pasteRetryBtn.style.display = canRetry ? '' : 'none';
+            pasteText.value = '';
+            updatePasteInsert();
+            setPasteStatus(message);
+            pasteModal.classList.add('active');
+            pasteText.focus();
+        }
+
+        function closePasteModal() {
+            pasteModal.classList.remove('active');
+            pasteText.value = '';
+            const term = terminalTerm();
+            if (term) term.focus();
+        }
+
+        // iOS asks before a page reads what another app copied ("Paste from
+        // Other Apps", set per app in iOS Settings; Ask by default). On Ask the
+        // first read is refused at once (NotAllowedError), and a second tap,
+        // from the box's Paste from Clipboard button, shows iOS's Paste bubble
+        // and works. On Allow the first read works.
+        const PASTE_REFUSED = 'The browser didn\u2019t allow reading the clipboard. Tap Paste from Clipboard, '
+            + 'or long-press or right-click in the box and choose Paste, then Insert. On an iPhone or iPad, set '
+            + 'Paste from Other Apps to Allow for this app in iOS Settings to paste in one tap.';
+
+        function clipboardReadable() {
+            const clipboard = navigator.clipboard;
+            return Boolean(clipboard)
+                && (typeof clipboard.read === 'function' || typeof clipboard.readText === 'function');
+        }
+
+        async function pasteFromClipboard(fromBox) {
+            if (!clipboardReadable()) {
+                // Plain http: no Clipboard API, so the box is the only way
+                openPasteModal(PASTE_HINT);
+                return;
+            }
+            let content;
+            try {
+                // Called straight from the tap: Safari allows the read only then
+                content = await ClaudeTerminalClipboard.readClipboardForPaste(navigator);
+            } catch (err) {
+                console.log('Paste: clipboard read refused:', err);
+                if (fromBox) {
+                    setPasteStatus('The browser refused again. Long-press or right-click in the box and choose Paste, then Insert.', 'error');
+                } else {
+                    openPasteModal(PASTE_REFUSED, true);
+                }
+                return;
+            }
+            if (content.blob) {
+                if (fromBox) closePasteModal();
+                await uploadFile(clipboardImageFile(content));
+            } else if (content.text) {
+                if (insertPastedText(content.text)) {
+                    if (fromBox) closePasteModal();
+                    setStatus('📥 Pasted into the terminal', 'success');
+                } else {
+                    setStatus('Terminal not ready - try again in a moment', 'error');
+                }
+            } else {
+                const message = 'Nothing to paste was found on the clipboard. ' + PASTE_HINT;
+                if (fromBox) setPasteStatus(message, 'error');
+                else openPasteModal(message);
+            }
+        }
+
+        pasteBtn.addEventListener('click', () => pasteFromClipboard(false));
+        pasteRetryBtn.addEventListener('click', () => pasteFromClipboard(true));
+
+        pasteText.addEventListener('input', updatePasteInsert);
+
+        // An image pasted into the box is uploaded like any other, and its path
+        // typed at the prompt. Stopped here so the document's paste handler
+        // doesn't upload it a second time.
+        pasteText.addEventListener('paste', async (e) => {
+            const files = pastedFiles(e);
+            if (!files.length) return;
+            e.preventDefault();
+            e.stopPropagation();
+            closePasteModal();
+            await uploadFiles(files);
+        });
+
+        pasteText.addEventListener('keydown', (e) => {
+            // Enter adds a line; Ctrl/Cmd+Enter inserts
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                pasteInsertBtn.click();
+            }
+        });
+
+        pasteInsertBtn.addEventListener('click', () => {
+            if (insertPastedText(pasteText.value)) {
+                closePasteModal();
+            } else {
+                setPasteStatus('Terminal unavailable. Close this and try again in a moment.', 'error');
+            }
+        });
+
+        pasteCloseBtn.addEventListener('click', closePasteModal);
+        pasteModal.addEventListener('click', (e) => { if (e.target === pasteModal) closePasteModal(); });
+        pasteModal.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePasteModal(); });
 
         // --- Copy terminal text: the only path a touch device has ---
         // xterm.js has no touch selection and paints to a canvas, so a finger

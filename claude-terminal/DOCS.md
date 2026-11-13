@@ -139,6 +139,32 @@ is handling a user gesture:
   can do changes this — it is the browser's security model, not a bug.
 - Serving Home Assistant over HTTPS makes `/copy` work too.
 
+### Pasting Into the Terminal
+
+On a computer, Cmd/Ctrl+V works as usual. A phone or tablet has no paste key,
+and a long-press on the terminal shows no Paste menu, so use **`📥 Paste`** in
+the header (it works on a computer too):
+
+- Over **HTTPS**, it pastes what's on the clipboard straight away. A copied
+  **image** is uploaded like one sent with 📎, and its path is typed at the
+  prompt.
+- Over **plain HTTP** (browsers don't let a page read the clipboard there), and
+  in the cases below, a box opens instead. Long-press or right-click in it, choose **Paste**, then
+  **Insert in Terminal**. An image pasted into the box is uploaded too.
+- **iPhone and iPad:** iOS asks before an app reads what another app copied.
+  With its default setting (**Ask**) the first tap is refused, and the box
+  opens: tap **Paste from Clipboard**, then iOS's **Paste** bubble. To paste in
+  one tap, open iOS **Settings → Apps → Home Assistant** (or **Safari**, if you
+  use HA in Safari) and set **Paste from Other Apps** to **Allow**. iOS then
+  shows a short "pasted from …" notice each time.
+- **Home Assistant app on a Mac:** Cmd+V doesn't paste anywhere in the app,
+  and it refuses page clipboard reads. Tap **📥**, then right-click in the box,
+  choose **Paste** and **Insert in Terminal**. (In Safari or Chrome on a Mac,
+  Cmd+V works as usual.)
+
+This is the easiest way to paste Claude's login code on a phone. Line breaks
+are kept, and control characters are removed, as for copying.
+
 ### Scrolling on a Phone or Touch Screen
 
 Swipe up and down over the terminal. A mouse wheel has always worked, but touch
@@ -461,7 +487,8 @@ open it:
 - **`🔗 Copy link`** in the terminal header (see below).
 
 Either way, the browser then shows an **authorization code**: paste it into
-the terminal at Claude's prompt. That step can't be automated, because Claude
+the terminal at Claude's prompt (on a phone or tablet, with **📥 Paste** in the
+header). That step can't be automated, because Claude
 receives the code through a callback inside the container, which your browser
 can't reach.
 
