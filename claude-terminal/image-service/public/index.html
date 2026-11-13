@@ -1500,7 +1500,38 @@
 
         // canRetry: the browser has a Clipboard API but refused this read.
         // From inside the box (which has focus) a second read is allowed.
+        // Focusing the box's field makes iOS scroll every page around it to
+        // show the field, including Home Assistant's own (this panel is its
+        // ingress frame), and nothing scrolls them back: after Insert the HA
+        // title bar was gone and the key bar sat under the keyboard. Note where
+        // each window was when the box opened, and put them back on close.
+        let pasteScrollPositions = [];
+
+        function ancestorScrollPositions() {
+            const positions = [];
+            try {
+                let win = window;
+                for (;;) {
+                    positions.push({ win, x: win.scrollX, y: win.scrollY });
+                    if (win.parent === win) break;
+                    win = win.parent;
+                }
+            } catch { /* a cross-origin parent: stop there */ }
+            return positions;
+        }
+
+        function restoreScrollPositions(positions) {
+            for (const { win, x, y } of positions) {
+                try {
+                    win.scrollTo(x, y);
+                } catch { /* best-effort */ }
+            }
+        }
+
         function openPasteModal(message = PASTE_HINT, canRetry = false) {
+            if (!pasteModal.classList.contains('active')) {
+                pasteScrollPositions = ancestorScrollPositions();
+            }
             pasteRetryBtn.style.display = canRetry ? '' : 'none';
             pasteText.value = '';
             updatePasteInsert();
@@ -1512,8 +1543,13 @@
         function closePasteModal() {
             pasteModal.classList.remove('active');
             pasteText.value = '';
+            pasteText.blur();
             const term = terminalTerm();
             if (term) term.focus();
+            // Again once the keyboard has finished moving, which scrolls too
+            const positions = pasteScrollPositions;
+            restoreScrollPositions(positions);
+            setTimeout(() => restoreScrollPositions(positions), 350);
         }
 
         // iOS asks before a page reads what another app copied ("Paste from

@@ -166,8 +166,8 @@ This is the easiest way to paste Claude's login code on a phone. Line breaks
 are kept, and control characters are removed, as for copying.
 
 **Screenshots without saving them.** On an iPhone or iPad, take a screenshot,
-tap its thumbnail, then tap **Done → Copy and Delete** (or share it and choose
-**Copy**). Back in the panel, tap **📥**: the screenshot is uploaded and its
+tap its thumbnail, then the **✓** at the top right and **Copy and Delete** (or
+share it and choose **Copy**). Back in the panel, tap **📥**: the screenshot is uploaded and its
 path typed at the prompt, ready for your question, and nothing is saved to
 Photos. On a Mac, **Ctrl+Shift+Cmd+4** puts a screenshot on the clipboard;
 paste it with Cmd+V or 📥.
