@@ -99,7 +99,7 @@ The add-on offers several configuration options:
 - Paste (Cmd/Ctrl+V), drag-and-drop onto the terminal, or **📎 Upload** to send images, PDFs, text, YAML, CSV, logs, code or any other file. Several at once work too. Each file is saved to `/data/uploads` and its path is typed at the prompt, ready for your question
 - Names are kept, cleaned up for the prompt and given a time stamp, e.g. `/data/uploads/20261020-141233-automations.yaml`. Up to 50 MB per file
 - Behind a reverse proxy (NGINX, Caddy, a tunnel), the proxy's own upload limit applies first. NGINX allows only 1 MB unless told otherwise, so set `client_max_body_size 55m;` for Home Assistant if larger uploads fail with "413 Request Entity Too Large"
-- Pasting a file copied in Finder or Explorer works in Safari and recent Chrome/Edge; drag-and-drop works in every browser. On an iPhone or iPad, use 📎 to pick from Photos or the Files app
+- Pasting a file copied in Finder or Explorer works in Safari and recent Chrome/Edge; drag-and-drop works in every browser. On an iPhone or iPad, use 📎 to pick from Photos or the Files app, or copy an image (such as a screenshot) and tap 📥 Paste (see [Pasting Into the Terminal](#pasting-into-the-terminal))
 - Claude is started with `--add-dir /data/uploads`, so it can read uploads without asking. If you start `claude` yourself from a shell, add that flag, or Claude asks before reading each one
 - Uploads are left out of Home Assistant backups and removed after 30 days. Files you want to keep belong in `/config` or `/share`
 
@@ -164,6 +164,13 @@ the header (it works on a computer too):
 
 This is the easiest way to paste Claude's login code on a phone. Line breaks
 are kept, and control characters are removed, as for copying.
+
+**Screenshots without saving them.** On an iPhone or iPad, take a screenshot,
+tap its thumbnail, then tap **Done → Copy and Delete** (or share it and choose
+**Copy**). Back in the panel, tap **📥**: the screenshot is uploaded and its
+path typed at the prompt, ready for your question, and nothing is saved to
+Photos. On a Mac, **Ctrl+Shift+Cmd+4** puts a screenshot on the clipboard;
+paste it with Cmd+V or 📥.
 
 ### Scrolling on a Phone or Touch Screen
 
