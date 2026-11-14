@@ -74,6 +74,95 @@
         return String(text).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
     }
 
+    function firstImageType(types) {
+        types = types || [];
+        for (var i = 0; i < types.length; i++) {
+            if (String(types[i]).indexOf('image/') === 0) return types[i];
+        }
+        return null;
+    }
+
+    function hasType(types, wanted) {
+        return Array.prototype.indexOf.call(types || [], wanted) !== -1;
+    }
+
+    /**
+     * Read the clipboard for a paste: the panel's Paste button, and Ctrl+V
+     * on a Mac. Resolves to { blob, type, name } for an image (uploaded like
+     * a dropped file), { text } for text, or, when there is nothing usable,
+     * an object without either ({ types } lists what read() found).
+     * Rejects when there is no Clipboard API (plain http, so not a secure
+     * context) or the browser refuses the read, so the caller can fall back.
+     *
+     * One read() call, started before any await: Safari allows clipboard
+     * reads only within the tap or key press, and refuses a second call made
+     * after an await.
+     */
+    function readClipboardForPaste(nav) {
+        var clipboard = nav && nav.clipboard;
+        var canRead = clipboard && typeof clipboard.read === 'function';
+        var canReadText = clipboard && typeof clipboard.readText === 'function';
+        if (!canRead && !canReadText) {
+            return Promise.reject(new Error('Clipboard API unavailable'));
+        }
+        function textResult(text) { return text ? { text: String(text) } : {}; }
+        if (!canRead) return clipboard.readText().then(textResult);
+
+        return clipboard.read().then(function (items) {
+            items = Array.prototype.slice.call(items || []);
+            for (var i = 0; i < items.length; i++) {
+                var imageType = firstImageType(items[i].types);
+                if (imageType) return imageResult(items[i], imageType);
+            }
+            // Text copied from a web page or a link may come as HTML or a URL
+            // list only, with no text/plain. Read those from the same items:
+            // a second clipboard call (readText) is refused by Safari.
+            var textTypes = ['text/plain', 'text/uri-list', 'text/html'];
+            for (var t = 0; t < textTypes.length; t++) {
+                for (var j = 0; j < items.length; j++) {
+                    if (hasType(items[j].types, textTypes[t])) {
+                        return readTextItem(items[j], textTypes[t]).then(textResult);
+                    }
+                }
+            }
+            var types = items.map(function (item) {
+                return Array.prototype.join.call(item.types || [], ',');
+            }).join(' ');
+            return { types: types };
+        });
+    }
+
+    function readTextItem(item, type) {
+        return item.getType(type)
+            .then(function (blob) { return blob.text(); })
+            .then(function (text) {
+                if (type === 'text/uri-list') {
+                    // One URL per line; lines starting with # are comments
+                    return text.split(/\r?\n/).filter(function (line) {
+                        return line && line.charAt(0) !== '#';
+                    }).join('\n');
+                }
+                if (type === 'text/html') return htmlToText(text);
+                return text;
+            });
+    }
+
+    /** Text of an HTML fragment, without running or loading anything in it. */
+    function htmlToText(html) {
+        if (typeof DOMParser === 'function') {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            return doc.body ? doc.body.textContent || '' : '';
+        }
+        return String(html).replace(/<[^>]*>/g, '');
+    }
+
+    function imageResult(item, type) {
+        return item.getType(type).then(function (blob) {
+            var ext = type.split('/')[1].replace('svg+xml', 'svg');
+            return { blob: blob, type: type, name: 'pasted.' + ext };
+        });
+    }
+
     /** The single clipboard writer every path goes through. Resolves to success. */
     function makeCopyText(win, nativeExecCommand) {
         return function copyText(text) {
@@ -691,6 +780,7 @@
         urlProblem: urlProblem,
         decodeBase64Utf8: decodeBase64Utf8,
         sanitizeForClipboard: sanitizeForClipboard,
+        readClipboardForPaste: readClipboardForPaste,
         copyWithTextarea: copyWithTextarea,
         makeCopyText: makeCopyText,
         createOverlay: createOverlay,
