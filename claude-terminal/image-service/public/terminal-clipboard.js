@@ -149,9 +149,10 @@
 
     /** Text of an HTML fragment, without running or loading anything in it. */
     function htmlToText(html) {
-        if (typeof DOMParser === 'function') {
-            var doc = new DOMParser().parseFromString(html, 'text/html');
-            return doc.body ? doc.body.textContent || '' : '';
+        if (typeof document !== 'undefined') {
+            var template = document.createElement('template');
+            template.innerHTML = html;
+            return template.content.textContent || '';
         }
         return String(html).replace(/<[^>]*>/g, '');
     }

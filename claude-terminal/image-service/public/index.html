@@ -1100,7 +1100,8 @@
             if (content.blob) {
                 await uploadFile(clipboardImageFile(content));
             } else if (content.text && win.term) {
-                win.term.paste(content.text);
+                const clean = ClaudeTerminalClipboard.sanitizeForClipboard(content.text);
+                if (clean) win.term.paste(clean);
             }
         }
 
@@ -1506,6 +1507,7 @@
         // title bar was gone and the key bar sat under the keyboard. Note where
         // each window was when the box opened, and put them back on close.
         let pasteScrollPositions = [];
+        let pasteReadId = 0;
 
         function ancestorScrollPositions() {
             const positions = [];
@@ -1541,6 +1543,7 @@
         }
 
         function closePasteModal() {
+            pasteReadId++;
             pasteModal.classList.remove('active');
             pasteText.value = '';
             pasteText.blur();
@@ -1568,6 +1571,7 @@
         }
 
         async function pasteFromClipboard(fromBox) {
+            const readId = ++pasteReadId;
             if (!clipboardReadable()) {
                 // Plain http: no Clipboard API, so the box is the only way
                 openPasteModal(PASTE_HINT);
@@ -1578,6 +1582,7 @@
                 // Called straight from the tap: Safari allows the read only then
                 content = await ClaudeTerminalClipboard.readClipboardForPaste(navigator);
             } catch (err) {
+                if (readId !== pasteReadId) return;
                 console.log('Paste: clipboard read refused:', err);
                 if (fromBox) {
                     setPasteStatus('The browser refused again. Long-press or right-click in the box and choose Paste, then Insert.', 'error');
@@ -1586,6 +1591,7 @@
                 }
                 return;
             }
+            if (readId !== pasteReadId) return;
             if (content.blob) {
                 if (fromBox) closePasteModal();
                 await uploadFile(clipboardImageFile(content));
