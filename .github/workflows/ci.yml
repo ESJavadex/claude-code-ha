@@ -58,8 +58,7 @@ jobs:
       - name: Regression suites
         run: bash tests/run-tests.sh
 
-      # Blocking audit. The only tolerated finding is the unfixable braces
-      # advisory; the waiver and its rationale live in the script's header.
+      # Blocking audit. Narrow advisory waivers are documented in the script.
       - name: npm audit gate
         run: python3 scripts/npm-audit-gate.py
 

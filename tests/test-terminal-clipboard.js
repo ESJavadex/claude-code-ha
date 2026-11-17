@@ -1156,6 +1156,71 @@ test('plain Enter and other modified Enters are left to xterm.js', () => {
     assert.deepStrictEqual(env.state.inputs, []);
 });
 
+// --- readClipboardForPaste: the Paste button and Ctrl+V on a Mac ---------
+function clipboardItem(parts) {
+    return {
+        types: Object.keys(parts),
+        getType(type) { return Promise.resolve(new Blob([parts[type]], { type })); }
+    };
+}
+
+function fakeNavigator(items, { readText, read = true } = {}) {
+    const calls = { read: 0, readText: 0 };
+    const clipboard = {};
+    if (read) clipboard.read = () => { calls.read++; return Promise.resolve(items); };
+    if (readText !== undefined) {
+        clipboard.readText = () => { calls.readText++; return Promise.resolve(readText); };
+    }
+    return { nav: { clipboard }, calls };
+}
+
+test('paste: text on the clipboard comes back as text', async () => {
+    const { nav, calls } = fakeNavigator([clipboardItem({ 'text/plain': 'abc#123' })], { readText: 'unused' });
+    assert.deepStrictEqual(await bridge.readClipboardForPaste(nav), { text: 'abc#123' });
+    assert.strictEqual(calls.read, 1);
+    assert.strictEqual(calls.readText, 0, 'one clipboard call: Safari refuses a second');
+});
+
+test('paste: an image wins over text and gets a file name from its type', async () => {
+    const { nav } = fakeNavigator([
+        clipboardItem({ 'text/plain': 'caption' }),
+        clipboardItem({ 'text/html': '<img>', 'image/svg+xml': '<svg/>' })
+    ]);
+    const result = await bridge.readClipboardForPaste(nav);
+    assert.strictEqual(result.type, 'image/svg+xml');
+    assert.strictEqual(result.name, 'pasted.svg');
+    assert.strictEqual(await result.blob.text(), '<svg/>');
+});
+
+test('paste: an empty clipboard has no text or image, and says what it held', async () => {
+    assert.deepStrictEqual(await bridge.readClipboardForPaste(fakeNavigator([]).nav), { types: '' });
+    const other = fakeNavigator([clipboardItem({ 'application/x-thing': 'x' })], { readText: 'no' });
+    assert.deepStrictEqual(await bridge.readClipboardForPaste(other.nav), { types: 'application/x-thing' });
+    assert.strictEqual(other.calls.readText, 0, 'no second clipboard call: Safari refuses it');
+});
+
+test('paste: text without text/plain is read from a URL list or HTML', async () => {
+    const uri = fakeNavigator([clipboardItem({ 'text/uri-list': '# comment\r\nhttps://example.com/a\r\n' })]);
+    assert.deepStrictEqual(await bridge.readClipboardForPaste(uri.nav), { text: 'https://example.com/a' });
+    const html = fakeNavigator([clipboardItem({ 'text/html': '<p>code <b>ABC-123</b></p>' })]);
+    assert.deepStrictEqual(await bridge.readClipboardForPaste(html.nav), { text: 'code ABC-123' });
+    const both = fakeNavigator([clipboardItem({ 'text/html': '<i>rich</i>', 'text/plain': 'plain' })]);
+    assert.deepStrictEqual(await bridge.readClipboardForPaste(both.nav), { text: 'plain' }, 'text/plain preferred');
+});
+
+test('paste: readText alone is used when read() is missing', async () => {
+    const { nav } = fakeNavigator(null, { read: false, readText: 'code' });
+    assert.deepStrictEqual(await bridge.readClipboardForPaste(nav), { text: 'code' });
+});
+
+test('paste: no Clipboard API (plain http) or a refused read rejects', async () => {
+    await assert.rejects(bridge.readClipboardForPaste({}), /unavailable/);
+    await assert.rejects(bridge.readClipboardForPaste({ clipboard: {} }), /unavailable/);
+    await assert.rejects(bridge.readClipboardForPaste(undefined), /unavailable/);
+    const refused = { clipboard: { read: () => Promise.reject(new Error('NotAllowedError')) } };
+    await assert.rejects(bridge.readClipboardForPaste(refused), /NotAllowedError/);
+});
+
 test('a terminal without input() keeps its own key handling', () => {
     const env = makeWindow({ clipboardApi: true });
     delete env.win.term.input;

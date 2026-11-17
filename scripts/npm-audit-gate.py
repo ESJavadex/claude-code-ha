@@ -14,9 +14,13 @@ Waived advisories:
     version of http-proxy-middleware (2.x, 3.x, 4.x) pulls braces via
     micromatch, so this cannot be resolved by upgrading either.
     Not exploitable here: the add-on never passes attacker-controlled glob
-    patterns to braces — it is only reachable through proxy path matching
-    with the fixed literal '/terminal'.
+    patterns to braces. Express mounts the proxy at '/terminal', and the
+    proxy uses its default literal '/' filter rather than glob matching.
     Reviewed: 2026-10-15.
+  - GHSA-fc5q-39xc-vjpf: picomatch ReDoS while compiling repeated extglobs.
+    No patched release is available. The same proxy configuration above
+    never compiles a glob: request URLs are candidate paths, not patterns.
+    Recheck for an upstream fix: 2026-12-17.
 """
 
 import json
@@ -25,7 +29,7 @@ import sys
 from pathlib import Path
 
 SERVICE_DIR = Path(__file__).resolve().parent.parent / "claude-terminal" / "image-service"
-WAIVED = {"GHSA-vfj7-8cjw-p6xm"}
+WAIVED = {"GHSA-vfj7-8cjw-p6xm", "GHSA-fc5q-39xc-vjpf"}
 
 subprocess.run(
     ["npm", "install", "--package-lock-only", "--ignore-scripts"],
