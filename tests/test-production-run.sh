@@ -384,4 +384,71 @@ migrate_legacy_auth_files "$legacy_dst"
 [ ! -e "$legacy_dst/configs" ] || fail "after the first pass, files planted in a legacy source must not be copied"
 unset LEGACY_AUTH_SOURCES LEGACY_AUTH_MARKER
 
+# The upload folder is recorded as trusted in ~/.claude.json, so Claude
+# 2.1.327+ doesn't ask about --add-dir /data/uploads at every start
+trust_cfg="$tmp_dir/trust/.claude.json"
+mkdir -p "$tmp_dir/trust"
+export CLAUDE_GLOBAL_CONFIG="$trust_cfg" UPLOAD_TRUST_DIR=/data/uploads
+trust_upload_dir
+[ "$(jq -r '.projects["/data/uploads"].hasTrustDialogAccepted' "$trust_cfg")" = true ] || \
+    fail "a missing ~/.claude.json should be created with the upload folder trusted"
+[ "$(stat -c %a "$trust_cfg" 2>/dev/null || stat -f %Lp "$trust_cfg")" = 600 ] || \
+    fail "a new ~/.claude.json must be private (600)"
+
+cat > "$trust_cfg" <<'JSON'
+{"numStartups": 7, "oauthAccount": {"emailAddress": "x"},
+ "projects": {"/config": {"hasTrustDialogAccepted": true, "allowedTools": ["Bash"]},
+              "/data/uploads": {"allowedTools": ["Read"]}}}
+JSON
+chmod 640 "$trust_cfg"
+trust_upload_dir
+[ "$(jq -r '.projects["/data/uploads"].hasTrustDialogAccepted' "$trust_cfg")" = true ] || \
+    fail "the upload folder should be marked trusted"
+[ "$(jq -c '[.numStartups, .oauthAccount.emailAddress, .projects["/config"], .projects["/data/uploads"].allowedTools]' "$trust_cfg")" = \
+  '[7,"x",{"hasTrustDialogAccepted":true,"allowedTools":["Bash"]},["Read"]]' ] || \
+    fail "marking the upload folder must keep the rest of ~/.claude.json"
+[ "$(jq -r '.projects | keys | join(",")' "$trust_cfg")" = "/config,/data/uploads" ] || \
+    fail "only the upload folder may be added (never /data)"
+[ "$(stat -c %a "$trust_cfg" 2>/dev/null || stat -f %Lp "$trust_cfg")" = 640 ] || \
+    fail "an existing ~/.claude.json must keep its permissions"
+
+before=$(cat "$trust_cfg")
+trust_upload_dir
+[ "$(cat "$trust_cfg")" = "$before" ] || fail "an already trusted upload folder must leave the file untouched"
+
+printf '{"projects": {broken' > "$trust_cfg"
+trust_upload_dir
+[ "$(cat "$trust_cfg")" = '{"projects": {broken' ] || fail "an unreadable ~/.claude.json must never be rewritten"
+
+# An explicit false is a choice made in Claude, and is kept
+printf '%s\n' '{"projects": {"/data/uploads": {"hasTrustDialogAccepted": false, "allowedTools": []}}}' > "$trust_cfg"
+before=$(cat "$trust_cfg")
+trust_upload_dir
+[ "$(cat "$trust_cfg")" = "$before" ] || fail "an explicit hasTrustDialogAccepted: false must be kept"
+
+# A write that fails partway leaves the original whole, and no copy behind.
+# The stub writes a cut-off file, then fails, like a full disk.
+printf '%s\n' '{"numStartups": 3, "projects": {}}' > "$trust_cfg"
+before=$(cat "$trust_cfg")
+printf() { builtin printf '{"projects": {"/data/up' > /dev/stdout; return 1; }
+trust_upload_dir > /dev/null
+unset -f printf
+[ "$(cat "$trust_cfg")" = "$before" ] || fail "a failed write must leave ~/.claude.json as it was"
+leftover=$(find "$tmp_dir/trust" -name '.claude.json.*')
+[ -z "$leftover" ] || fail "a failed write must not leave a temporary copy: $leftover"
+
+# The update is a rename, so a symlinked ~/.claude.json stays a link to the
+# file that gets the update
+printf '%s\n' '{"projects": {}}' > "$tmp_dir/trust/real.json"
+rm -f "$trust_cfg"
+ln -s real.json "$trust_cfg"
+trust_upload_dir
+[ -L "$trust_cfg" ] || fail "a symlinked ~/.claude.json must stay a symlink"
+[ "$(jq -r '.projects["/data/uploads"].hasTrustDialogAccepted' "$tmp_dir/trust/real.json")" = true ] || \
+    fail "the file a symlinked ~/.claude.json points to should be updated"
+unset CLAUDE_GLOBAL_CONFIG UPLOAD_TRUST_DIR
+
+grep -qE '^ +trust_upload_dir$' <(sed -n '/^main() {/,/^}/p' "$repo_root/claude-terminal/run.sh") || \
+    fail "main() must run trust_upload_dir"
+
 echo "Production run.sh regression suite passed"

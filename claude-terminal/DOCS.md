@@ -101,6 +101,7 @@ The add-on offers several configuration options:
 - Behind a reverse proxy (NGINX, Caddy, a tunnel), the proxy's own upload limit applies first. NGINX allows only 1 MB unless told otherwise, so set `client_max_body_size 55m;` for Home Assistant if larger uploads fail with "413 Request Entity Too Large"
 - Pasting a file copied in Finder or Explorer works in Safari and recent Chrome/Edge; drag-and-drop works in every browser. On an iPhone or iPad, use 📎 to pick from Photos or the Files app, or copy an image (such as a screenshot) and tap 📥 Paste (see [Pasting Into the Terminal](#pasting-into-the-terminal))
 - Claude is started with `--add-dir /data/uploads`, so it can read uploads without asking. If you start `claude` yourself from a shell, add that flag, or Claude asks before reading each one
+- The add-on marks `/data/uploads` as a trusted folder in `~/.claude.json` at start-up, so Claude doesn't ask "Adding a new directory: /data/uploads ... Is this a directory you created or one you trust?" at the start of every session (Claude Code 2.1.327 and later ask about each added folder that isn't recorded as trusted)
 - Uploads are left out of Home Assistant backups and removed after 30 days. Files you want to keep belong in `/config` or `/share`
 
 ### Copying Text Out of the Terminal
