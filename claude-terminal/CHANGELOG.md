@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.8
+
+### 🐛 Bug Fix - No "Adding a New Directory" Question at Every Start
+- **Claude no longer asks to trust `/data/uploads` each time it starts**: the add-on starts Claude with `--add-dir /data/uploads` so it can read files you paste, drop or upload. From Claude Code 2.1.327, Claude asks whether to trust each added folder it has no trust record for, and the answer lasts only for that session, so the question came up at every start, from the first window and from the session picker
+- At start-up the add-on now records `/data/uploads` as trusted in `~/.claude.json`, the same record Claude writes when you accept its trust question. The rest of the file is left as it was, and a file that can't be read as JSON is never rewritten
+- Only the upload folder is trusted, not `/data`, which also holds your login. Uploads are saved flat with cleaned-up names, so no Claude settings can be placed in that folder
+
 ## 2.5.7
 
 ### ✨ New Feature - Paste Button
