@@ -654,6 +654,43 @@ setup_session_picker() {
     fi
 }
 
+# Claude is started with --add-dir /data/uploads (build_claude_flags). From
+# 2.1.327, Claude Code asks every session whether to trust an added folder
+# that has no trust record, so the question came up at each start. Record the
+# upload folder as trusted in ~/.claude.json, the same record Claude writes
+# when its trust prompt is accepted. Only this folder: a record on /data would
+# also cover /data/home and the login. The image service writes uploads flat,
+# with cleaned-up, time-stamped names, so no .claude settings can appear in it.
+trust_upload_dir() {
+    local config_file="${CLAUDE_GLOBAL_CONFIG:-$HOME/.claude.json}"
+    local dir="${UPLOAD_TRUST_DIR:-/data/uploads}"
+    local filter='.projects[$d] = ((.projects[$d] // {}) + {hasTrustDialogAccepted: true})'
+    local updated
+
+    if [ -s "$config_file" ]; then
+        if jq -e --arg d "$dir" '.projects[$d].hasTrustDialogAccepted == true' "$config_file" >/dev/null 2>&1; then
+            return 0
+        fi
+        # Never rewrite a file jq can't read: Claude may restore it from a backup
+        if ! updated=$(jq --arg d "$dir" "$filter" "$config_file" 2>/dev/null); then
+            bashio::log.warning "Not marking ${dir} as trusted: ${config_file} could not be read as JSON"
+            return 0
+        fi
+        # In place, so the file keeps its owner and permissions
+        if ! printf '%s\n' "$updated" > "$config_file"; then
+            bashio::log.warning "Could not mark ${dir} as trusted in ${config_file}"
+            return 0
+        fi
+    else
+        updated=$(jq -n --arg d "$dir" "$filter") || return 0
+        if ! (umask 077 && printf '%s\n' "$updated" > "$config_file"); then
+            bashio::log.warning "Could not mark ${dir} as trusted in ${config_file}"
+            return 0
+        fi
+    fi
+    bashio::log.info "Marked ${dir} as a trusted folder for Claude"
+}
+
 # Home Assistant status line (scripts/ha-statusline.sh). The add-on's
 # statusline option is a list of pieces in display order: a piece name
 # (ha-statusline --segments), --- for a new line, or an entity as sensor.x or
@@ -1163,6 +1200,7 @@ main() {
     setup_ha_plugin
     setup_session_picker
     setup_statusline
+    trust_upload_dir
     setup_persistent_packages
     check_persisted_alpine_release
     run_init_commands
