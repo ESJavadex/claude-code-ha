@@ -3,24 +3,8 @@
 
 Run locally with:  python3 scripts/npm-audit-gate.py
 
-Fails if the production dependency tree has any vulnerability, except the
-explicitly waived advisories below. A waiver must always come with a reason
-and a review date, otherwise delete it and fix the dependency instead.
-
-Waived advisories:
-  - GHSA-vfj7-8cjw-p6xm (CVE-2026-93687): braces <= 3.0.3 stack-exhaustion
-    DoS while compiling a deeply nested glob pattern. There is no fixed
-    release and upstream has stated none is planned; every maintained
-    version of http-proxy-middleware (2.x, 3.x, 4.x) pulls braces via
-    micromatch, so this cannot be resolved by upgrading either.
-    Not exploitable here: the add-on never passes attacker-controlled glob
-    patterns to braces. Express mounts the proxy at '/terminal', and the
-    proxy uses its default literal '/' filter rather than glob matching.
-    Reviewed: 2026-10-15.
-  - GHSA-fc5q-39xc-vjpf: picomatch ReDoS while compiling repeated extglobs.
-    No patched release is available. The same proxy configuration above
-    never compiles a glob: request URLs are candidate paths, not patterns.
-    Recheck for an upstream fix: 2026-12-17.
+Fails if the production dependency audit reports a vulnerability or cannot
+complete.
 """
 
 import json
@@ -29,40 +13,41 @@ import sys
 from pathlib import Path
 
 SERVICE_DIR = Path(__file__).resolve().parent.parent / "claude-terminal" / "image-service"
-WAIVED = {"GHSA-vfj7-8cjw-p6xm", "GHSA-fc5q-39xc-vjpf"}
 
 subprocess.run(
     ["npm", "install", "--package-lock-only", "--ignore-scripts"],
     cwd=SERVICE_DIR, check=True, capture_output=True,
 )
-# npm audit exits non-zero when it finds vulnerabilities, which is expected
-# here: the gate itself decides whether they are waived or blocking
-audit = json.loads(
-    subprocess.run(
-        ["npm", "audit", "--omit=dev", "--json"],
-        cwd=SERVICE_DIR, capture_output=True, text=True,
-    ).stdout
+# npm audit can exit 1 for findings or for registry errors. Only a complete
+# audit report can pass the gate, even if npm returned JSON for the error.
+result = subprocess.run(
+    ["npm", "audit", "--omit=dev", "--json"],
+    cwd=SERVICE_DIR, capture_output=True, text=True,
 )
+try:
+    audit = json.loads(result.stdout)
+except ValueError:
+    sys.exit("FAIL: npm audit did not return a JSON report")
 
-advisories = set()
-for vuln in audit.get("vulnerabilities", {}).values():
-    for via in vuln.get("via", []):
-        if isinstance(via, dict) and via.get("url"):
-            advisories.add(via["url"].rsplit("/", 1)[-1])
+if (
+    result.returncode not in (0, 1)
+    or not isinstance(audit, dict)
+    or "error" in audit
+    or not isinstance(audit.get("vulnerabilities"), dict)
+):
+    sys.exit("FAIL: npm audit did not return a complete vulnerability report")
 
-if not advisories:
-    print("npm audit: no known vulnerabilities in production dependencies")
-    sys.exit(0)
-
-unwaived = sorted(advisories - WAIVED)
-for adv in sorted(advisories & WAIVED):
-    print(f"waived {adv} (documented in this script's header)")
-
-if unwaived:
-    print("\nFAIL: unwaived vulnerabilities in production dependencies:")
-    for adv in unwaived:
-        print(f"  {adv} - https://github.com/advisories/{adv}")
-    print("\nFix them, or extend the waiver with a reason and review date.")
+vulnerabilities = audit["vulnerabilities"]
+if vulnerabilities:
+    print("FAIL: npm audit found vulnerabilities in production dependencies:")
+    for name, finding in sorted(vulnerabilities.items()):
+        print(f"  {name}: {finding['severity']}")
+        for via in finding["via"]:
+            if isinstance(via, dict) and via.get("url"):
+                print(f"    {via['url']}")
     sys.exit(1)
 
-print("\nnpm audit gate passed (only waived advisories present)")
+if result.returncode != 0:
+    sys.exit("FAIL: npm audit exited unsuccessfully without reporting vulnerabilities")
+
+print("npm audit: no known vulnerabilities in production dependencies")

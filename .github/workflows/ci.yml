@@ -58,7 +58,7 @@ jobs:
       - name: Regression suites
         run: bash tests/run-tests.sh
 
-      # Blocking audit. Narrow advisory waivers are documented in the script.
+      # Block on production vulnerabilities or an incomplete audit.
       - name: npm audit gate
         run: python3 scripts/npm-audit-gate.py
 
