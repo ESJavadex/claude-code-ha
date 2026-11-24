@@ -39,18 +39,36 @@ curl() {
     fi
 }
 
-link='https://claude.com/cai/oauth/authorize?code=true&client_id=abc&state=STATE1'
+link='https://claude.com/cai/oauth/authorize?code=true&client_id=abc&redirect_uri=https%3A%2F%2Fclaude.com%2Foauth%2Fcode%2Fcallback&code_challenge=challenge&state=STATE1'
 
 # A URL hard-wrapped across lines, indented and inside a border, is rebuilt whole
 cat > "$pane" << 'PANE'
  Browser didn't open? Use the url below to sign in:
 
  │ https://claude.com/cai/oauth/authorize?code=true&cl │
- │ ient_id=abc&state=STATE1                            │
+ │ ient_id=abc&redirect_uri=https%3A%2F%2Fclaude.com%2 │
+ │ Foauth%2Fcode%2Fcallback&code_challenge=challenge&s │
+ │ tate=STATE1                                        │
+ │                                                    │
 
  Paste code here if prompted >
 PANE
 [ "$(extract_url)" = "$link" ] || fail "wrapped bordered URL rebuilt wrong: $(extract_url)"
+
+printf 'Help: https://example.com then %s\nPaste code here if prompted >\n' "$link" > "$pane"
+[ "$(extract_url)" = "$link" ] || fail "should extract the OAuth URL and stop at the prompt"
+
+# A newer login may render only its first row. Do not fall back to an older
+# URL in scrollback or post a partial one.
+printf '%s\n\n%s\nPaste code here if prompted >\n' "$link" "${link%%&redirect_uri=*}" > "$pane"
+[ -z "$(extract_url)" ] || fail "missing redirect_uri should suppress the notification"
+
+for suffix in '&state=' '...' '…' '%2'; do
+    printf '%s%s\n' "${link%&state=*}" "$suffix" > "$pane"
+    [ -z "$(extract_url)" ] || fail "missing state should suppress the notification"
+    printf '%s%s\n' "$link" "$suffix" > "$pane"
+    [ -z "$(extract_url)" ] || fail "truncated URL should suppress the notification"
+done
 
 printf 'nothing to see here\n' > "$pane"
 [ -z "$(extract_url)" ] || fail "no URL should give empty output"

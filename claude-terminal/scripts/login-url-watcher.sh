@@ -19,24 +19,44 @@ SUPERVISOR_URL="${LOGIN_WATCHER_SUPERVISOR_URL:-http://supervisor}"
 
 # Rebuild the URL from the pane. Claude hard-wraps it with real line breaks
 # (which capture-pane -J does not rejoin) and may indent it or draw a border
-# round it, so take the URL characters from the first line and from each
-# following line until a blank one. Only the OAuth authorize link counts:
+# round it, so join following rows that contain only a URL fragment.
+# Only a complete OAuth authorize link counts:
 # Remote Control session links and doc links are also claude.ai URLs.
 extract_url() {
     tmux capture-pane -p -J -t claude -S -500 2>/dev/null | awk '
-        $0 ~ /https:\/\/(claude\.(com|ai)|console\.anthropic\.com|platform\.claude\.com)\/[^ ]*oauth\/authorize/ {
-            match($0, /https:\/\/[A-Za-z0-9._~:\/?#@!$&()*+,;=%-]*/)
+        function strip_border(line) {
+            sub(/^[[:space:]]*(│[[:space:]]*)?/, "", line)
+            sub(/[[:space:]]*(│[[:space:]]*)?$/, "", line)
+            return line
+        }
+        match($0, /https:\/\/(claude\.(com|ai)|console\.anthropic\.com|platform\.claude\.com)\/([A-Za-z0-9_-]+\/)*oauth\/authorize\?[A-Za-z0-9._~:\/?@!$&*+,;=%-]*/) {
             url = substr($0, RSTART, RLENGTH)
-            collecting = 1
+            tail = strip_border(substr($0, RSTART + RLENGTH))
+            truncated = (tail ~ /^…/)
+            collecting = (tail == "")
             next
         }
         collecting {
-            if (NF == 0) { collecting = 0 }
-            else if (match($0, /[A-Za-z0-9._~:\/?#@!$&()*+,;=%-]+/)) {
-                url = url substr($0, RSTART, RLENGTH)
+            chunk = strip_border($0)
+            if (chunk ~ /^[A-Za-z0-9._~:\/?@!$&*+,;=%-]+$/ && chunk !~ /:\/\// && url !~ /\.\.\.$/) {
+                url = url chunk
+            } else {
+                if (chunk ~ /^[A-Za-z0-9._~:\/?@!$&*+,;=%-]*…$/) truncated = 1
+                collecting = 0
             }
         }
-        END { print url }
+        END {
+            if (!truncated && url !~ /(\.\.\.|%[0-9A-Fa-f]?|[?&=])$/) {
+                query = substr(url, index(url, "?") + 1)
+                count = split(query, params, "&")
+                for (i = 1; i <= count; i++) {
+                    if (params[i] ~ /^redirect_uri=.+/) redirect = 1
+                    if (params[i] ~ /^code_challenge=.+/) challenge = 1
+                    if (params[i] ~ /^state=.+/) state = 1
+                }
+                if (redirect && challenge && state) print url
+            }
+        }
     '
 }
 

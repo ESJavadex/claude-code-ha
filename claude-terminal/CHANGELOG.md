@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.8
+
+### 🐛 Bug Fix - Login Notifications
+- Reassemble wrapped Claude login links from tmux and skip incomplete OAuth links when posting Home Assistant notifications.
+
+### 🔧 Technical - GitHub CLI
+- Install GitHub CLI from Alpine's signed package repository to avoid GitHub API rate limits during image builds.
+
 ## 2.5.7
 
 ### ✨ New Feature - Paste Button

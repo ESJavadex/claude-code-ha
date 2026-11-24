@@ -5,6 +5,7 @@ FROM ghcr.io/home-assistant/base:3.24
 # Install packages in a single layer to minimize image size
 # Node.js and npm kept for image-service dependency. ttyd and tmux are baked in
 # (they used to be apk-installed on every boot) so startup never needs the network.
+# Install gh from Alpine too, so its build does not depend on GitHub API limits.
 # apk upgrade first: the base image is only as fresh as its last publish, and
 # Alpine ships security fixes as package revisions in between.
 RUN apk upgrade --no-cache \
@@ -23,6 +24,7 @@ RUN apk upgrade --no-cache \
     jq \
     yq \
     git \
+    github-cli \
     vim \
     wget \
     tree \
@@ -110,26 +112,6 @@ RUN ADDON_ARCH=$(cat /etc/addon-arch); \
         "https://github.com/home-assistant/cli/releases/download/${HA_VERSION}/ha_${HA_ARCH}" && \
     chmod +x /usr/bin/ha && \
     echo "Home Assistant CLI ${HA_VERSION} installed successfully"
-
-# Install GitHub CLI (gh command), latest release
-RUN ADDON_ARCH=$(cat /etc/addon-arch); \
-    case "${ADDON_ARCH}" in \
-        amd64)   GH_ARCH="amd64"; GH_VERSION="latest" ;; \
-        aarch64) GH_ARCH="arm64"; GH_VERSION="latest" ;; \
-        *)       echo "Unsupported architecture for gh: ${ADDON_ARCH}" && exit 1 ;; \
-    esac && \
-    if [ "${GH_VERSION}" = "latest" ]; then \
-        echo "Fetching latest GitHub CLI version..."; \
-        GH_VERSION=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r '.tag_name' | sed 's/^v//'); \
-    fi && \
-    echo "Installing GitHub CLI v${GH_VERSION} for ${GH_ARCH}..." && \
-    curl -fsSL -o /tmp/gh.tar.gz \
-        "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz" && \
-    tar -xzf /tmp/gh.tar.gz -C /tmp && \
-    mv /tmp/gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh /usr/bin/gh && \
-    chmod +x /usr/bin/gh && \
-    rm -rf /tmp/gh* && \
-    echo "GitHub CLI v${GH_VERSION} installed successfully"
 
 # Home Assistant plugin for Claude Code (current HA syntax, YAML checks after
 # every edit). Pinned to a release tag of ESJavadex/claude-homeassistant-plugins
