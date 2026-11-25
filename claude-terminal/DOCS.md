@@ -497,7 +497,7 @@ same time.
 
 | Keys | What it does |
 | --- | --- |
-| `Ctrl-b c` | New window (a shell in `/config`; run `claude-session-picker` in it for the menu) |
+| `Ctrl-b c` | New shell window. Run `pwd` to check its working directory and `claude-session-picker` to open the menu |
 | `Ctrl-b 1` … `9` | Go to that window |
 | `Ctrl-b n` / `Ctrl-b p` | Next / previous window |
 | `Ctrl-b w` | List all windows with what each is running; pick one with the arrows and Enter |
