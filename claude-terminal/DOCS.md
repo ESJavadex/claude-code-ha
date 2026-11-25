@@ -479,6 +479,49 @@ For the `gh` token login, the picker suggests the `repo`, `read:org` and
 `workflow` scopes. A fine-grained token limited to the repositories you want
 Claude to work on is safer.
 
+### Running More Than One Claude
+
+The terminal's tmux session can hold several windows, each with its own
+Claude or shell, for example a second Claude while the first is busy running
+a long command, or a shell beside a Claude whose command you don't want to
+interrupt. They all keep running when you switch away or close the panel.
+
+**Every device shows the same windows.** The panel on each phone, tablet and
+computer attaches to the same tmux session, so a window opened on one device
+appears on the others, and switching windows on one device switches the
+others too. That is what lets you start something on one device and carry on
+from another. It also means two devices can't show different windows at the
+same time.
+
+**tmux keys**, for a keyboard (the phone key bar has no `Ctrl-b`):
+
+| Keys | What it does |
+| --- | --- |
+| `Ctrl-b c` | New window (a shell in `/config`; run `claude-session-picker` in it for the menu) |
+| `Ctrl-b 1` … `9` | Go to that window |
+| `Ctrl-b n` / `Ctrl-b p` | Next / previous window |
+| `Ctrl-b w` | List all windows with what each is running; pick one with the arrows and Enter |
+| `Ctrl-b ,` | Rename the window (shown in the status bar) |
+| `Ctrl-b &` | Close the window, after asking |
+
+- The status bar at the bottom lists the windows: `*` marks the current one
+  and `-` the one before. A window running Claude from the session picker
+  (including the first one) is listed as `bash`, because tmux names a window
+  after the shell that started it; rename it with `Ctrl-b ,`
+- Use lower case: `Ctrl-b C` (capital, for example with Caps Lock on) opens
+  tmux's options screen instead. Press `q` to leave it
+- Avoid `Ctrl-b d` (detach): the panel shows a disconnected terminal until it
+  reconnects
+- `tmux new-window claude-session-picker` opens a window that closes when you
+  exit the picker, with no shell to exit afterwards
+- With **tmux Mouse Mode** on, clicking a window name in the status bar
+  switches too
+
+Each Claude uses roughly 450–500 MB of memory, which matters on a 2–4 GB Pi or
+HA Green. Two Claudes share `/config`, so they can overwrite each other's
+changes, and one can restart Home Assistant under the other. They also share
+your plan's usage limits.
+
 ### Logging In
 
 The first time Claude starts it shows a login link. There are two ways to

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.10
+
+### 📚 Documentation - Running More Than One Claude
+- **New DOCS section, "Running More Than One Claude"**: the terminal's tmux session can already hold several windows, for example a second Claude while the first is busy, but the docs didn't say how to reach them
+  - How every device shows the same windows, and follows when you switch on one of them
+  - The tmux keys for windows (`Ctrl-b c`, `1`…`9`, `n`/`p`, `w`, `,`, `&`), with the usual traps: Caps Lock turns `Ctrl-b c` into the options screen, and `Ctrl-b d` disconnects the panel
+  - What to expect: memory per Claude, a shared `/config` and shared usage limits
+
 ## 2.5.8
 
 ### 🐛 Bug Fix - Login Notifications
