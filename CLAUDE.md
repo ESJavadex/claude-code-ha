@@ -73,7 +73,7 @@ Because `/data` is per add-on, installing the add-on from a different repository
 4. Configure tmux and the `tmux-claude` wrapper
 5. Set up persistent Claude (if `use_persistent_claude`)
 6. Install or update the bundled Home Assistant plugin (`setup_ha_plugin`, option `home_assistant_plugin`; marketplace copied to `/opt/claude-plugins` at build time from the `HA_PLUGINS_REF` tag)
-7. Install the session picker and auth helper, then the status line (`setup_statusline`: sets `statusLine` in `~/.claude/settings.json` only when there is none or it is ours)
+7. Install the session picker and auth helper, then the status line (`setup_statusline`: sets `statusLine` in `~/.claude/settings.json` only when there is none or it is ours), and record `/data/uploads` as trusted in `~/.claude.json` (`trust_upload_dir`), so Claude doesn't ask about the `--add-dir` folder every session
 8. Set up `persist-install` and auto-install packages listed in the options
 9. Start the image service (7680), the login URL watcher (posts Claude's login link as an HA notification) and ttyd (7681)
 
