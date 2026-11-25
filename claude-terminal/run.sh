@@ -654,6 +654,61 @@ setup_session_picker() {
     fi
 }
 
+# Claude is started with --add-dir /data/uploads (build_claude_flags). From
+# 2.1.327, Claude Code asks every session whether to trust an added folder
+# that has no trust record, so the question came up at each start. Record the
+# upload folder as trusted in ~/.claude.json, the same record Claude writes
+# when its trust prompt is accepted. Only this folder: a record on /data would
+# also cover /data/home and the login. The image service writes uploads flat,
+# with cleaned-up, time-stamped names, so no .claude settings can appear in it.
+trust_upload_dir() {
+    local config_file="$HOME/.claude.json"
+    local dir="/data/uploads"
+    local filter='
+        if length != 1 or (.[0] | type) != "object" then
+            error("expected one config object")
+        else .[0] end
+        | .projects[$d].hasTrustDialogAccepted as $trust
+        | if ($trust | type) == "boolean" then $trust
+          else .projects[$d].hasTrustDialogAccepted = true end
+    '
+    local target tmp updated
+
+    if [ -s "$config_file" ]; then
+        # Never rewrite a file that is not a single config object.
+        if ! updated=$(jq -s --arg d "$dir" "$filter" "$config_file" 2>/dev/null); then
+            bashio::log.warning "Not marking ${dir} as trusted: ${config_file} could not be read as a JSON object"
+            return 0
+        fi
+        case "$updated" in
+            true) return 0 ;;
+            false)
+                bashio::log.info "Not marking ${dir} as trusted: ${config_file} records it as not trusted"
+                return 0
+                ;;
+        esac
+    else
+        updated=$(jq -n --arg d "$dir" '[{}] | '"$filter") || return 0
+    fi
+
+    # Write a copy beside the file and rename it into place, so a failed
+    # write never leaves a cut-off ~/.claude.json. The copy starts as cp -p
+    # of the original, so it keeps the owner and permissions; a new file is
+    # mktemp's 600. A symlink is followed, so the link itself is kept.
+    target=$(readlink -f "$config_file" 2>/dev/null) || target="$config_file"
+    if ! tmp=$(mktemp "${target}.XXXXXX" 2>/dev/null); then
+        bashio::log.warning "Could not mark ${dir} as trusted in ${config_file}"
+        return 0
+    fi
+    if { [ ! -e "$target" ] || cp -p "$target" "$tmp"; } &&
+        printf '%s\n' "$updated" > "$tmp" && mv -f "$tmp" "$target"; then
+        bashio::log.info "Marked ${dir} as a trusted folder for Claude"
+    else
+        rm -f "$tmp"
+        bashio::log.warning "Could not mark ${dir} as trusted in ${config_file}"
+    fi
+}
+
 # Home Assistant status line (scripts/ha-statusline.sh). The add-on's
 # statusline option is a list of pieces in display order: a piece name
 # (ha-statusline --segments), --- for a new line, or an entity as sensor.x or
@@ -1163,6 +1218,7 @@ main() {
     setup_ha_plugin
     setup_session_picker
     setup_statusline
+    trust_upload_dir
     setup_persistent_packages
     check_persisted_alpine_release
     run_init_commands
