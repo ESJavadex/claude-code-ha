@@ -386,9 +386,9 @@ unset LEGACY_AUTH_SOURCES LEGACY_AUTH_MARKER
 
 # The upload folder is recorded as trusted in ~/.claude.json, so Claude
 # 2.1.327+ doesn't ask about --add-dir /data/uploads at every start
-trust_cfg="$tmp_dir/trust/.claude.json"
-mkdir -p "$tmp_dir/trust"
-export CLAUDE_GLOBAL_CONFIG="$trust_cfg" UPLOAD_TRUST_DIR=/data/uploads
+HOME="$tmp_dir/trust"
+trust_cfg="$HOME/.claude.json"
+mkdir -p "$HOME"
 trust_upload_dir
 [ "$(jq -r '.projects["/data/uploads"].hasTrustDialogAccepted' "$trust_cfg")" = true ] || \
     fail "a missing ~/.claude.json should be created with the upload folder trusted"
@@ -420,6 +420,13 @@ printf '{"projects": {broken' > "$trust_cfg"
 trust_upload_dir
 [ "$(cat "$trust_cfg")" = '{"projects": {broken' ] || fail "an unreadable ~/.claude.json must never be rewritten"
 
+for invalid_config in '   ' 'null' '{} {}'; do
+    builtin printf '%s\n' "$invalid_config" > "$trust_cfg"
+    before=$(cat "$trust_cfg")
+    trust_upload_dir
+    [ "$(cat "$trust_cfg")" = "$before" ] || fail "trust requires exactly one JSON object"
+done
+
 # An explicit false is a choice made in Claude, and is kept
 printf '%s\n' '{"projects": {"/data/uploads": {"hasTrustDialogAccepted": false, "allowedTools": []}}}' > "$trust_cfg"
 before=$(cat "$trust_cfg")
@@ -446,7 +453,6 @@ trust_upload_dir
 [ -L "$trust_cfg" ] || fail "a symlinked ~/.claude.json must stay a symlink"
 [ "$(jq -r '.projects["/data/uploads"].hasTrustDialogAccepted' "$tmp_dir/trust/real.json")" = true ] || \
     fail "the file a symlinked ~/.claude.json points to should be updated"
-unset CLAUDE_GLOBAL_CONFIG UPLOAD_TRUST_DIR
 
 grep -qE '^ +trust_upload_dir$' <(sed -n '/^main() {/,/^}/p' "$repo_root/claude-terminal/run.sh") || \
     fail "main() must run trust_upload_dir"

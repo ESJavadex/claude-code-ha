@@ -662,28 +662,33 @@ setup_session_picker() {
 # also cover /data/home and the login. The image service writes uploads flat,
 # with cleaned-up, time-stamped names, so no .claude settings can appear in it.
 trust_upload_dir() {
-    local config_file="${CLAUDE_GLOBAL_CONFIG:-$HOME/.claude.json}"
-    local dir="${UPLOAD_TRUST_DIR:-/data/uploads}"
-    local filter='.projects[$d] = ((.projects[$d] // {}) + {hasTrustDialogAccepted: true})'
+    local config_file="$HOME/.claude.json"
+    local dir="/data/uploads"
+    local filter='
+        if length != 1 or (.[0] | type) != "object" then
+            error("expected one config object")
+        else .[0] end
+        | .projects[$d].hasTrustDialogAccepted as $trust
+        | if ($trust | type) == "boolean" then $trust
+          else .projects[$d].hasTrustDialogAccepted = true end
+    '
     local target tmp updated
 
     if [ -s "$config_file" ]; then
-        # Already decided: true needs nothing, and an explicit false is a
-        # choice made in Claude, which is kept
-        case "$(jq -r --arg d "$dir" '.projects[$d].hasTrustDialogAccepted | if type == "boolean" then . else "unset" end' "$config_file" 2>/dev/null)" in
+        # Never rewrite a file that is not a single config object.
+        if ! updated=$(jq -s --arg d "$dir" "$filter" "$config_file" 2>/dev/null); then
+            bashio::log.warning "Not marking ${dir} as trusted: ${config_file} could not be read as a JSON object"
+            return 0
+        fi
+        case "$updated" in
             true) return 0 ;;
             false)
                 bashio::log.info "Not marking ${dir} as trusted: ${config_file} records it as not trusted"
                 return 0
                 ;;
         esac
-        # Never rewrite a file jq can't read: Claude may restore it from a backup
-        if ! updated=$(jq --arg d "$dir" "$filter" "$config_file" 2>/dev/null); then
-            bashio::log.warning "Not marking ${dir} as trusted: ${config_file} could not be read as JSON"
-            return 0
-        fi
     else
-        updated=$(jq -n --arg d "$dir" "$filter") || return 0
+        updated=$(jq -n --arg d "$dir" '[{}] | '"$filter") || return 0
     fi
 
     # Write a copy beside the file and rename it into place, so a failed
