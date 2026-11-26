@@ -1188,12 +1188,40 @@
         const fileInput = document.getElementById('file-input');
         const dropZone = document.getElementById('drop-zone');
 
+        let statusTimer = null;
+
+        // A message fades after 5 s unless persistent. Each message replaces
+        // the last one completely: its fade timer and any tap-to-copy
+        // handler go too, so an old timer can't clear a newer message and a
+        // tap never copies a path that is no longer shown.
         function setStatus(message, type = '', persistent = false) {
+            clearTimeout(statusTimer);
             status.textContent = message;
             status.className = type;
+            status.onclick = null;
+            status.style.cursor = '';
+            status.style.userSelect = '';
             if (message && !persistent) {
-                setTimeout(() => setStatus(''), 5000);
+                statusTimer = setTimeout(() => setStatus(''), 5000);
             }
+        }
+
+        // Only when a path could not be typed at the prompt: it stays until
+        // replaced, and a tap copies it, so it can still be pasted.
+        function showCopyablePath(filePath) {
+            setStatus(`📋 ${filePath} (tap to copy)`, 'success', true);
+            status.style.cursor = 'pointer';
+            status.style.userSelect = 'text';
+            status.onclick = async () => {
+                if (await copyToClipboard(filePath)) {
+                    setStatus('✓ Copied', 'success', true);
+                    statusTimer = setTimeout(() => showCopyablePath(filePath), 2000);
+                } else {
+                    // Left selectable, so it can be copied by hand
+                    setStatus(`📋 ${filePath} (select and copy)`, 'error', true);
+                    status.style.userSelect = 'text';
+                }
+            };
         }
 
         // Files on the clipboard. A copied image, or files copied in Finder or
@@ -1246,77 +1274,9 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    const filePath = result.path;
-
-                    // Display full path persistently with click-to-copy functionality
-                    setStatus(`📋 ${filePath} (click to select)`, 'success', true);
-                    console.log('File uploaded:', filePath);
-
-                    // Make status clickable to select text (works in iframes)
-                    status.style.cursor = 'pointer';
-                    status.style.userSelect = 'text';
-
-                    status.onclick = () => {
-                        // Try modern clipboard API first
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                            navigator.clipboard.writeText(filePath)
-                                .then(() => {
-                                    const originalText = status.textContent;
-                                    setStatus('✓ Copied!', 'success', false);
-                                    setTimeout(() => {
-                                        setStatus(originalText, 'success', true);
-                                    }, 2000);
-                                })
-                                .catch(() => {
-                                    selectText();
-                                });
-                        } else {
-                            // Fallback: select the text so user can copy with Cmd+C
-                            selectText();
-                        }
-                    };
-
-                    // Insert the path at the terminal prompt
-                    autoCopyAndPaste(filePath);
-
-                    // Helper to select text (works in all contexts)
-                    function selectText() {
-                        const range = document.createRange();
-                        const selection = window.getSelection();
-
-                        // Clear any existing selection
-                        selection.removeAllRanges();
-
-                        // Create a temporary text node with just the path
-                        const tempDiv = document.createElement('div');
-                        tempDiv.style.position = 'absolute';
-                        tempDiv.style.left = '-9999px';
-                        tempDiv.textContent = result.path;
-                        document.body.appendChild(tempDiv);
-
-                        // Select the path text
-                        range.selectNodeContents(tempDiv);
-                        selection.addRange(range);
-
-                        // Try execCommand as fallback for copying
-                        try {
-                            const copied = document.execCommand('copy');
-                            if (copied) {
-                                setStatus('✓ Copied! (Cmd+C)', 'success', false);
-                            } else {
-                                setStatus('✓ Selected! Press Cmd+C to copy', 'success', false);
-                            }
-                        } catch (err) {
-                            setStatus('✓ Selected! Press Cmd+C to copy', 'success', false);
-                        }
-
-                        // Clean up and restore message
-                        setTimeout(() => {
-                            document.body.removeChild(tempDiv);
-                            selection.removeAllRanges();
-                            setStatus(`📋 ${result.path} (click to select)`, 'success', true);
-                        }, 3000);
-                    }
+                    console.log('File uploaded:', result.path);
+                    // Type the path at the prompt
+                    autoCopyAndPaste(result.path);
                 } else {
                     setStatus(result.error || 'Upload failed', 'error');
                 }
@@ -1397,13 +1357,14 @@
                 if (term && typeof term.paste === 'function') {
                     term.paste(filePath + ' ');
                     term.focus();
-                    setStatus(`📋 ${filePath} - inserted at prompt`, 'success', true);
+                    // The prompt shows the full path, so the name is enough
+                    setStatus(`📋 Inserted ${filePath.split('/').pop()}`, 'success');
                     return;
                 }
             } catch (err) {
                 console.log('Cannot reach terminal for auto-insert:', err);
             }
-            setStatus(`📋 ${filePath} (click to copy)`, 'success', true);
+            showCopyablePath(filePath);
         }
 
         // Helper to copy text to clipboard

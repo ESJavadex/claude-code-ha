@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.11
+
+### 🛠️ Improvement - Upload Message Fades
+- **The header no longer keeps the full path of the last upload**: after a paste, drop or 📎 upload, the panel typed the path at the prompt and also showed it in the header until something else replaced it. The path is already at the prompt, and on a phone the message took up half the header
+  - When the path is typed at the prompt, the header now shows `📋 Inserted <file name>` for 5 seconds, like other messages
+  - Only when the path couldn't be typed at the prompt does the full path stay, and a tap copies it
+- **Fixed: tapping the header could copy an old path**: the tap-to-copy action stayed after a later message replaced the upload message. It now goes with the message, and an earlier message's 5-second timer can no longer clear a newer one
+- New browser test (Chromium and WebKit) covering both cases
+
 ## 2.5.10
 
 ### 📚 Documentation - Running More Than One Claude

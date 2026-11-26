@@ -80,7 +80,7 @@ jobs:
           npm ci --ignore-scripts
           npx playwright install --with-deps chromium webkit
 
-      - name: Real touch taps preserve terminal input and focus
+      - name: Touch key bar and upload status message in real browsers
         working-directory: tests/browser
         run: npm test
 
