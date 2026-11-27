@@ -82,6 +82,11 @@ grep -qx "set -as terminal-features ',\*:clipboard'" "$HOME/.tmux.conf" || \
 grep -qx 'set -g focus-events on' "$HOME/.tmux.conf" || \
     fail "tmux must pass focus events through to Claude Code"
 
+# tmux keeps Claude running when the tab closes, so ttyd must not ask
+# "Reload site?" / "Leave site?" on every reload or close.
+grep -q -- '--client-option disableLeaveAlert=true' "$repo_root/claude-terminal/run.sh" || \
+    fail "ttyd must start with its leave alert turned off"
+
 # The frontend fix has to be reachable from the page that embeds ttyd.
 clipboard_bridge="$repo_root/claude-terminal/image-service/public/terminal-clipboard.js"
 terminal_page="$repo_root/claude-terminal/image-service/public/index.html"

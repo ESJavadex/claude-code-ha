@@ -1179,11 +1179,14 @@ start_web_terminal() {
     # ttyd attaches every browser connection to the persistent tmux session.
     # If Claude is running and you close the browser tab, it keeps running.
     # Reopening the tab re-attaches to the same session.
+    # So ttyd's own "leave site?" prompt on reload or close is not needed: it
+    # warns that closing ends the command, which tmux prevents.
     exec ttyd \
         --port "${port}" \
         --interface "${interface}" \
         --writable \
         --ping-interval 30 \
+        --client-option disableLeaveAlert=true \
         "${TMUX_WRAPPER_PATH:-/usr/local/bin/tmux-claude}"
 }
 
