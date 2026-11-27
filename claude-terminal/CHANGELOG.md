@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.12
+
+### 🐛 Bug Fix - No "Reload Site?" Prompt
+- **Reloading or closing the terminal tab no longer asks "Reload site? Changes that you made may not be saved"**: the prompt came from ttyd, the terminal inside the panel, which warns that leaving ends the running command. Here tmux keeps Claude and your shells running when the tab closes, and reopening it picks up where you left off, so there was nothing to lose
+- ttyd now starts with its leave alert turned off (`--client-option disableLeaveAlert=true`)
+
 ## 2.5.10
 
 ### 📚 Documentation - Running More Than One Claude
